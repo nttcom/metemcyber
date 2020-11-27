@@ -40,6 +40,8 @@ id
 
 必要なパッケージをインストールします。
 ```
+sudo apt add-apt-repository -y ppa:ethereum/ethereum
+sudo apt-get update
 sudo apt install ethereum jq curl
 ```
 
