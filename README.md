@@ -40,7 +40,9 @@ id
 
 必要なパッケージをインストールします。
 ```
-sudo apt install ethereum jq curl
+sudo apt add-apt-repository -y ppa:ethereum/ethereum
+sudo apt-get update
+sudo apt install ethereum jq curl python3-dateutil
 ```
 
 リポジトリをクローンして、metemcyberのフォルダに移動します。
