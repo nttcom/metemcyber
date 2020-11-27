@@ -1,0 +1,101 @@
+#! /bin/bash
+
+for f in metemcyber_common.sh; do
+    [ -f "${f}" ] && . "${f}"
+done
+
+function usage() {
+    cat <<EOD | sed -e "s/^  //" >&2
+  Usage: $0 <init|start|stop|kill> [ARGS]
+  ARGS:
+    noisy:      available with 'start'. outputs from ganache-cli will be shown.
+
+EOD
+    exit 255
+}
+
+## parse options.
+
+while getopts 'qh' OPT; do
+    case ${OPT} in
+    h|?) usage;;
+    esac
+done
+shift $((${OPTIND} - 1))
+
+command=$1
+## check inheritance.
+if [ -z ${ENV_FILE} ] || [ -z ${WORKSPACE} ]; then
+    echo >&2 "internal error: ENV_FILE or WORKSPACE is not inherited."
+    exit 255
+fi
+[ -f "${ENV_FILE}" ] && source "${ENV_FILE}"
+
+
+function init_ganache() {
+    cat <<EOD
+
+>>> INIT GANACHE
+if you do not have a workspace for metemcyber on your ganache, set it up now.
+
+ATTENTION:
+  - listen port should not conflict with other providers,
+    8545(besu), 58545(ganache on docker), 48545(ganache-cli).
+  - listen address should be acceptable from docker container and localhost.
+    0.0.0.0 will be good. specific ipaddress or 127.0.0.1 may not work well.
+  - 3 accounts are needed for metemcyber demo. and each should have enouth ETH.
+
+then, (over)write these params in ${ENV_FILE}.
+
+(current settings are followings)
+----
+`cat "${ENV_FILE}"`
+----
+EOD
+}
+
+function start_ganache() {
+    cat <<EOD
+
+>>> START GANACHE
+please make sure your ganache is running and workspace for metemcyber is active.
+EOD
+}
+
+function stop_ganache() {
+    cat <<EOD
+
+>>> STOP GANACHE
+now, you can stop your ganache.
+EOD
+}
+
+function cleanup_data() {
+    cat <<EOD
+
+>>> CLEANUP GANACHE DATA
+you should remove the workspace for metemcyber from your ganache.
+if you will not init again, params written in ${ENV_FILE} shold be invalidated.
+EOD
+}
+
+
+case "${command}" in
+    init)
+        cleanup_data
+        init_ganache
+        ;;
+    start)
+        start_ganache
+        ;;
+    stop)
+        stop_ganache
+        ;;
+    kill)
+        stop_ganache
+        cleanup_data
+        ;;
+    *)
+        usage
+        ;;
+esac

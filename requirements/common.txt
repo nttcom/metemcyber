@@ -1,0 +1,14 @@
+pycodestyle==2.6.0
+pylint==2.6.0
+behave==1.2.6
+pytest==6.1.1
+pytest-bdd==4.0.1
+py-solc-x==1.0.0
+web3[tester]==5.13.0
+rlp>=2.0,<2.1
+py-evm>=0.3.0a20,<0.4
+eth-tester>=0.5.0b3,<0.6
+Flask==1.1.2
+pymisp==2.4.133
+google-cloud-storage==1.32.0
+rusty-rlp

@@ -1,0 +1,7 @@
+## params around account
+
+## static params around network (out of our control)
+DOCKER_NETWORK=metemcyber-pricom
+PROVIDER_HOST=rpc.metemcyber.ntt.com
+PROVIDER_URL=https://${PROVIDER_HOST}
+PROVIDER_FROM_LOCAL=${PROVIDER_URL}
