@@ -301,10 +301,10 @@ class Player():
             getattr(self, state)()
         self.notify_observer()
 
-    def setup_inventory(self, catalog_address='', broker_address=''):
+    def setup_inventory(self, catalog_address='', broker_address='', is_private=False):
         if catalog_address == '':
             catalog_address = self.contracts.accept(CTICatalog()).\
-                new().contract_address
+                new(is_private).contract_address
             LOGGER.info('deployed CTICatalog. address: %s', catalog_address)
         if broker_address == '':
             broker_address = self.contracts.accept(CTIBroker()).\

@@ -186,7 +186,9 @@ class Controller():
             'ブローカーコントラクトアドレス', hint='新規作成')
         if broker_address is None:
             return
-        self.model.setup_inventory(catalog_address, broker_address)
+        is_private = self.view.select_yes_no_screen(
+            hint='プライベートカタログとして作成しますか？')
+        self.model.setup_inventory(catalog_address, broker_address, is_private)
         self.view.setup_broker_done(
             self.model.inventory.catalog_address,
             self.model.inventory.broker_address)

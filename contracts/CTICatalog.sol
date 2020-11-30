@@ -58,9 +58,14 @@ contract CTICatalog is ERC721 {
     string[] private _tokenList;
     mapping (string => Cti) private _ctiInfo; // tokenURI => Cti
     mapping (string => uint256) private _ctiIndex; // tokenURI => index
+    bool private _isPrivate; // true if this is private catalog
+    mapping (address => bool) private _permitUser; // address => if permit to access
 
-    constructor() ERC721("CTICatalog", "CTIC") {
+    constructor(
+        bool isPrivate
+    ) ERC721("CTICatalog", "CTIC") {
         _owner = msg.sender;
+        _isPrivate = isPrivate;
     }
 
     function getOwner() public view returns(address owner) {
@@ -227,5 +232,27 @@ contract CTICatalog is ERC721 {
             _ctiInfo[uri].likecount.current(),
             msg.sender
         );
+    }
+
+    function addPermitUser() public{
+        require(_owner == msg.sender, "not owner");
+        require(_isPrivate == true, "not private catalog");
+        require(_permitUser[msg.sender] == false, "already registered");
+        _permitUser[msg.sender] = true;
+    }
+
+    function removePermitUser() public{
+        require(_owner == msg.sender, "not owner");
+        require(_isPrivate == true, "not private catalog");
+        require(_permitUser[msg.sender] == true, "not permitted");
+        delete _permitUser[msg.sender];
+    }
+
+    function isPemitted(address buyer) public view returns(bool permitted){
+        if (_isPrivate){
+            return _permitUser[buyer];
+        } else{
+            return true;
+        }
     }
 }
