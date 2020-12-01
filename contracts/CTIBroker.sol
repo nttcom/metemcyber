@@ -104,7 +104,7 @@ contract CTIBroker is IERC777Recipient {
         address tokenAddress,
         bool allow_cheaper
     ) public payable {
-        require(CTICatalog(catalogAddress).isPemitted(msg.sender), "You can't access the catalog");
+        require(CTICatalog(catalogAddress).validatePurchase(msg.sender), "You can't access the catalog");
         CTICatalog.Cti memory cti =
             CTICatalog(catalogAddress).getCtiInfoByAddress(tokenAddress);
         uint256 paid = msg.value;
