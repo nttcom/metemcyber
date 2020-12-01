@@ -86,6 +86,8 @@ https://dashboard.ngrok.com/get-started/setup
 ngrokが起動されていることを確認し、Metemcyberのクライアントを起動します。
 このとき、先ほど作成した鍵ファイルと、ngrok画面で表示されている通信先を指定してください。
 
+デフォルトの場合、作成された鍵ファイルは`~/.etherium/keystore/`配下（Ubuntu環境）または`~/Library/Ethereum/keystore/`配下（macOS環境）にファイル名`UTC--xxxx`の形式で保存されています。
+
 ```
 ./metemcyber_ctl.sh - client -f $YOUR_KEY_FILE -w $YOUR_NGROK_URL
 ```
