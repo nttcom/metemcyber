@@ -234,21 +234,21 @@ contract CTICatalog is ERC721 {
         );
     }
 
-    function addPermitUser() public{
+    function authorizeUser() public{
         require(_owner == msg.sender, "not owner");
         require(_isPrivate == true, "not private catalog");
         require(_permitUser[msg.sender] == false, "already registered");
         _permitUser[msg.sender] = true;
     }
 
-    function removePermitUser() public{
+    function revokeUser() public{
         require(_owner == msg.sender, "not owner");
         require(_isPrivate == true, "not private catalog");
         require(_permitUser[msg.sender] == true, "not permitted");
         delete _permitUser[msg.sender];
     }
 
-    function isPemitted(address buyer) public view returns(bool permitted){
+    function validPurchase(address buyer) public view returns(bool permitted){
         if (_isPrivate){
             return _permitUser[buyer];
         } else{
