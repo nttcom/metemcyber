@@ -258,7 +258,7 @@ contract CTICatalog is ERC721 {
         delete _permitUser[msg.sender];
     }
 
-    function validPurchase(address buyer) public view returns(bool permitted){
+    function validatePurchase(address buyer) public view returns(bool permitted){
         if (_isPrivate){
             return _permitUser[buyer];
         } else{
