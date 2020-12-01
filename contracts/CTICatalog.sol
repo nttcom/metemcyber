@@ -234,6 +234,16 @@ contract CTICatalog is ERC721 {
         );
     }
 
+    function changePrivate() public{
+        require(_owner == msg.sender, "not owner");
+        _isPrivate = true;
+    }
+
+    function changePublic() public{
+        require(_owner == msg.sender, "not owner");
+        _isPrivate = false;
+    }
+
     function authorizeUser() public{
         require(_owner == msg.sender, "not owner");
         require(_isPrivate == true, "not private catalog");
