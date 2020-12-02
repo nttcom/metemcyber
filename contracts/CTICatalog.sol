@@ -59,7 +59,7 @@ contract CTICatalog is ERC721 {
     mapping (string => Cti) private _ctiInfo; // tokenURI => Cti
     mapping (string => uint256) private _ctiIndex; // tokenURI => index
     bool private _isPrivate; // true if this is private catalog
-    mapping (address => bool) private _permitUser; // address => if permit to access
+    mapping (address => bool) private _authorizedUser; // address => can access this catalog or not
 
     constructor(
         bool isPrivate
@@ -247,20 +247,20 @@ contract CTICatalog is ERC721 {
     function authorizeUser() public{
         require(_owner == msg.sender, "not owner");
         require(_isPrivate == true, "not private catalog");
-        require(_permitUser[msg.sender] == false, "already registered");
-        _permitUser[msg.sender] = true;
+        require(_authorizedUser[msg.sender] == false, "already registered");
+        _authorizedUser[msg.sender] = true;
     }
 
     function revokeUser() public{
         require(_owner == msg.sender, "not owner");
         require(_isPrivate == true, "not private catalog");
-        require(_permitUser[msg.sender] == true, "not permitted");
-        delete _permitUser[msg.sender];
+        require(_authorizedUser[msg.sender] == true, "not permitted");
+        delete _authorizedUser[msg.sender];
     }
 
     function validatePurchase(address buyer) public view returns(bool permitted){
         if (_isPrivate){
-            return _permitUser[buyer];
+            return _authorizedUser[buyer];
         } else{
             return true;
         }
