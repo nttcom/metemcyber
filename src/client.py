@@ -419,6 +419,45 @@ class Controller():
         self.model.inventory.restore_disseminate(
             self.model.account_id, callback, view=self.view)
 
+    def catalog_settings(self):
+        if not self.model.inventory:
+            self.view.missing_screen('インベントリ')
+            return
+        if not self.model.inventory.is_catalog_owner:
+            self.view.vio.print('カタログのオーナーではありません')
+            return
+        
+        settings = self.view.select_catalog_settings_screen()
+        if not settings:
+            return
+        if settings == 'private':
+            self.model.inventory.set_private()
+        elif settings == 'public':
+            self.model.inventory.set_public()
+
+    def authorize_user(self):
+        if not self.model.inventory:
+            self.view.missing_screen('インベントリ')
+            return
+        if not self.model.inventory.is_catalog_owner:
+            self.view.vio.print('カタログのオーナーではありません')
+            return
+        
+        act = self.view.select_authorize_act_screen()
+        if act == 'authorize':
+            address = self.view.input_address_screen()
+            self.model.inventory.authorize_user(address)
+            return
+        elif act == 'revoke':
+            address = self.view.input_address_screen()
+            self.model.inventory.revoke_user(address)
+            return
+        elif act == 'show':
+            address_list = self.model.inventory.show_authorized_users()
+            self.view.vio.print('アドレスリスト:')
+            for address in address_list:
+                self.view.vio.print(address)
+            return
 
 def decode_keyfile(filename):
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile

@@ -179,6 +179,8 @@ class SimpleCUI():
                 (904, 'like', 'CTIトークンのLike'),
                 (905, 'init_like_users', 'Liked情報の初期化'),
                 (906, 'restore_disseminate', 'disseminate link再構成'),
+                (907, 'catalog_settings', 'カタログのプライベート/パブリックの設定'),
+                (908, 'authorize_user', 'ユーザのプライベートカタログへのアクセス許可'),
                 ])
         for num, state, hint in menu:
             self.menu[num] = {'state': state, 'hint': hint}
@@ -750,3 +752,22 @@ class SimpleCUI():
         if confirm not in {'y', 'Y'}:
             return False
         return True
+
+    def select_catalog_settings_screen(self):
+        current_state = "プライベート " if self.model.inventory.is_catalog_private() else "パブリック" 
+        self.vio.print('現在の状態: {}'.format(current_state))
+        self.vio.print('設定内容を選択してください')
+        items = dict()
+        items[0] = {'state': None, 'hint': 'キャンセル'}
+        items[1] = {'state': 'private', 'hint': 'カタログをプライベートに設定'}
+        items[2] = {'state': 'public', 'hint': 'カタログをパブリックに設定'}
+        return self.number_selector(items)
+
+    def select_authorize_act_screen(self):
+        self.vio.print('操作内容を選択してください')
+        items = dict()
+        items[0] = {'state': None, 'hint': 'キャンセル'}
+        items[1] = {'state': 'authorize', 'hint': 'アクセスを許可するユーザの追加'}
+        items[2] = {'state': 'revoke', 'hint': 'ユーザのアクセス許可の取り消し'}
+        items[3] = {'state': 'show', 'hint': '現在のユーザリスト'}
+        return self.number_selector(items)

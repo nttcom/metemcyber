@@ -49,6 +49,10 @@ class Inventory:
         return self.catalog.catalog_tokens if self.catalog else dict()
 
     @property
+    def is_catalog_owner(self):
+        return self.catalog.is_owner
+
+    @property
     def like_users(self):
         return self.catalog.like_users if self.catalog else dict()
 
@@ -170,6 +174,29 @@ class Inventory:
             self.catalog.catalog_address, token_address, price, allow_cheaper)
         self.catalog.update_balanceof_myself(token_address)
 
+    def is_catalog_private(self):
+        assert self.catalog
+        return self.catalog.is_private
+
+    def set_private(self):
+        assert self.catalog
+        self.catalog.set_private()
+
+    def set_public(self):
+        assert self.catalog
+        self.catalog.set_public()
+
+    def authorize_user(self, eoa_address):
+        assert self.catalog
+        self.catalog.authorize_user(eoa_address)
+
+    def revoke_user(self, eoa_address):
+        assert self.catalog
+        self.catalog.revoke_user(eoa_address)
+
+    def show_authorized_users(self):
+        assert self.catalog
+        return self.catalog.show_authorized_users()
 
 class Catalog:
     def __init__(
@@ -179,6 +206,7 @@ class Catalog:
         self.cticatalog = contracts.accept(CTICatalog()).get(catalog_address)
         self.catalog_owner = self.cticatalog.get_owner()
         self.catalog_user = catalog_user
+        self.is_owner = True if self.catalog_owner == self.catalog_user else False
 
         event_filter = self.cticatalog.event_filter(
             'CtiInfo', fromBlock='latest')
@@ -193,6 +221,11 @@ class Catalog:
 
         self.init_catalog()
         self.init_like_users(search_blocks=172800)
+
+    @property
+    def is_private(self):
+        # カタログがプライベートかを確認する
+        return self.cticatalog.is_private()
 
     def destroy(self):
         LOGGER.info('Catalog: destructing %s', self.catalog_address)
@@ -337,6 +370,31 @@ class Catalog:
 
     def like_cti(self, token_address):
         self.cticatalog.like_cti(token_address)
+
+    def set_private(self):
+         # カタログオーナーのみ実施可能 カタログをプライベートにする
+        assert self.is_owner
+        self.cticatalog.set_private()
+
+    def set_public(self):
+         # カタログオーナーのみ実施可能 カタログをパブリックにする
+        assert self.is_owner
+        self.cticatalog.set_public()  
+
+    def authorize_user(self, eoa_address):
+        # カタログオーナーのみ実施可能 指定ユーザをカタログから購買可能にする
+        assert self.is_owner
+        self.cticatalog.authorize_user(eoa_address)
+
+    def revoke_user(self, eoa_address):
+        # カタログオーナーのみ実施可能 指定したユーザの購買許可を取り消す
+        assert self.is_owner
+        self.cticatalog.revoke_user(eoa_address)
+
+    def show_authorized_users(self):
+        # カタログオーナーのみ実施可能 指定したユーザの購買許可を取り消す
+        assert self.is_owner
+        return self.cticatalog.show_authorized_users()
 
 
 class Broker:
