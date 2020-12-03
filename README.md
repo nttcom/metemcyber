@@ -107,6 +107,8 @@ ngrokが起動されていることを確認し、Metemcyberのクライアン�
 
 **🎉🎉🎉Metemcyberへようこそ！🎉🎉🎉**
 
+CTIの収集や配布に関する詳細な操作は、[Metemcyber User Documentation](https://docs.google.com/document/d/1RL_0hDulTSuogskajhyv--eHGTsOiO6g2WLE4nTned4/edit?usp=sharing) をご覧ください。
+
 ### Metemcyberの終了
 メニュー画面で 0 を入力するか、Ctrl-C を入力します。
 
