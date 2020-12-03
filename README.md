@@ -8,7 +8,7 @@ Decentralized Cyber Threat Intelligence Refinement Framework.
 
 ## [実証実験の参加はこちらから](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)
 
-現在、[実証実験](https://www.ntt.com/about-us/press-releases/news/article/2020/1006_2.html)へのご参加には、[こちらのフォーム](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)から利用規約に同意していただく必要があります。
+現在開催中の[実証実験](https://www.ntt.com/about-us/press-releases/news/article/2020/1006_2.html)へのご参加には、[こちらのフォーム](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)から利用規約に同意していただく必要があります。
 
 利用規約に同意していただくことで、以下の情報へのアクセスが可能となります。
 
