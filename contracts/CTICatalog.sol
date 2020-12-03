@@ -58,17 +58,18 @@ contract CTICatalog is ERC721 {
     string[] private _tokenList;
     mapping (string => Cti) private _ctiInfo; // tokenURI => Cti
     mapping (string => uint256) private _ctiIndex; // tokenURI => index
-    bool private _isPrivate; // true if this is private catalog
+    bool public isPrivate; // true if this is private catalog
     mapping (address => bool) private _authorizedUser; // address => can access this catalog or not
+    address[] private _authorizedUserList;
 
     constructor(
-        bool isPrivate
+        bool privateCatalog
     ) ERC721("CTICatalog", "CTIC") {
         _owner = msg.sender;
-        _isPrivate = isPrivate;
+        isPrivate = privateCatalog;
     }
 
-    function getOwner() public view returns(address owner) {
+    function getOwner() public view returns(address) {
         assert(_owner != address(0));
         return _owner;
     }
@@ -234,35 +235,43 @@ contract CTICatalog is ERC721 {
         );
     }
 
-    function changePrivate() public{
+    function setPrivate() public{
         require(_owner == msg.sender, "not owner");
-        _isPrivate = true;
+        isPrivate = true;
     }
 
-    function changePublic() public{
+    function setPublic() public{
         require(_owner == msg.sender, "not owner");
-        _isPrivate = false;
+        isPrivate = false;
     }
 
-    function authorizeUser() public{
+    function authorizeUser(address user) public{
         require(_owner == msg.sender, "not owner");
-        require(_isPrivate == true, "not private catalog");
-        require(_authorizedUser[msg.sender] == false, "already registered");
-        _authorizedUser[msg.sender] = true;
+        require(isPrivate == true, "not private catalog");
+        require(_authorizedUser[user] == false, "already registered");
+        _authorizedUser[user] = true;
+        _authorizedUserList.push(user);
     }
 
-    function revokeUser() public{
+    function revokeUser(address user) public{
         require(_owner == msg.sender, "not owner");
-        require(_isPrivate == true, "not private catalog");
-        require(_authorizedUser[msg.sender] == true, "not permitted");
-        delete _authorizedUser[msg.sender];
+        require(isPrivate == true, "not private catalog");
+        require(_authorizedUser[user] == true, "not permitted");
+        delete _authorizedUser[user];
+        //delete _authorizedUserList[user];
     }
 
-    function validatePurchase(address buyer) public view returns(bool permitted){
-        if (_isPrivate){
+    function validatePurchase(address buyer) public view returns(bool){
+        //require(_owner == msg.sender, "not owner");
+        if (isPrivate){
             return _authorizedUser[buyer];
         } else{
             return true;
         }
+    }
+
+    function showAuthorizedUsers() public view returns(address[] memory){
+        require(_owner == msg.sender, "not owner");
+        return _authorizedUserList;
     }
 }
