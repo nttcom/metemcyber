@@ -4,6 +4,19 @@ Decentralized Cyber Threat Intelligence Refinement Framework.
 
 [Metemcyber User Documentation](https://docs.google.com/document/d/1RL_0hDulTSuogskajhyv--eHGTsOiO6g2WLE4nTned4/edit?usp=sharing)
 
+![A Metemcyber Screenshot](screenshot.png)
+
+## [実証実験の参加はこちらから](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)
+
+現在、[実証実験](https://www.ntt.com/about-us/press-releases/news/article/2020/1006_2.html)へのご参加には、[こちらのフォーム](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)から利用規約に同意していただく必要があります。
+
+利用規約に同意していただくことで、以下の情報へのアクセスが可能となります。
+
+ - アクセストークン
+ - Metemcyber コミュニティ(Slack ワークスペース)への参加
+
+ご利用のユーザアカウントへの入金は、該当ワークスペースの`#okawari`チャンネルをご利用ください。
+
 ## Overview
 
 - Cyber Threat Intelligence (MISP Objects) のプログラマブルな流通・共有
