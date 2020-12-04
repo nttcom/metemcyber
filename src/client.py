@@ -449,8 +449,10 @@ class Controller():
             self.model.inventory.authorize_user(address)
             return
         elif act == 'revoke':
-            address = self.view.input_address_screen()
-            self.model.inventory.revoke_user(address)
+            address_list = self.model.inventory.show_authorized_users()
+            address = self.view.revoke_user_selector(address_list)
+            if address:
+                self.model.inventory.revoke_user(address)
             return
         elif act == 'show':
             address_list = self.model.inventory.show_authorized_users()

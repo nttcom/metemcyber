@@ -771,3 +771,39 @@ class SimpleCUI():
         items[2] = {'state': 'revoke', 'hint': 'ユーザのアクセス許可の取り消し'}
         items[3] = {'state': 'show', 'hint': '現在のユーザリスト'}
         return self.number_selector(items)
+
+    def _revoke_user_list(self, address_list):
+        for index, address in enumerate(address_list):
+            self.vio.pager_print("{}: {}".format(index, address))
+
+    def _revoke_user_input(self, address_list):
+        self.vio.print('操作内容を選択してください')
+
+        if len(address_list) > 0:
+            self.vio.pager_print('[ ]インデックスを入力して選択する')
+        else:
+            self.vio.pager_print('選択できるアイテムがありません')
+        while True:
+            command = self.vio.input().strip()
+
+            if command == 'b':
+                return ('back', None)
+            try:
+                index = int(command)
+                if index < len(address_list):
+                    return ('select', address_list[index])
+            except:
+                pass
+            self.vio.print('入力値が不正です')
+
+    def revoke_user_selector(self, address_list):
+        self.vio.pager_print("不許可とするユーザを選択してください")
+        while True:
+            self.vio.pager_reset()
+            self._revoke_user_list(address_list)
+            act, target = self._revoke_user_input(address_list)
+            if act == 'select':
+                return target
+            if act == 'back':
+                return None
+            return None

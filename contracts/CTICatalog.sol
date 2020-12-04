@@ -59,7 +59,7 @@ contract CTICatalog is ERC721 {
     mapping (string => Cti) private _ctiInfo; // tokenURI => Cti
     mapping (string => uint256) private _ctiIndex; // tokenURI => index
     bool public isPrivate; // true if this is private catalog
-    mapping (address => bool) private _authorizedUser; // address => can access this catalog or not
+    mapping (address => uint256) private _authorizedUser; // address => index of _authorizedUserList (1 origin)
     address[] private _authorizedUserList;
 
     constructor(
@@ -248,23 +248,46 @@ contract CTICatalog is ERC721 {
     function authorizeUser(address user) public{
         require(_owner == msg.sender, "not owner");
         require(isPrivate == true, "not private catalog");
-        require(_authorizedUser[user] == false, "already registered");
-        _authorizedUser[user] = true;
-        _authorizedUserList.push(user);
+        require(_authorizedUser[user] == 0, "already registered");
+        _authorizedUser[user] = _authorizedUserList.length;
+        uint i = 0;
+        for (i = 0; i < _authorizedUserList.length; i++) {
+            if (_authorizedUserList[i] == address(0)) {
+                _authorizedUserList[i] = user;
+                _authorizedUser[user] = i + 1; //1 origin
+                break;
+            }
+        }
+        if (i == _authorizedUserList.length)
+            _authorizedUserList.push(user);
+            _authorizedUser[user] = i + 1; //1 origin
     }
 
     function revokeUser(address user) public{
         require(_owner == msg.sender, "not owner");
         require(isPrivate == true, "not private catalog");
-        require(_authorizedUser[user] == true, "not permitted");
+        require(_authorizedUser[user] == 1, "not permitted");
+        uint index = _authorizedUser[user];
         delete _authorizedUser[user];
+        delete _authorizedUserList[index];
         //delete _authorizedUserList[user];
+        //for (uint i = 0; i < _authorizedUserList.length; i++) {
+        //    if (_authorizedUserList[i] == user) {
+        //        delete _authorizedUserList[i];
+        //        delete _authorizedUser[user];
+        //        break;
+        //    }
+        //}
     }
 
     function validatePurchase(address buyer) public view returns(bool){
         //require(_owner == msg.sender, "not owner");
         if (isPrivate){
-            return _authorizedUser[buyer];
+            if (_authorizedUser[buyer] == 0){
+                return false;
+            }else{
+                return true;
+            }
         } else{
             return true;
         }

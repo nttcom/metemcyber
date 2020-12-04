@@ -444,7 +444,7 @@ function launch_demo_tmux() {
 
     tmux send-keys -t ${tgt}.0 "./${PROGNAME} ${PROVIDER} client alice -d -g" C-m
     tmux send-keys -t ${tgt}.1 "./${PROGNAME} ${PROVIDER} client bob -g" C-m
-    tmux send-keys -t ${tgt}.2 "./${PROGNAME} ${PROVIDER} client carol -v -g" C-m
+    tmux send-keys -t ${tgt}.2 "./${PROGNAME} ${PROVIDER} client carol -d -v -g" C-m
     #tmux send-keys -t name.3 'source venv/bin/activate && python exchange_operator.py 3' C-m
     ## wait carol and launch fileserver on carol.
     eoa=`_name_to_eoa carol`
