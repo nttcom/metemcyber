@@ -16,6 +16,7 @@
 
 import logging
 import time
+from ens.constants import EMPTY_ADDR_HEX
 from ctibroker import CTIBroker
 from cticatalog import CTICatalog
 from ctitoken import CTIToken
@@ -394,7 +395,10 @@ class Catalog:
     def show_authorized_users(self):
         # カタログオーナーのみ実施可能 指定したユーザの購買許可を取り消す
         assert self.is_owner
-        return self.cticatalog.show_authorized_users()
+        authorized_users = self.cticatalog.show_authorized_users()
+        authorized_actual_users = [address for address in authorized_users
+                                   if address != EMPTY_ADDR_HEX]
+        return authorized_actual_users
 
 
 class Broker:
