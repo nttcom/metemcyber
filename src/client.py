@@ -458,7 +458,8 @@ class Controller():
             address_list = self.model.inventory.show_authorized_users()
             self.view.vio.print('アドレスリスト:')
             for address in address_list:
-                self.view.vio.print(address)
+                if address != '0x0000000000000000000000000000000000000000':
+                    self.view.vio.print(address)
             return
 
 def decode_keyfile(filename):

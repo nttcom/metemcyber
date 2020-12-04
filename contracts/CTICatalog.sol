@@ -266,18 +266,11 @@ contract CTICatalog is ERC721 {
     function revokeUser(address user) public{
         require(_owner == msg.sender, "not owner");
         require(isPrivate == true, "not private catalog");
-        require(_authorizedUser[user] == 1, "not permitted");
-        uint index = _authorizedUser[user];
+        require(_authorizedUser[user] >= 1, "not permitted");
+        // _authorizedUser is 1 orign
+        uint256 index = _authorizedUser[user] - 1;
+        _authorizedUserList[index] = address(0);
         delete _authorizedUser[user];
-        delete _authorizedUserList[index];
-        //delete _authorizedUserList[user];
-        //for (uint i = 0; i < _authorizedUserList.length; i++) {
-        //    if (_authorizedUserList[i] == user) {
-        //        delete _authorizedUserList[i];
-        //        delete _authorizedUser[user];
-        //        break;
-        //    }
-        //}
     }
 
     function validatePurchase(address buyer) public view returns(bool){
