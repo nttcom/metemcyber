@@ -100,3 +100,47 @@ class CTICatalog(ContractVisitor):
         # filterに合致するeventの取得
         event_logs = event_filter.get_all_entries()
         return event_logs
+
+    def is_private(self):
+        func = self.contract.functions.isPrivate()
+        return func.call()
+
+    def set_private(self):
+        func = self.contract.functions.setPrivate()
+        tx_hash = func.transact()
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('authorizeUser', tx_receipt)
+        if tx_receipt['status'] != 1:
+            LOGGER.error('authorizeUser: transaction failed')
+            raise Exception('Transaction failed: authorizeUser')    
+
+    def set_public(self):
+        func = self.contract.functions.setPublic()
+        tx_hash = func.transact()
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('authorizeUser', tx_receipt)
+        if tx_receipt['status'] != 1:
+            LOGGER.error('authorizeUser: transaction failed')
+            raise Exception('Transaction failed: authorizeUser')
+
+    def authorize_user(self, eoa_address):
+        func = self.contract.functions.authorizeUser(eoa_address)
+        tx_hash = func.transact()
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('authorizeUser', tx_receipt)
+        if tx_receipt['status'] != 1:
+            LOGGER.error('authorizeUser: transaction failed')
+            raise Exception('Transaction failed: authorizeUser')
+
+    def revoke_user(self, eoa_address):
+        func = self.contract.functions.revokeUser(eoa_address)
+        tx_hash = func.transact()
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('revokeUser', tx_receipt)
+        if tx_receipt['status'] != 1:
+            LOGGER.error('revokeUser: transaction failed')
+            raise Exception('Transaction failed: revokeUser')
+
+    def show_authorized_users(self):
+        func = self.contract.functions.showAuthorizedUsers()
+        return func.call()

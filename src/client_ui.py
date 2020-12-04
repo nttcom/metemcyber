@@ -179,6 +179,8 @@ class SimpleCUI():
                 (904, 'like', 'CTIトークンのLike'),
                 (905, 'init_like_users', 'Liked情報の初期化'),
                 (906, 'restore_disseminate', 'disseminate link再構成'),
+                (907, 'catalog_settings', 'カタログのプライベート/パブリックの設定'),
+                (908, 'authorize_user', 'ユーザのプライベートカタログへのアクセス許可'),
                 ])
         for num, state, hint in menu:
             self.menu[num] = {'state': state, 'hint': hint}
@@ -750,3 +752,59 @@ class SimpleCUI():
         if confirm not in {'y', 'Y'}:
             return False
         return True
+
+    def select_catalog_settings_screen(self):
+        current_state = "プライベート " if self.model.inventory.is_catalog_private() else "パブリック" 
+        self.vio.print('現在の状態: {}'.format(current_state))
+        self.vio.print('設定内容を選択してください')
+        items = dict()
+        items[0] = {'state': None, 'hint': 'キャンセル'}
+        items[1] = {'state': 'private', 'hint': 'カタログをプライベートに設定'}
+        items[2] = {'state': 'public', 'hint': 'カタログをパブリックに設定'}
+        return self.number_selector(items)
+
+    def select_authorize_act_screen(self):
+        self.vio.print('操作内容を選択してください')
+        items = dict()
+        items[0] = {'state': None, 'hint': 'キャンセル'}
+        items[1] = {'state': 'authorize', 'hint': 'アクセスを許可するユーザの追加'}
+        items[2] = {'state': 'revoke', 'hint': 'ユーザのアクセス許可の取り消し'}
+        items[3] = {'state': 'show', 'hint': '現在のユーザリスト'}
+        return self.number_selector(items)
+
+    def _revoke_user_list(self, address_list):
+        for index, address in enumerate(address_list):
+            self.vio.pager_print("{}: {}".format(index, address))
+
+    def _revoke_user_input(self, address_list):
+        self.vio.print('操作内容を選択してください')
+
+        if len(address_list) > 0:
+            self.vio.pager_print('[ ]インデックスを入力して選択する')
+        else:
+            self.vio.pager_print('選択できるアイテムがありません')
+        self.vio.pager_print('[b]メニューに戻る')
+        while True:
+            command = self.vio.input().strip()
+
+            if command == 'b':
+                return ('back', None)
+            try:
+                index = int(command)
+                if index < len(address_list):
+                    return ('select', address_list[index])
+            except:
+                pass
+            self.vio.print('入力値が不正です')
+
+    def revoke_user_selector(self, address_list):
+        self.vio.pager_print("不許可とするユーザを選択してください")
+        while True:
+            self.vio.pager_reset()
+            self._revoke_user_list(address_list)
+            act, target = self._revoke_user_input(address_list)
+            if act == 'select':
+                return target
+            if act == 'back':
+                return None
+            return None

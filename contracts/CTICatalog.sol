@@ -58,12 +58,18 @@ contract CTICatalog is ERC721 {
     string[] private _tokenList;
     mapping (string => Cti) private _ctiInfo; // tokenURI => Cti
     mapping (string => uint256) private _ctiIndex; // tokenURI => index
+    bool public isPrivate; // true if this is private catalog
+    mapping (address => uint256) private _authorizedUser; // address => index of _authorizedUserList (1 origin)
+    address[] private _authorizedUserList;
 
-    constructor() ERC721("CTICatalog", "CTIC") {
+    constructor(
+        bool privateCatalog
+    ) ERC721("CTICatalog", "CTIC") {
         _owner = msg.sender;
+        isPrivate = privateCatalog;
     }
 
-    function getOwner() public view returns(address owner) {
+    function getOwner() public view returns(address) {
         assert(_owner != address(0));
         return _owner;
     }
@@ -227,5 +233,61 @@ contract CTICatalog is ERC721 {
             _ctiInfo[uri].likecount.current(),
             msg.sender
         );
+    }
+
+    function setPrivate() public{
+        require(_owner == msg.sender, "not owner");
+        isPrivate = true;
+    }
+
+    function setPublic() public{
+        require(_owner == msg.sender, "not owner");
+        isPrivate = false;
+    }
+
+    function authorizeUser(address user) public{
+        require(_owner == msg.sender, "not owner");
+        require(isPrivate == true, "not private catalog");
+        require(_authorizedUser[user] == 0, "already registered");
+        _authorizedUser[user] = _authorizedUserList.length;
+        uint i = 0;
+        for (i = 0; i < _authorizedUserList.length; i++) {
+            if (_authorizedUserList[i] == address(0)) {
+                _authorizedUserList[i] = user;
+                _authorizedUser[user] = i + 1; //1 origin
+                break;
+            }
+        }
+        if (i == _authorizedUserList.length)
+            _authorizedUserList.push(user);
+            _authorizedUser[user] = i + 1; //1 origin
+    }
+
+    function revokeUser(address user) public{
+        require(_owner == msg.sender, "not owner");
+        require(isPrivate == true, "not private catalog");
+        require(_authorizedUser[user] >= 1, "not permitted");
+        // _authorizedUser is 1 orign
+        uint256 index = _authorizedUser[user] - 1;
+        _authorizedUserList[index] = address(0);
+        delete _authorizedUser[user];
+    }
+
+    function validatePurchase(address buyer) public view returns(bool){
+        //require(_owner == msg.sender, "not owner");
+        if (isPrivate){
+            if (_authorizedUser[buyer] == 0){
+                return false;
+            }else{
+                return true;
+            }
+        } else{
+            return true;
+        }
+    }
+
+    function showAuthorizedUsers() public view returns(address[] memory){
+        require(_owner == msg.sender, "not owner");
+        return _authorizedUserList;
     }
 }
