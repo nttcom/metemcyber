@@ -451,7 +451,9 @@ class Controller():
             return
         elif act == 'revoke':
             address_list = self.model.inventory.show_authorized_users()
-            address = self.view.revoke_user_selector(address_list)
+            address_print_list = [address for address in address_list
+                                  if address != EMPTY_ADDR_HEX]
+            address = self.view.revoke_user_selector(address_print_list)
             if address:
                 self.model.inventory.revoke_user(address)
             return
