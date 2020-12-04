@@ -26,6 +26,7 @@ from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 from web3.providers.rpc import HTTPProvider
 from web3.auto import w3
+from ens.constants import EMPTY_ADDR_HEX
 from eth_tester import PyEVMBackend, EthereumTester
 from webhook import WebhookReceiver
 
@@ -458,7 +459,7 @@ class Controller():
             address_list = self.model.inventory.show_authorized_users()
             self.view.vio.print('アドレスリスト:')
             for address in address_list:
-                if address != '0x0000000000000000000000000000000000000000':
+                if address != EMPTY_ADDR_HEX:
                     self.view.vio.print(address)
             return
 
