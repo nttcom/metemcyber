@@ -783,6 +783,7 @@ class SimpleCUI():
             self.vio.pager_print('[ ]インデックスを入力して選択する')
         else:
             self.vio.pager_print('選択できるアイテムがありません')
+        self.vio.pager_print('[b]メニューに戻る')
         while True:
             command = self.vio.input().strip()
 
