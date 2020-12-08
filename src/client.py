@@ -27,6 +27,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 from web3.providers.rpc import HTTPProvider
 from web3.auto import w3
 from eth_tester import PyEVMBackend, EthereumTester
+from requests.exceptions import HTTPError
 from webhook import WebhookReceiver
 
 from client_model import Player
@@ -502,6 +503,19 @@ def login(input_user_name, input_private_key):
             my_private_key = input_private_key
     return my_account_id, my_private_key
 
+def handle_httperror(err):
+    LOGGER.error(err)
+    errmsg = str(err)
+    if errmsg.startswith('400 Client Error: Bad Request for url: '):
+        print('処理に失敗しました。EoAアドレスが正しく、'
+            'また操作に十分なETHERを保有していることを、'
+            'メニューの "[1]:アカウント・保有トークン情報" で'
+            '確認してください。')
+    else:
+        print('処理中にHTTP通信エラーが発生しました。'
+            'ネットワーク環境に問題がないことを確認してください。')
+    print('エラーが解決できない場合は開発者にご連絡ください。')
+
 def main(args):
     # logging.WARNING=30
     level = logging.WARNING - args.verbose * 10
@@ -556,12 +570,16 @@ def main(args):
             controller.menu(args.command)
         except EOFError:
             pass
+        except HTTPError as err:
+            handle_httperror(err)
         signal.raise_signal(signal.SIGINT)
     while True:
         try:
             controller.menu()
         except EOFError:
             continue  # keep on going
+        except HTTPError as err:
+            handle_httperror(err)
 
 
 OPTIONS = [
