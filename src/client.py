@@ -27,6 +27,7 @@ from web3.providers.eth_tester import EthereumTesterProvider
 from web3.providers.rpc import HTTPProvider
 from web3.auto import w3
 from eth_tester import PyEVMBackend, EthereumTester
+from requests.exceptions import HTTPError
 from webhook import WebhookReceiver
 
 from client_model import Player
@@ -129,12 +130,28 @@ class Controller():
         if self.state == 'exit':
             signal.raise_signal(signal.SIGINT)
 
-        self.model.state = self.state
+        try:
+            self.model.state = self.state
 
-        if hasattr(self, self.state):
-            getattr(self, self.state)()
-        elif self.state not in {None, 'initialize', 'exit', 'account_info'}:
-            LOGGER.warning('cannot find attr for state: %s', self.state)
+            if hasattr(self, self.state):
+                getattr(self, self.state)()
+            elif self.state not in {
+                    None, 'initialize', 'exit', 'account_info'}:
+                LOGGER.warning('cannot find attr for state: %s', self.state)
+        except HTTPError as err:
+            self.httperror_handler(err)
+
+    def httperror_handler(self, err):
+        LOGGER.error(err)
+        errmsg = str(err)
+        if errmsg.startswith('400 Client Error: Bad Request for url: '):
+            self.view.vio.print(
+                'Operation failed. Make sure the EOA address and private '
+                'key pair is correct and you have enough Ether to operate. '
+                'You can check your Ether balance from the menu [1].')
+        else:
+            self.view.vio.print(
+                'HTTP error occurred. Check the network conditions.')
 
     def exit_handler(self, _signum, __):
         LOGGER.info('exiting process')
