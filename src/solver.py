@@ -79,6 +79,9 @@ class BaseSolver:
     def notify_first_accept(self, view):
         pass
 
+    def accepting_tokens(self):
+        return self.listener.list_accepting() if self.listener else []
+
     def accept_challenges(self, token_addresses, view=None):
         LOGGER.info('BaseSolver: accept: %s', token_addresses)
         if len(token_addresses) == 0:

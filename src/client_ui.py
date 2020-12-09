@@ -286,9 +286,16 @@ class SimpleCUI():
                     self.display_assets.append((address, asset))
             except:
                 continue
+        if len(self.display_assets) == 0:
+            return
 
-        # Ctiごとのlike情報を取得
+        self.vio.pager_print(
+            '+++   liked by you, liked by someone, liked by trusted user\n'
+            '   *  accepting challenge as a solver')
+        # Ctiごとのlike, accept情報を取得
         like_users = self.model.get_like_users()
+        accepting = self.model.solver.accepting_tokens() \
+            if self.model.solver else []
         for address, asset in self.display_assets:
             liked_prefix = '   '
             if address in like_users.keys():
@@ -307,7 +314,9 @@ class SimpleCUI():
                     ('+' if liked_someone else ' ') + \
                     ('+' if liked_trusted else ' ')
             id_prefix = '{}:'.format(asset['tokenId'])
-            self.vio.pager_print(liked_prefix, id_prefix, asset['title'])
+            accept_mrk = '*' if address in accepting else ' '
+            self.vio.pager_print(
+                liked_prefix + accept_mrk + id_prefix, asset['title'])
             self.vio.pager_print(
                 '   ', ' ', '├', 'Addr :', address)
             self.vio.pager_print(
