@@ -102,7 +102,9 @@ def main(args):
             event_dict = json.loads(open(args.insertpath).read())
             insert_json(client, event_dict)
     else:
-        qname, qargs = re.split(r'\s+', args.query, 1)
+        query = re.split(r'\s+', args.query)
+        qname = query[0]
+        qargs = query[1:]
         indent = 2 if args.pretty else None
 
         result = {}
