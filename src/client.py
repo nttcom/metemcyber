@@ -51,6 +51,14 @@ GAS_LOGGING_FILEPATH_FORMAT = './workspace/gasUsed.{user}.log'
 GASLOG = logging.getLogger('gaslog')
 LOGGER = logging.getLogger('common')
 
+GENERIC_CAUTION = \
+    'Make sure the EOA address and private key pair is correct ' \
+    'and you have enough Ether to operate. ' \
+    'You can check your Ether balance from the menu [1].'
+PRIVATE_CATALOG_CAUTION = \
+    'To buy tokens from private catalog, make sure you ' \
+    'have been authorized by the catalog owner.'
+
 
 class FileViewerIO(ViewerIO):
     def __init__(self, input_file=None, output_file=None):
@@ -139,19 +147,17 @@ class Controller():
                     None, 'initialize', 'exit', 'account_info'}:
                 LOGGER.warning('cannot find attr for state: %s', self.state)
         except HTTPError as err:
-            self.httperror_handler(err)
-
-    def httperror_handler(self, err):
-        LOGGER.error(err)
-        errmsg = str(err)
-        if errmsg.startswith('400 Client Error: Bad Request for url: '):
-            self.view.vio.print(
-                'Operation failed. Make sure the EOA address and private '
-                'key pair is correct and you have enough Ether to operate. '
-                'You can check your Ether balance from the menu [1].')
-        else:
-            self.view.vio.print(
-                'HTTP error occurred. Check the network conditions.')
+            LOGGER.error(err)
+            errmsg = str(err)
+            if errmsg.startswith('400 Client Error: Bad Request for url: '):
+                self.view.vio.print('Operation failed. ' + GENERIC_CAUTION)
+            else:
+                self.view.vio.print(
+                    'HTTP error occurred. Check the network conditions.')
+        except ValueError as err:
+            # short of Ether, permission denied, or reverted. maybe...
+            LOGGER.error(err)
+            self.view.vio.print('Operation failed. ' + GENERIC_CAUTION)
 
     def exit_handler(self, _signum, __):
         LOGGER.info('exiting process')
@@ -167,8 +173,39 @@ class Controller():
             address, asset = self.view.token_selector(mode='catalog')
             if not address:
                 return
-            if self.view.confirm(asset):
+            if not self.view.confirm(asset):
+                continue
+
+            caution = 'Operation failed.'
+            try:
                 self.model.buy(address)
+                continue
+
+            except HTTPError as err:
+                LOGGER.error(err)
+                emsg = str(err)
+                if emsg.startswith('400 Client Error: Bad Request for url: '):
+                    caution += ' ' + GENERIC_CAUTION
+                    caution += self._private_catalog_caution()
+                else:
+                    caution = \
+                        'HTTP error occurred. Check the network conditions.'
+            except ValueError as err:
+                LOGGER.error(err)
+                caution += ' ' + GENERIC_CAUTION
+                caution += self._private_catalog_caution()
+            self.view.vio.print(caution)
+            break
+
+    def _private_catalog_caution(self):
+        try:
+            if self.model.inventory.is_catalog_private():
+                return '\n' +\
+                    'In addition, connecting catalog is private mode. ' +\
+                    PRIVATE_CATALOG_CAUTION
+        except:
+            pass  # in this case, authentication may not be the error reason.
+        return ''
 
     def dissemination(self):
         if not self.model.inventory.catalog_address:

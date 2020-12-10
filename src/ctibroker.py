@@ -16,7 +16,6 @@
 
 import logging
 from contract_visitor import ContractVisitor
-from web3.exceptions import SolidityError
 
 LOGGER = logging.getLogger('common')
 
@@ -50,15 +49,12 @@ class CTIBroker(ContractVisitor):
 
     def buy_token(self, catalog, token, wei, allow_cheaper=False):
         func = self.contract.functions.buyToken(catalog, token, allow_cheaper)
-        try:
-            tx_hash = func.transact({'value': wei})
-            tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
-            self.gaslog('buyToken', tx_receipt)
-            if tx_receipt['status'] != 1:
-                LOGGER.error('buyToken: transaction failed')
-                raise Exception('buyToken: transaction failed')
-        except SolidityError as e:
-            LOGGER.error('buyToken: Did you get permission to buy from the private catalog owner?: %s', e)
+        tx_hash = func.transact({'value': wei})
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('buyToken', tx_receipt)
+        if tx_receipt['status'] != 1:
+            LOGGER.error('buyToken: transaction failed')
+            raise Exception('buyToken: transaction failed')
 
     def get_amounts(self, catalog, tokens):
         func = self.contract.functions.getAmounts(catalog, tokens)
