@@ -176,8 +176,7 @@ class Inventory:
         self.catalog.update_balanceof_myself(token_address)
 
     def is_catalog_private(self):
-        assert self.catalog
-        return self.catalog.is_private
+        return self.catalog.is_private if self.catalog else False
 
     def set_private(self):
         assert self.catalog
