@@ -102,9 +102,10 @@ class StandardViewerIO(ViewerIO):
                 # 入力された内容を表示すると溢れる場合、表示を中断する
                 if self.pager['filled'] + num_lines + 1 > self.pager['lines']:
                     print('--More-- (hit any key to continue, or q to quit) ',
-                        end='', flush=True)
+                          end='', flush=True)
                     self.pager['filled'] = 0
                     cmd = getch()
+                    print('')
                     if cmd == 'q':
                         # 'q' が入力された場合、リセットされるまで表示を割愛する
                         self.pager['quitting'] = True
@@ -712,7 +713,8 @@ class SimpleCUI():
         return self.number_selector(items)
 
     def input_address_screen(
-        self, target_hint=None, default=None, hint=None, ext_delimiter=None):
+            self, target_hint=None, default=None, hint=None,
+            ext_delimiter=None):
         while True:
             self.vio.print(
                 '{}を入力してください'.format(
@@ -811,7 +813,8 @@ class SimpleCUI():
         return True
 
     def select_catalog_settings_screen(self):
-        current_state = "プライベート " if self.model.inventory.is_catalog_private() else "パブリック" 
+        current_state = "プライベート " \
+            if self.model.inventory.is_catalog_private() else "パブリック"
         self.vio.print('現在の状態: {}'.format(current_state))
         self.vio.print('設定内容を選択してください')
         items = dict()
@@ -824,8 +827,10 @@ class SimpleCUI():
         self.vio.print('操作内容を選択してください')
         items = dict()
         items[0] = {'state': None, 'hint': 'キャンセル'}
-        items[1] = {'state': 'authorize', 'hint': 'アクセスを許可するユーザの追加'}
-        items[2] = {'state': 'revoke', 'hint': 'ユーザのアクセス許可の取り消し'}
+        items[1] = {'state': 'authorize',
+                    'hint': 'アクセスを許可するユーザの追加'}
+        items[2] = {'state': 'revoke',
+                    'hint': 'ユーザのアクセス許可の取り消し'}
         items[3] = {'state': 'show', 'hint': '現在のユーザリスト'}
         return self.number_selector(items)
 

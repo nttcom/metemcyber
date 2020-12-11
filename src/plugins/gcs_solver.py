@@ -15,14 +15,9 @@
 #
 
 import os
-import datetime
 import logging
 import requests
-import urllib3
 from web3 import Web3
-from google.cloud import storage, exceptions
-from google.api_core.client_options import ClientOptions
-from google.auth.credentials import AnonymousCredentials
 from solver import BaseSolver
 from client_model import FILESERVER_ASSETS_PATH
 
@@ -39,7 +34,7 @@ class Solver(BaseSolver):
         self.uploader = Uploader()
 
     def notify_first_accept(self, view):
-        if FUNCTIONS_URL:  
+        if FUNCTIONS_URL:
             url = FUNCTIONS_URL
             view.vio.print('Solver として受付を開始しました。')
             view.vio.print(
@@ -91,20 +86,23 @@ class Solver(BaseSolver):
         url = self.uploader.upload_file(file_path)
         return url
 
+
 class Uploader:
-    def upload_file(self, upload_path):
+    @staticmethod
+    def upload_file(upload_path):
         if not FUNCTIONS_URL:
             LOGGER.error('There are no settings for upload URL')
-        else:
-            headers = {
-                'Authorization': 'Bearer {}'.format(FUNCTIONS_TOKEN),
-                'Content-Type': 'application/json'}
-            response = requests.post(
-                FUNCTIONS_URL,
-                data=open(upload_path, 'rb'),
-                headers=headers)
-            results = response.json()
-            if 'result' in results:
-                return results['result']
-            LOGGER.error('File upload Error: %s', results['error'])
             return None
+
+        headers = {
+            'Authorization': 'Bearer {}'.format(FUNCTIONS_TOKEN),
+            'Content-Type': 'application/json'}
+        response = requests.post(
+            FUNCTIONS_URL,
+            data=open(upload_path, 'rb'),
+            headers=headers)
+        results = response.json()
+        if 'result' in results:
+            return results['result']
+        LOGGER.error('File upload Error: %s', results['error'])
+        return None

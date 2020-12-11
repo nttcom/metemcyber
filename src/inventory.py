@@ -210,7 +210,7 @@ class Catalog:
         self.cticatalog = contracts.accept(CTICatalog()).get(catalog_address)
         self.catalog_owner = self.cticatalog.get_owner()
         self.catalog_user = catalog_user
-        self.is_owner = True if self.catalog_owner == self.catalog_user else False
+        self.is_owner = (self.catalog_owner == self.catalog_user)
 
         event_filter = self.cticatalog.event_filter(
             'CtiInfo', fromBlock='latest')
@@ -391,7 +391,7 @@ class Catalog:
     def set_public(self):
          # カタログオーナーのみ実施可能 カタログをパブリックにする
         assert self.is_owner
-        self.cticatalog.set_public()  
+        self.cticatalog.set_public()
 
     def authorize_user(self, eoa_address):
         # カタログオーナーのみ実施可能 指定ユーザをカタログから購買可能にする
@@ -448,4 +448,4 @@ class Broker:
     def buy(self, catalog_address, token_address, price, allow_cheaper=False):
         wei = price * PTS_RATE
         self.ctibroker.buy_token(
-            catalog_address, token_address, wei , allow_cheaper)
+            catalog_address, token_address, wei, allow_cheaper)

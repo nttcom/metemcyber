@@ -318,8 +318,8 @@ class Controller():
                 or self.model.default_num_consign < 0:
             err = '設定値（価格・発行数・委託数）が不正です'
         elif not (self.model.inventory and
-                self.model.inventory.catalog and
-                self.model.inventory.broker):
+                  self.model.inventory.catalog and
+                  self.model.inventory.broker):
             err = 'カタログ・ブローカーが未設定です'
         elif not self.model.operator_address:
             err = 'オペレータが未設定です'
@@ -492,7 +492,7 @@ class Controller():
         if not self.model.inventory.is_catalog_owner:
             self.view.vio.print('カタログのオーナーではありません')
             return
-        
+
         settings = self.view.select_catalog_settings_screen()
         if not settings:
             return
@@ -508,19 +508,19 @@ class Controller():
         if not self.model.inventory.is_catalog_owner:
             self.view.vio.print('カタログのオーナーではありません')
             return
-        
+
         act = self.view.select_authorize_act_screen()
         if act == 'authorize':
             address = self.view.input_address_screen()
             self.model.inventory.authorize_user(address)
             return
-        elif act == 'revoke':
+        if act == 'revoke':
             address_list = self.model.inventory.show_authorized_users()
             address = self.view.revoke_user_selector(address_list)
             if address:
                 self.model.inventory.revoke_user(address)
             return
-        elif act == 'show':
+        if act == 'show':
             address_list = self.model.inventory.show_authorized_users()
             self.view.vio.print('アドレスリスト:')
             for address in address_list:
@@ -649,7 +649,7 @@ OPTIONS = [
                                '-s http://127.0.0.1:12345'}),
     ('-w', '--webhook', {'action':'store',
                          'help':'Solverに通知するwebhook待ち受けURL.'
-                         '未指定時はSERVERの値が通知される'}),
+                                '未指定時はSERVERの値が通知される'}),
     ('-g', '--gaslog', {'action':'store_true', 'help':'GAS 消費量ロギング'}),
     ('-m', '--misp', {'action':'store_true', 'help':'MISP token自動発行'}),
     ('-i', '--input', {'action':'store', 'help':'操作入力ファイル'}),
