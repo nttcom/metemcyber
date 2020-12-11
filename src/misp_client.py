@@ -89,7 +89,7 @@ def bulk_insert_json(client, insertdir):
         except json.decoder.JSONDecodeError:
             print('%s: Unparsable data', obj_path)
         except Exception as err:
-            print('%s: %s',obj_path, err)
+            print('%s: %s', obj_path, err)
 
 
 def main(args):

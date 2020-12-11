@@ -448,4 +448,4 @@ class Broker:
     def buy(self, catalog_address, token_address, price, allow_cheaper=False):
         wei = price * PTS_RATE
         self.ctibroker.buy_token(
-            catalog_address, token_address, wei , allow_cheaper)
+            catalog_address, token_address, wei, allow_cheaper)

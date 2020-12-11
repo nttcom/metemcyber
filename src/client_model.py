@@ -537,7 +537,7 @@ class Player():
             msg = '受信データの解析不能: ' + str(data)
             return False, msg
 
-        msg =''
+        msg = ''
         msg += '受信 URL: ' + download_url + '\n'
         msg += 'トークン: ' + token_address + '\n'
 
