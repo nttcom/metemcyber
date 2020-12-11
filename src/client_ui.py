@@ -812,7 +812,8 @@ class SimpleCUI():
         return True
 
     def select_catalog_settings_screen(self):
-        current_state = "プライベート " if self.model.inventory.is_catalog_private() else "パブリック"
+        current_state = "プライベート " \
+            if self.model.inventory.is_catalog_private() else "パブリック"
         self.vio.print('現在の状態: {}'.format(current_state))
         self.vio.print('設定内容を選択してください')
         items = dict()
@@ -825,8 +826,10 @@ class SimpleCUI():
         self.vio.print('操作内容を選択してください')
         items = dict()
         items[0] = {'state': None, 'hint': 'キャンセル'}
-        items[1] = {'state': 'authorize', 'hint': 'アクセスを許可するユーザの追加'}
-        items[2] = {'state': 'revoke', 'hint': 'ユーザのアクセス許可の取り消し'}
+        items[1] = {'state': 'authorize',
+                    'hint': 'アクセスを許可するユーザの追加'}
+        items[2] = {'state': 'revoke',
+                    'hint': 'ユーザのアクセス許可の取り消し'}
         items[3] = {'state': 'show', 'hint': '現在のユーザリスト'}
         return self.number_selector(items)
 
