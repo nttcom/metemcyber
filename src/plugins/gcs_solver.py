@@ -88,7 +88,8 @@ class Solver(BaseSolver):
 
 
 class Uploader:
-    def upload_file(self, upload_path):
+    @staticmethod
+    def upload_file(upload_path):
         if not FUNCTIONS_URL:
             LOGGER.error('There are no settings for upload URL')
             return None
