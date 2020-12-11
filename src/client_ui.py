@@ -105,6 +105,7 @@ class StandardViewerIO(ViewerIO):
                           end='', flush=True)
                     self.pager['filled'] = 0
                     cmd = getch()
+                    print('')
                     if cmd == 'q':
                         # 'q' が入力された場合、リセットされるまで表示を割愛する
                         self.pager['quitting'] = True
