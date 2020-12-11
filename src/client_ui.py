@@ -811,7 +811,7 @@ class SimpleCUI():
         return True
 
     def select_catalog_settings_screen(self):
-        current_state = "プライベート " if self.model.inventory.is_catalog_private() else "パブリック" 
+        current_state = "プライベート " if self.model.inventory.is_catalog_private() else "パブリック"
         self.vio.print('現在の状態: {}'.format(current_state))
         self.vio.print('設定内容を選択してください')
         items = dict()

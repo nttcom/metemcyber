@@ -39,7 +39,7 @@ class Solver(BaseSolver):
         self.uploader = Uploader()
 
     def notify_first_accept(self, view):
-        if FUNCTIONS_URL:  
+        if FUNCTIONS_URL:
             url = FUNCTIONS_URL
             view.vio.print('Solver として受付を開始しました。')
             view.vio.print(

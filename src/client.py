@@ -492,7 +492,7 @@ class Controller():
         if not self.model.inventory.is_catalog_owner:
             self.view.vio.print('カタログのオーナーではありません')
             return
-        
+
         settings = self.view.select_catalog_settings_screen()
         if not settings:
             return
@@ -508,7 +508,7 @@ class Controller():
         if not self.model.inventory.is_catalog_owner:
             self.view.vio.print('カタログのオーナーではありません')
             return
-        
+
         act = self.view.select_authorize_act_screen()
         if act == 'authorize':
             address = self.view.input_address_screen()

@@ -112,7 +112,7 @@ class CTICatalog(ContractVisitor):
         self.gaslog('authorizeUser', tx_receipt)
         if tx_receipt['status'] != 1:
             LOGGER.error('authorizeUser: transaction failed')
-            raise Exception('Transaction failed: authorizeUser')    
+            raise Exception('Transaction failed: authorizeUser')
 
     def set_public(self):
         func = self.contract.functions.setPublic()

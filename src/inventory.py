@@ -391,7 +391,7 @@ class Catalog:
     def set_public(self):
          # カタログオーナーのみ実施可能 カタログをパブリックにする
         assert self.is_owner
-        self.cticatalog.set_public()  
+        self.cticatalog.set_public()
 
     def authorize_user(self, eoa_address):
         # カタログオーナーのみ実施可能 指定ユーザをカタログから購買可能にする
