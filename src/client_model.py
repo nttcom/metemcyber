@@ -541,11 +541,6 @@ class Player():
         msg += '受信 URL: ' + download_url + '\n'
         msg += 'トークン: ' + token_address + '\n'
 
-        # FIXME: CERTIFICATE_VERIFY_FAILED の回避
-        # ローカルの fake-gcs-server が相手の場合に限定したい。
-        import ssl
-        ssl._create_default_https_context = ssl._create_unverified_context
-
         try:
             request = Request(download_url, method="GET")
             with urlopen(request) as response:
