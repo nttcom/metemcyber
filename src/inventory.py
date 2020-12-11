@@ -151,6 +151,10 @@ class Inventory:
             # すぐに catalog_token から抹消されるので amount 更新は割愛
         self.catalog.unregister_token(token_address)
 
+    def modify_token(self, token_address, metadata):
+        assert self.catalog
+        self.catalog.modify_token(token_address, metadata)
+
     def like_cti(self, token_address):
         assert self.catalog
         self.catalog.like_cti(token_address)
@@ -361,6 +365,14 @@ class Catalog:
 
     def unregister_token(self, token_address):
         self.cticatalog.unregister_cti(token_address)
+
+    def modify_token(self, token_address, metadata):
+        self.cticatalog.modify_cti(
+            token_address,
+            metadata['uuid'],
+            metadata['title'],
+            metadata['price'],
+            metadata['operator'])
 
     def list_token_uris(self):
         return self.cticatalog.list_token_uris()

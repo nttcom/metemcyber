@@ -463,6 +463,9 @@ class Player():
     def unregister_catalog(self, token_address):
         self.inventory.unregister_token(token_address)
 
+    def update_catalog(self, token_address, cti_metadata):
+        self.inventory.modify_token(token_address, cti_metadata)
+
     @staticmethod
     def save_registered_token(cti_metadata):
         # cticatalog コントラクトに登録したtokenのmetadataを保存する
