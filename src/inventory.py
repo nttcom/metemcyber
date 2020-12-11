@@ -210,7 +210,7 @@ class Catalog:
         self.cticatalog = contracts.accept(CTICatalog()).get(catalog_address)
         self.catalog_owner = self.cticatalog.get_owner()
         self.catalog_user = catalog_user
-        self.is_owner = True if self.catalog_owner == self.catalog_user else False
+        self.is_owner = (self.catalog_owner == self.catalog_user)
 
         event_filter = self.cticatalog.event_filter(
             'CtiInfo', fromBlock='latest')
