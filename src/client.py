@@ -417,6 +417,18 @@ class Controller():
             return
         deal_func(token_address, amount)
 
+    def modify_asset(self):
+        hook = lambda: self.view.vio.pager_print(
+            'パラメータ変更するトークンを選択してください')
+        token_address, asset = self.view.token_selector(
+            mode='token_publisher', hook=hook)
+        if not token_address:
+            return
+        new_asset = self.view.modify_asset_screen(token_address, asset)
+        if new_asset is None:
+            return
+        self.model.update_catalog(token_address, new_asset)
+
     def cancel_task(self):
         if not self.model.operator_address:
             self.view.missing_screen('オペレータ')

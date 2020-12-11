@@ -170,6 +170,7 @@ class SimpleCUI():
             (21, 'challenge_acception', 'チャレンジの受付開始・解除'),
             (22, 'dealing', '発行トークンの追加委託・引取・登録取消'),
             (23, 'publish_misp', 'ローカルMISPデータからのCTIトークン自動配布'),
+            (24, 'modify_asset', 'CTIトークンのパラメータ変更'),
             ]
         if self.model.dev:
             menu.extend([
@@ -551,6 +552,53 @@ class SimpleCUI():
         asset['quantity'] = asset_quantity
         asset['operator'] = operator_id
         return asset, num_consign
+
+    def modify_asset_screen(self, token_address, current):
+        self.vio.print('----CTIトークンパラメータを変更します----')
+        self.vio.print('(UUIDは変更できません)')
+
+        if self.select_yes_no_screen(hint='タイトルを変更しますか？'):
+            self.vio.print('タイトルを入力してください')
+            asset_title = self.vio.input().strip()
+        else:
+            asset_title = current['title']
+
+        if self.select_yes_no_screen(hint='価格を変更しますか？'):
+            asset_price = self.input_int_screen(name='価格', minimum=0)
+            if asset_price is None:
+                return None
+        else:
+            asset_price = current['price']
+
+        if self.select_yes_no_screen(hint='オペレータを変更しますか？'):
+            self.vio.print('オペレータを入力してください')
+            operator_id = self.vio.input().strip()
+        else:
+            operator_id = current['operator']
+
+        if current['title'] == asset_title and \
+                current['price'] == asset_price and \
+                current['operator'] == operator_id:
+            self.vio.print('変更点がありません')
+            return None
+
+        self.vio.print('--[確認]--')
+        self.vio.print('  アドレス: {}'.format(token_address))
+        self.vio.print('      UUID: {}'.format(current['uuid']))
+        self.vio.print('  タイトル: "{}"'.format(asset_title))
+        self.vio.print('      価格: {}'.format(asset_price))
+        self.vio.print('オペレータ: {}'.format(operator_id))
+        self.vio.print('----')
+        if not self.select_yes_no_screen(
+                hint='この内容でCTIトークンパラメータを更新しますか？'):
+            return None
+
+        asset = dict()
+        asset['uuid'] = current['uuid']
+        asset['title'] = asset_title
+        asset['price'] = asset_price
+        asset['operator'] = operator_id
+        return asset
 
     def start_challenge(self, task_id):
         self.vio.print('--------------------')
