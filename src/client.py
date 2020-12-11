@@ -318,8 +318,8 @@ class Controller():
                 or self.model.default_num_consign < 0:
             err = '設定値（価格・発行数・委託数）が不正です'
         elif not (self.model.inventory and
-                self.model.inventory.catalog and
-                self.model.inventory.broker):
+                  self.model.inventory.catalog and
+                  self.model.inventory.broker):
             err = 'カタログ・ブローカーが未設定です'
         elif not self.model.operator_address:
             err = 'オペレータが未設定です'
@@ -649,7 +649,7 @@ OPTIONS = [
                                '-s http://127.0.0.1:12345'}),
     ('-w', '--webhook', {'action':'store',
                          'help':'Solverに通知するwebhook待ち受けURL.'
-                         '未指定時はSERVERの値が通知される'}),
+                                '未指定時はSERVERの値が通知される'}),
     ('-g', '--gaslog', {'action':'store_true', 'help':'GAS 消費量ロギング'}),
     ('-m', '--misp', {'action':'store_true', 'help':'MISP token自動発行'}),
     ('-i', '--input', {'action':'store', 'help':'操作入力ファイル'}),

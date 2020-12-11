@@ -102,7 +102,7 @@ class StandardViewerIO(ViewerIO):
                 # 入力された内容を表示すると溢れる場合、表示を中断する
                 if self.pager['filled'] + num_lines + 1 > self.pager['lines']:
                     print('--More-- (hit any key to continue, or q to quit) ',
-                        end='', flush=True)
+                          end='', flush=True)
                     self.pager['filled'] = 0
                     cmd = getch()
                     if cmd == 'q':
@@ -712,7 +712,8 @@ class SimpleCUI():
         return self.number_selector(items)
 
     def input_address_screen(
-        self, target_hint=None, default=None, hint=None, ext_delimiter=None):
+            self, target_hint=None, default=None, hint=None,
+            ext_delimiter=None):
         while True:
             self.vio.print(
                 '{}を入力してください'.format(
