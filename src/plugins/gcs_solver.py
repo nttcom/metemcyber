@@ -15,14 +15,9 @@
 #
 
 import os
-import datetime
 import logging
 import requests
-import urllib3
 from web3 import Web3
-from google.cloud import storage, exceptions
-from google.api_core.client_options import ClientOptions
-from google.auth.credentials import AnonymousCredentials
 from solver import BaseSolver
 from client_model import FILESERVER_ASSETS_PATH
 
