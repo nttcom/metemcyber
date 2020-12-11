@@ -109,19 +109,19 @@ class CTICatalog(ContractVisitor):
         func = self.contract.functions.setPrivate()
         tx_hash = func.transact()
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
-        self.gaslog('authorizeUser', tx_receipt)
+        self.gaslog('setPrivate', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('authorizeUser: transaction failed')
-            raise Exception('Transaction failed: authorizeUser')
+            LOGGER.error('setPrivate: transaction failed')
+            raise Exception('Transaction failed: setPrivate')
 
     def set_public(self):
         func = self.contract.functions.setPublic()
         tx_hash = func.transact()
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
-        self.gaslog('authorizeUser', tx_receipt)
+        self.gaslog('setPublic', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('authorizeUser: transaction failed')
-            raise Exception('Transaction failed: authorizeUser')
+            LOGGER.error('setPublic: transaction failed')
+            raise Exception('Transaction failed: setPublic')
 
     def authorize_user(self, eoa_address):
         func = self.contract.functions.authorizeUser(eoa_address)
