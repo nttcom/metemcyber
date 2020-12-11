@@ -86,20 +86,22 @@ class Solver(BaseSolver):
         url = self.uploader.upload_file(file_path)
         return url
 
+
 class Uploader:
     def upload_file(self, upload_path):
         if not FUNCTIONS_URL:
             LOGGER.error('There are no settings for upload URL')
-        else:
-            headers = {
-                'Authorization': 'Bearer {}'.format(FUNCTIONS_TOKEN),
-                'Content-Type': 'application/json'}
-            response = requests.post(
-                FUNCTIONS_URL,
-                data=open(upload_path, 'rb'),
-                headers=headers)
-            results = response.json()
-            if 'result' in results:
-                return results['result']
-            LOGGER.error('File upload Error: %s', results['error'])
             return None
+
+        headers = {
+            'Authorization': 'Bearer {}'.format(FUNCTIONS_TOKEN),
+            'Content-Type': 'application/json'}
+        response = requests.post(
+            FUNCTIONS_URL,
+            data=open(upload_path, 'rb'),
+            headers=headers)
+        results = response.json()
+        if 'result' in results:
+            return results['result']
+        LOGGER.error('File upload Error: %s', results['error'])
+        return None
