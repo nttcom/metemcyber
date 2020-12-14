@@ -17,6 +17,8 @@
 import logging
 import json
 from urllib.request import Request, urlopen
+from requests.exceptions import HTTPError
+from eth_utils.exceptions import ValidationError
 
 from ctioperator import CTIOperator
 from eventlistener import BasicEventListener
@@ -103,19 +105,19 @@ class BaseSolver:
         self.ctioperator.unregister_tokens(token_addresses)
 
     def accept_task(self, task_id):
-        return self.ctioperator.accept_task(task_id)
+        try:
+            self.ctioperator.accept_task(task_id)
+            return True
+        except (HTTPError, ValueError, ValidationError) as err:
+            # another solver may accept faster than me.
+            LOGGER.error(err)
+            return False
 
     def finish_task(self, task_id, data=''):
         self.ctioperator.finish_task(task_id, data)
 
     def reemit_pending_tasks(self):
-        try:
-            self.ctioperator.reemit_pending_tasks()
-        except Exception as err:
-            LOGGER.warning(
-                'BaseSolver: Cannot reemit pending tasks '
-                'because the Ether balance is low.')
-            LOGGER.info('BaseSolver: reemit pending tasks: %s', err)
+        self.ctioperator.reemit_pending_tasks()
 
     @staticmethod
     def process_challenge(_token_address, _event):

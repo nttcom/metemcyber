@@ -44,21 +44,18 @@ class Solver(BaseSolver):
             view.vio.print('Solver用のURLが設定されていません。')
 
     def process_challenge(self, token_address, event):
-        LOGGER.info('Solver: callback: %s', token_address)
+        LOGGER.info('GCSSolver: callback: %s', token_address)
         LOGGER.debug(event)
-        try:
-            task_id = event['args']['taskId']
-            challenge_seeker = event['args']['from']
-            LOGGER.info(
-                'accepting task %s from seeker %s', task_id, challenge_seeker)
-            if not self.accept_task(task_id):
-                LOGGER.info('could not accept task %s', task_id)
-                return
-            LOGGER.info('accepted task %s', task_id)
-        except Exception as err:
-            LOGGER.exception(err)
+
+        task_id = event['args']['taskId']
+        challenge_seeker = event['args']['from']
+        LOGGER.info(
+            'accepting task %s from seeker %s', task_id, challenge_seeker)
+        if not self.accept_task(task_id):
+            LOGGER.warning('could not accept task %s', task_id)
             return
 
+        LOGGER.info('accepted task %s', task_id)
         data = ''
         try:
             try:

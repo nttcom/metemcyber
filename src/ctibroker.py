@@ -35,8 +35,7 @@ class CTIBroker(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('consignToken', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('consignToken: transaction failed')
-            raise Exception('consignToken: transaction failed')
+            raise ValueError('consignToken: transaction failed')
 
     def takeback_token(self, catalog, token, amount):
         func = self.contract.functions.takebackToken(catalog, token, amount)
@@ -44,8 +43,7 @@ class CTIBroker(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('takebackToken', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('takebackToken: transaction failed')
-            raise Exception('takebackToken: transaction failed')
+            raise ValueError('takebackToken: transaction failed')
 
     def buy_token(self, catalog, token, wei, allow_cheaper=False):
         func = self.contract.functions.buyToken(catalog, token, allow_cheaper)
@@ -53,8 +51,7 @@ class CTIBroker(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('buyToken', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('buyToken: transaction failed')
-            raise Exception('buyToken: transaction failed')
+            raise ValueError('buyToken: transaction failed')
 
     def get_amounts(self, catalog, tokens):
         func = self.contract.functions.getAmounts(catalog, tokens)

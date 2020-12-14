@@ -34,90 +34,55 @@ class CTIOperator(ContractVisitor):
 
     def set_recipient(self):
         func = self.contract.functions.recipientFor(self.contract_address)
-        LOGGER.info('call recipientFor(%s)', self.contract_address)
         tx_hash = func.transact()
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('recipientFor', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('recipientFor: transaction failed')
-            return False
-        LOGGER.debug(tx_receipt)
-        return True
+            raise ValueError('Transaction failed: recipientFor')
 
     def register_recipient(self):
         func = self.contract.functions.registerRecipient(self.contract_address)
-        LOGGER.info('call recipientFor(%s)', self.contract_address)
         tx_hash = func.transact()
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('registerRecipient', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('registerRecipient: transaction failed')
-            return False
-        LOGGER.debug(tx_receipt)
-        return True
+            raise ValueError('Transaction failed: registerRecipient')
 
     def register_tokens(self, token_addresses):
-        try:
-            func = self.contract.functions.register(token_addresses)
-            tx_hash = func.transact()
-            tx_receipt = \
-                self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
-            self.gaslog('register', tx_receipt)
-            if tx_receipt['status'] == 1:
-                LOGGER.info('register succeeded: %s', token_addresses)
-            else:
-                raise Exception("transaction failed")
-        except Exception as err:
-            LOGGER.error(err)
-            LOGGER.error('register failed')
+        func = self.contract.functions.register(token_addresses)
+        tx_hash = func.transact()
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('register', tx_receipt)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: register')
+        LOGGER.info('register succeeded: %s', token_addresses)
 
     def unregister_tokens(self, token_addresses):
-        try:
-            func = self.contract.functions.unregister(token_addresses)
-            tx_hash = func.transact()
-            tx_receipt = \
-                self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
-            self.gaslog('unregister', tx_receipt)
-            if tx_receipt['status'] == 1:
-                LOGGER.info('unregister succeeded: %s', token_addresses)
-            else:
-                raise Exception("transaction failed")
-        except Exception as err:
-            LOGGER.error(err)
-            LOGGER.error('unregister failed')
+        func = self.contract.functions.unregister(token_addresses)
+        tx_hash = func.transact()
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('unregister', tx_receipt)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: unregister')
+        LOGGER.info('unregister succeeded: %s', token_addresses)
 
     def accept_task(self, task_id):
-        try:
-            func = self.contract.functions.accepted(task_id)
-            tx_hash = func.transact()
-            tx_receipt = \
-                self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
-            self.gaslog('accepted', tx_receipt)
-            if tx_receipt['status'] == 1:
-                LOGGER.info('accept_task succeeded')
-            else:
-                raise Exception("transaction failed")
-            return True
-        except Exception as err:
-            LOGGER.error(err)
-            LOGGER.error('accept_task failed')
-            return False
+        func = self.contract.functions.accepted(task_id)
+        tx_hash = func.transact()
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('accepted', tx_receipt)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: accepted')
+        LOGGER.info('accept_task succeeded: %s', task_id)
 
     def finish_task(self, task_id, data=''):
-        try:
-            func = self.contract.functions.finish(task_id, data)
-            tx_hash = func.transact()
-            tx_receipt = \
-                self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
-            self.gaslog('finish', tx_receipt)
-            if tx_receipt['status'] == 1:
-                LOGGER.info('finish_task succeeded')
-            else:
-                raise Exception("transaction failed")
-            LOGGER.debug('finish() transaction: %s', tx_receipt)
-        except Exception as err:
-            LOGGER.error(err)
-            LOGGER.error('finish_task failed')
+        func = self.contract.functions.finish(task_id, data)
+        tx_hash = func.transact()
+        tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('finish', tx_receipt)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: finish')
+        LOGGER.info('finish_task succeeded: %s', task_id)
 
     def cancel_challenge(self, task_id):
         func = self.contract.functions.cancelTask(task_id)
@@ -125,8 +90,7 @@ class CTIOperator(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('cancelTask', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('cancelTask: transaction failed')
-            raise Exception("cancelTask: transaction failed")
+            raise ValueError('Transaction failed: cancelTask')
 
     def reemit_pending_tasks(self):
         func = self.contract.functions.reemitPendingTasks()
@@ -134,5 +98,4 @@ class CTIOperator(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('reemitPendingTasks', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('reemitPendingTasks: transaction failed')
-            raise Exception("reemitPendingTasks: transaction failed")
+            raise ValueError('Transaction failed: reemitPendingTasks')

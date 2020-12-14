@@ -40,8 +40,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('publishCti', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('publishCti: transaction failed')
-            raise Exception('Transaction failed: publishCti')
+            raise ValueError('Transaction failed: publishCti')
 
     def register_cti(self, token_address, uuid, title, price, operator):
         func = self.contract.functions.registerCti(
@@ -50,8 +49,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('registerCti', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('registerCti: transaction failed')
-            raise Exception('Transaction failed: registerCti')
+            raise ValueError('Transaction failed: registerCti')
 
     def modify_cti(self, token_address, uuid, title, price, operator):
         func = self.contract.functions.modifyCti(
@@ -60,8 +58,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('modifyCti', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('modifyCti: transaction failed')
-            raise Exception('Transaction failed: modifyCti')
+            raise ValueError('Transaction failed: modifyCti')
 
     def unregister_cti(self, token_address):
         func = self.contract.functions.unregisterCti(token_address)
@@ -69,8 +66,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('unregisterCti', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('unregisterCti: transaction failed')
-            raise Exception('Transaction failed: unregisterCti')
+            raise ValueError('Transaction failed: unregisterCti')
 
     def list_token_uris(self):
         func = self.contract.functions.listTokenURIs()
@@ -88,8 +84,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('likeCti', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('likeCti: transaction failed')
-            raise Exception('Transaction failed: likeCti')
+            raise ValueError('Transaction failed: likeCti')
 
     def get_like_event(self, search_blocks=1000):
         # 最大search_blocks数だけ、CtiLiked eventを取得して返す
@@ -111,8 +106,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('setPrivate', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('setPrivate: transaction failed')
-            raise Exception('Transaction failed: setPrivate')
+            raise ValueError('Transaction failed: setPrivate')
 
     def set_public(self):
         func = self.contract.functions.setPublic()
@@ -120,8 +114,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('setPublic', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('setPublic: transaction failed')
-            raise Exception('Transaction failed: setPublic')
+            raise ValueError('Transaction failed: setPublic')
 
     def authorize_user(self, eoa_address):
         func = self.contract.functions.authorizeUser(eoa_address)
@@ -129,8 +122,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('authorizeUser', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('authorizeUser: transaction failed')
-            raise Exception('Transaction failed: authorizeUser')
+            raise ValueError('Transaction failed: authorizeUser')
 
     def revoke_user(self, eoa_address):
         func = self.contract.functions.revokeUser(eoa_address)
@@ -138,8 +130,7 @@ class CTICatalog(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('revokeUser', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('revokeUser: transaction failed')
-            raise Exception('Transaction failed: revokeUser')
+            raise ValueError('Transaction failed: revokeUser')
 
     def show_authorized_users(self):
         func = self.contract.functions.showAuthorizedUsers()

@@ -41,9 +41,7 @@ class CTIToken(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('send', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('send_token: transaction failed')
-            return None
-        return tx_receipt
+            raise ValueError('Transaction failed: send')
 
     def burn_token(self, amount, data=''):
         func = self.contract.functions.burn(amount, data)
@@ -51,8 +49,7 @@ class CTIToken(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('burn', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('burn_token: transaction failed')
-            raise Exception('burn_token: transaction failed')
+            raise ValueError('Transaction failed: burn')
 
     def authorize_operator(self, operator):
         func = self.contract.functions.authorizeOperator(operator)
@@ -60,8 +57,7 @@ class CTIToken(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('authorizeOperator', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('authoerizeOperator: transaction failed')
-            raise Exception('authoerizeOperator: transaction failed')
+            raise ValueError('Transaction failed: authorizeOperator')
 
     def revoke_operator(self, operator):
         func = self.contract.functions.revokeOperator(operator)
@@ -69,5 +65,4 @@ class CTIToken(ContractVisitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('revokeOperator', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('revokeOperator: transaction failed')
-            raise Exception('revokeOperator: transaction failed')
+            raise ValueError('Transaction failed: revokeOperator')
