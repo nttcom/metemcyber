@@ -221,7 +221,7 @@ esac
 workdir_local=`pwd`
 workdir_container=/usr/src/myapp
 if [ -z "${PROVIDER_URL}" -a -n "${PROVIDER_HOST}" ]; then
-    if [ -n "{PROVIDER_PORT}" ]; then
+    if [ -n "${PROVIDER_PORT}" ]; then
         PROVIDER_URL="http://${PROVIDER_HOST}:${PROVIDER_PORT}"
     else
         PROVIDER_URL="http://${PROVIDER_HOST}"
