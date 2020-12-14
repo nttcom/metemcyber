@@ -278,6 +278,7 @@ class Player():
         self.default_price = -1
         self.default_quantity = -1
         self.default_num_consign = -1
+        self.default_auto_accept = False
         if not os.path.exists(fname):
             return
         config = configparser.ConfigParser()
@@ -287,6 +288,8 @@ class Player():
             self.default_quantity = config["MISP"].getint("defaultquantity")
             self.default_num_consign = config["MISP"].getint(
                 "default_num_consign")
+            self.default_auto_accept = config['MISP'].getboolean(
+                'default_auto_accept')
             LOGGER.info('[load MISP config]')
         except KeyError as err:
             LOGGER.warning('MISP configファイルの読み込みに失敗しました')
@@ -396,7 +399,8 @@ class Player():
         self.inventory.buy(token_address, allow_cheaper=True)
 
     def disseminate_token_from_mispdata(
-            self, default_pirce, default_quantity, default_num_consign, view):
+            self, default_pirce, default_quantity, default_num_consign,
+            default_auto_accept, view):
         # mispオブジェクトファイルの一覧をtokenとして公開する
 
         # 登録済みのtokenを取得
@@ -421,7 +425,10 @@ class Player():
                 metadata['price'] = default_pirce
                 metadata['operator'] = self.operator_address
                 metadata['quantity'] = default_quantity
-                self.disseminate_new_token(metadata, default_num_consign)
+                token_address = self.disseminate_new_token(
+                    metadata, default_num_consign)
+                if default_auto_accept:
+                    self.accept_challenge(token_address, view)
             except KeyError:
                 LOGGER.warning('There is no Event info in %s', misp)
 

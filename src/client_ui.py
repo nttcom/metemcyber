@@ -678,22 +678,27 @@ class SimpleCUI():
             if self.model.default_price >= 0 else None
         price = self.input_int_screen('価格', minimum=0, default=default)
         if price is None:
-            return None, None, None
+            return None, None, None, None
 
         default = self.model.default_quantity \
             if self.model.default_quantity > 0 else None
         quantity = self.input_int_screen('発行数', minimum=1, default=default)
         if quantity is None:
-            return None, None, None
+            return None, None, None, None
 
         default = self.model.default_num_consign \
             if self.model.default_num_consign > 0 else None
         num_consign = self.input_int_screen(
             'カタログ登録数', minimum=0, default=default)
         if num_consign is None:
-            return None, None, None
+            return None, None, None, None
 
-        return price, quantity, num_consign
+        default = self.model.default_auto_accept
+        auto_accept = self.select_yes_no_screen(
+            hint='チャレンジ受付を開始しますか？',
+            default=default)
+
+        return price, quantity, num_consign, auto_accept
 
     def select_token_act_screen(self):
         self.vio.print('操作内容を選択してください')
@@ -805,12 +810,12 @@ class SimpleCUI():
                 pass
             self.vio.print('不正な値です')
 
-    def select_yes_no_screen(self, hint=None):
-        self.vio.print('{} [y/N]'.format(hint if hint else '選択？'))
+    def select_yes_no_screen(self, hint=None, default=False):
+        self.vio.print('{} [{}]'.format(
+            hint if hint else '選択？',
+            'Y/n' if default else 'y/N'))
         confirm = self.vio.input().strip()
-        if confirm not in {'y', 'Y'}:
-            return False
-        return True
+        return default if confirm == '' else confirm in {'y', 'Y'}
 
     def select_catalog_settings_screen(self):
         current_state = "プライベート " \
