@@ -341,7 +341,8 @@ class Controller():
             return
         self.model.disseminate_token_from_mispdata(
             self.model.default_price, self.model.default_quantity,
-            self.model.default_num_consign, self.view)
+            self.model.default_num_consign, self.model.default_auto_accept,
+            self.view)
 
     def publish_misp(self):
         if not self.model.inventory:
@@ -357,10 +358,11 @@ class Controller():
             self.view.missing_screen('オペレータ')
             return
 
-        price, quantity, num_consign = self.view.publish_misp_param()
+        price, quantity, num_consign, auto_accept = \
+            self.view.publish_misp_param()
         if price is not None and price >= 0 and quantity > 0:
             self.model.disseminate_token_from_mispdata(
-                price, quantity, num_consign, self.view)
+                price, quantity, num_consign, auto_accept, self.view)
 
     ## temporal func to hide 'send' from menu.
     def burn_own_token(self):
