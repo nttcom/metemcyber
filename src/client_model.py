@@ -22,6 +22,8 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 import configparser
 
+from requests.exceptions import HTTPError
+from eth_utils.exceptions import ValidationError
 from web3 import Web3
 from web3.exceptions import ExtraDataLengthError
 from web3.middleware import geth_poa_middleware
@@ -162,7 +164,10 @@ class Player():
         code = self.web3.eth.getCode(contract_address)
         LOGGER.debug('erc1820_address has %s', code)
 
-        if not code:
+        if code:
+            return
+
+        try:
             #指定のアドレスへ送金
             tx_hash = self.web3.eth.sendTransaction({
                 'from': self.account_id,
@@ -171,7 +176,14 @@ class Player():
             tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
             GASLOG.info(
                 'erc1820.sendTransaction: gasUsed=%d', tx_receipt['gasUsed'])
+            if tx_receipt['status'] != 1:
+                raise ValueError('erc1820.sendTransaction failed')
             LOGGER.debug(tx_receipt)
+        except (HTTPError, ValueError, ValidationError) as err:
+            LOGGER.error(err)
+            raise ValueError('Sending Ether for ERC1820 failed') from err
+
+        try:
             #ERC1820のデプロイ
             with open(ERC1820_RAW_TX_FILEPATH, 'r') as fin:
                 raw_tx = fin.read().strip()
@@ -180,7 +192,12 @@ class Player():
             GASLOG.info(
                 'erc1820.sendRawTransaction: gasUsed=%d',
                 tx_receipt['gasUsed'])
+            if tx_receipt['status'] != 1:
+                raise ValueError('erc1820.sendRawTransaction failed')
             LOGGER.debug(tx_receipt)
+        except (HTTPError, ValueError, ValidationError) as err:
+            LOGGER.error(err)
+            raise ValueError('Sending ERC1820 raw transaction failed') from err
 
     def deploy_metemcyberutil(self):
         metemcyber_util = self.contracts.accept(MetemcyberUtil())
@@ -634,24 +651,14 @@ class Player():
 
     def send_token(self, token_address, target_address, amount):
         assert token_address and target_address and amount > 0
-        try:
-            self.contracts.accept(CTIToken()).get(token_address).\
-                send_token(target_address, amount)
-            # ブローカー経由でないためイベントは飛ばない。手動で反映する。
-            self.inventory.update_balanceof_myself(token_address)
-            return True
-        except Exception as err:
-            LOGGER.exception(err)
-        return False
+        self.contracts.accept(CTIToken()).get(token_address).\
+            send_token(target_address, amount=amount, data='')
+        # ブローカー経由でないためイベントは飛ばない。手動で反映する。
+        self.inventory.update_balanceof_myself(token_address)
 
     def burn_token(self, token_address, amount, data=''):
         assert token_address and amount > 0
-        try:
-            self.contracts.accept(CTIToken()).get(token_address).\
-                burn_token(amount, data)
-            # Burned イベントが飛ぶがキャッチしていない。手動で反映する。
-            self.inventory.update_balanceof_myself(token_address)
-            return True
-        except Exception as err:
-            LOGGER.exception(err)
-        return False
+        self.contracts.accept(CTIToken()).get(token_address).\
+            burn_token(amount, data)
+        # Burned イベントが飛ぶがキャッチしていない。手動で反映する。
+        self.inventory.update_balanceof_myself(token_address)

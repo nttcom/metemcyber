@@ -209,8 +209,7 @@ class ContractVisitor(Visitor):
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('deploy', tx_receipt)
         if tx_receipt['status'] != 1:
-            LOGGER.error('deploy: transaction failed')
-            raise Exception('Contract deploy failed: {}'.format(
+            raise ValueError('Contract deploy failed: {}'.format(
                 self.contract_src))
 
         return tx_receipt['contractAddress']

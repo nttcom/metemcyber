@@ -26,6 +26,7 @@ from web3 import Web3
 from web3.providers.eth_tester import EthereumTesterProvider
 from web3.providers.rpc import HTTPProvider
 from web3.auto import w3
+from eth_utils.exceptions import ValidationError
 from eth_tester import PyEVMBackend, EthereumTester
 from requests.exceptions import HTTPError
 from webhook import WebhookReceiver
@@ -121,7 +122,17 @@ class Controller():
             'Endpoint: ' + str(provider) + '\n'
             'EoA address: ' + account_id)
 
-        self.model = Player(account_id, private_key, self.provider, dev=dev)
+        try:
+            self.model = Player(
+                account_id, private_key, self.provider, dev=dev)
+        except (HTTPError, ValueError, ValidationError) as err:
+            LOGGER.error(err)
+            self.view.vio.print(
+                'Initialization failed. '
+                'Make sure the EOA address and private key pair is correct '
+                'and you have enough Ether to operate.')
+            sys.exit(255)
+
         self.model.add_observer(self.view)
 
         # observerに通知してセットアップ
@@ -154,7 +165,7 @@ class Controller():
             else:
                 self.view.vio.print(
                     'HTTP error occurred. Check the network conditions.')
-        except ValueError as err:
+        except (ValueError, ValidationError) as err:
             # short of Ether, permission denied, or reverted. maybe...
             LOGGER.error(err)
             self.view.vio.print('Operation failed. ' + GENERIC_CAUTION)
@@ -363,9 +374,7 @@ class Controller():
             minimum=1, maximum=asset['balanceOfUser'])
         if amount is None:
             return
-        ret = self.model.burn_token(token_address, amount)
-        if not ret:
-            self.view.common_failed()
+        self.model.burn_token(token_address, amount)
 
     ## currently unused. we don't permit send token.
     def treat_own_token(self):
@@ -386,11 +395,11 @@ class Controller():
             target = self.view.input_address_screen()
             if not target:
                 return
-            ret = self.model.send_token(token_address, target, amount)
+            self.model.send_token(token_address, target, amount)
         elif act == 'burn':
-            ret = self.model.burn_token(token_address, amount)
-        if not ret:
-            self.view.common_failed()
+            self.model.burn_token(token_address, amount)
+        else:
+            raise Exception('Internal Error')
 
     def dealing(self):
         hook = lambda: self.view.vio.pager_print(

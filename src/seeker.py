@@ -27,11 +27,8 @@ class Seeker():
     def challenge(self, operator_address, token_address, data=''):
         # tokenをoperatorに送信
         # operatorデプロイ時にrecipientFor実行し、token受領時の動作設定済
-        tx_receipt = self.contracts.accept(CTIToken()).get(token_address).\
-            send_token(operator_address, data=data)
-        if tx_receipt['status'] != 1:
-            return False
-        return True
+        self.contracts.accept(CTIToken()).get(token_address).\
+            send_token(operator_address, amount=1, data=data)
 
     def cancel_challenge(self, operator_address, task_id):
         operator = self.contracts.accept(CTIOperator()).get(operator_address)
