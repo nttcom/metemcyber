@@ -120,7 +120,7 @@ class Controller():
             '\n'
             'connecting to Ethereum Blockchain...\n'
             'Endpoint: ' + str(provider) + '\n'
-            'EoA address: ' + account_id)
+            'EOA address: ' + account_id)
 
         try:
             self.model = Player(

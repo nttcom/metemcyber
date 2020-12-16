@@ -230,7 +230,7 @@ class SimpleCUI():
         pout('--------------------')
         pout('アカウント情報')
         pout('■ サマリー')
-        pout(' - EoAアドレス: {}'.format(self.model.account_id))
+        pout(' - EOAアドレス: {}'.format(self.model.account_id))
         pout(' - 所持ETH: {} Wei'.format(eth))
         pout('■ コントラクト')
         pout(' - カタログアドレス: {}'.format(catalog_address))
