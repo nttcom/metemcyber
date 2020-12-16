@@ -230,7 +230,7 @@ class SimpleCUI():
         pout('--------------------')
         pout('アカウント情報')
         pout('■ サマリー')
-        pout(' - EoAアドレス: {}'.format(self.model.account_id))
+        pout(' - EOAアドレス: {}'.format(self.model.account_id))
         pout(' - 所持ETH: {} Wei'.format(eth))
         pout('■ コントラクト')
         pout(' - カタログアドレス: {}'.format(catalog_address))
@@ -746,8 +746,12 @@ class SimpleCUI():
                     return default + ext_str
                 return '' + ext_str
 
-            if not self.model.web3.isAddress(target.lower()):
+            if not self.model.web3.isChecksumAddress(target):
                 self.vio.print('正しいアドレスではありません')
+                if self.model.web3.isAddress(target):
+                    self.vio.print(
+                        'EIP55準拠(mixed-case checksum address)の'
+                        '形式で入力してください')
                 continue
             return self.model.web3.toChecksumAddress(target) + ext_str
 

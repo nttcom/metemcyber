@@ -120,7 +120,7 @@ class Controller():
             '\n'
             'connecting to Ethereum Blockchain...\n'
             'Endpoint: ' + str(provider) + '\n'
-            'EoA address: ' + account_id)
+            'EOA address: ' + account_id)
 
         try:
             self.model = Player(
@@ -247,12 +247,15 @@ class Controller():
             'カタログコントラクトアドレス', hint='新規作成')
         if catalog_address is None:
             return
+        if catalog_address == '':
+            is_private = self.view.select_yes_no_screen(
+                hint='プライベートカタログとして作成しますか？')
+        else:
+            is_private = False
         broker_address = self.view.input_address_screen(
             'ブローカーコントラクトアドレス', hint='新規作成')
         if broker_address is None:
             return
-        is_private = self.view.select_yes_no_screen(
-            hint='プライベートカタログとして作成しますか？')
         self.model.setup_inventory(catalog_address, broker_address, is_private)
         self.view.setup_broker_done(
             self.model.inventory.catalog_address,

@@ -212,10 +212,16 @@ class Player():
             self.save_config()
 
     def _fix_config_address(self, target):
+        if target is None or target.strip() == '':
+            return None
         if self.web3.isChecksumAddress(target):
             return target
+
         if self.web3.isAddress(target):
-            return self.web3.toChecksumAddress(target)
+            LOGGER.error('not a mixed-case checksum address: %s', target)
+        else:
+            LOGGER.error('not a valid address: %s', target)
+        LOGGER.warning('ignored above config param')
         return None
 
     def load_config(self):
@@ -550,8 +556,7 @@ class Player():
             # トークン送付したので情報更新する
             self.inventory.update_balanceof_myself(token_address)
 
-    @staticmethod
-    def receive_challenge_answer(data):
+    def receive_challenge_answer(self, data):
         try:
             # data is generated at Solver.webhook().
             download_url = data['download_url']
@@ -576,6 +581,8 @@ class Player():
                 'チャレンジ結果を受信しましたが、受信URLからの' + \
                 'ダウンロードに失敗しました: ' + str(err) + '\n'
             msg += '手動でダウンロードしてください\n'
+            msg += '\n'
+            msg += self._save_download_url(token_address, download_url)
             return True, msg
 
         try:
@@ -583,7 +590,7 @@ class Player():
             title = jdata['Event']['info']
         except:
             title = '（解析できませんでした）'
-        msg += '取得データタイトル: ' + title
+        msg += '取得データタイトル: ' + title + '\n'
 
         try:
             if not os.path.isdir(DOWNLOADED_CTI_PATH):
@@ -591,11 +598,27 @@ class Player():
             filepath = '{}/{}.json'.format(DOWNLOADED_CTI_PATH, token_address)
             with open(filepath, 'wb') as fout:
                 fout.write(rdata)
-            msg += '\n取得データを保存しました: ' + filepath
+            msg += '取得データを保存しました: ' + filepath + '\n'
         except Exception as err:
-            msg += '\n取得データの保存に失敗しました: ' + str(err)
-            msg += '\n手動で再取得してください'
+            msg += '取得データの保存に失敗しました: ' + str(err) + '\n'
+            msg += '手動で再取得してください\n'
+            msg += '\n'
+            msg += self._save_download_url(token_address, download_url)
         return True, msg
+
+    @staticmethod
+    def _save_download_url(token_address, download_url):
+        try:
+            if not os.path.isdir(DOWNLOADED_CTI_PATH):
+                os.makedirs(DOWNLOADED_CTI_PATH)
+            filepath = '{}/{}.url'.format(
+                DOWNLOADED_CTI_PATH, token_address)
+            with open(filepath, 'w') as fout:
+                fout.write(download_url)
+            msg = 'ダウンロードURLを保存しました: ' + filepath + '\n'
+        except Exception as err:
+            msg = 'ダウンロードURLの保存に失敗しました: ' + str(err) + '\n'
+        return msg
 
     def cancel_challenge(self, task_id):
         assert self.operator_address
