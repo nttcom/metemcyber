@@ -212,10 +212,16 @@ class Player():
             self.save_config()
 
     def _fix_config_address(self, target):
+        if target is None or target.strip() == '':
+            return None
         if self.web3.isChecksumAddress(target):
             return target
+
         if self.web3.isAddress(target):
-            return self.web3.toChecksumAddress(target)
+            LOGGER.error('not a mixed-case checksum address: %s', target)
+        else:
+            LOGGER.error('not a valid address: %s', target)
+        LOGGER.warning('ignored above config param')
         return None
 
     def load_config(self):
