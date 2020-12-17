@@ -15,6 +15,19 @@ docker: Error response from daemon: network metemcyber-pricom not found.
 ---
 
 ```
+ => ERROR [internal] load metadata for docker.io/library/ubuntu:20.04
+------
+ > [internal] load metadata for docker.io/library/ubuntu:20.04:
+------
+failed to solve with frontend dockerfile.v0: .....
+```
+
+データの自動取得が行われないケースがあるようです。
+`docker pull docker.io/library/ubuntu:20.04` を実行してから再実行してください。
+
+---
+
+```
 $ ./metemcyber_ctl.sh pricom client alice
 not yet initialized
 ```
