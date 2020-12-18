@@ -21,8 +21,11 @@ Decentralized Cyber Threat Intelligence Refinement Framework.
 
 ## Overview
 
-- Cyber Threat Intelligence (MISP Objects) のプログラマブルな流通・共有
-- Cyber Threat Intelligence の利活用状況の記録
+Metemcyberでは、Cyber Threat Intelligence の共有 (売買) を通じて以下の特徴を実現します。
+
+- インテリジェンスに基づく活動の影響を一か所に集約
+- セキュリティ対応に関する気づきを共有
+- よりActionableな脅威インテリジェンスの生産
 
 ```
 git clone --recursive https://github.com/nttcom/metemcyber
