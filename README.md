@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/metemcyber/badge/?version=latest)](https://metemcyber.readthedocs.io/ja/latest/?badge=latest)
+
 # Metemcyber
 
 Decentralized Cyber Threat Intelligence Refinement Framework.
