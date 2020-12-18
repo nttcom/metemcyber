@@ -2,7 +2,7 @@
 
 # Metemcyber
 
-Decentralized Cyber Threat Intelligence Refinement Framework.
+Decentralized Cyber Threat Intelligence Kaizen Framework.
 
 [Metemcyber User Documentation](https://docs.google.com/document/d/1RL_0hDulTSuogskajhyv--eHGTsOiO6g2WLE4nTned4/edit?usp=sharing)
 
