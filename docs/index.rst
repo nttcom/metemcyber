@@ -19,10 +19,15 @@ Metemcyberでは、CTIの共有 (売買) を通じて以下の特徴を実現し
 - セキュリティ対応に関する気づきを共有
 - よりActionableな脅威インテリジェンスの生産
 
+CTIについての解説
+-----------------
+基本的なCTI (Cyber Threat Intelligence) の説明・用途などは以下をご覧ください。
 
 .. toctree::
-    :maxdepth: 2
-    :caption: Contents:
+    :maxdepth: 1
+
+    cti/basic
+    cti/target
 
 
 Indices and tables
