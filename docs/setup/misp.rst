@@ -31,5 +31,5 @@ MISPのインストール
 
 dockerを使う方法
 ~~~~~~~~~~~~~~~~
-| MISPのdockerイメージはいくつか公式サイトで紹介されていますが、現在は `docker-misp <https://github.com/MISP/docker-misp>`_ を利用するのがよいと思われます。
-
+| MISPのdockerイメージはいくつか公式サイトで紹介されていますが、現在は `docker-misp <https://github.com/coolacid/docker-misp>`_ を利用するのがよいでしょう。
+| docker-mispのREADMEにしたがってセットアップを行うことで、MISP環境をdockerで構築することができます。

@@ -88,13 +88,13 @@ metemcyber.settings
 ~~~~~~~~~~~~~~~~~~~~
 | metemcyber の実証実験においては、クライアント間でCTIの実ファイルを共有するために、Google Cloud Platoform (GCP) を利用します。GCPにアクセスするための情報を metemcyber.settings に記載します。
 | 実証実験の利用規約に同意したときに表示されたアクセストークンを “FUNCTIONS_TOKEN” に入力します。
-| 例として、アクセストークンが 「abcdefgh」の場合は以下のように入力します。
+| 例として、アクセストークンが 「1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef」の場合は以下のように入力します。
 
     .. code-block::
         :caption: metemcyber.settings
 
-        FUNCTIONS_URL=https://exchange.prod.metemcyber.ntt.com
-        FUNCTIONS_TOKEN=abcdefgh
+        FUNCTIONS_URL=https://exchange.metemcyber.ntt.com
+        FUNCTIONS_TOKEN=1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
 
 セットアップコマンドの実行
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
