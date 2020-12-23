@@ -40,6 +40,7 @@ CTIについての解説
 
     cti/basic
     cti/target
+    cti/actionable
 
 
 Indices and tables
