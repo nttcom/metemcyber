@@ -40,7 +40,7 @@ CTIについての解説
 
     cti/basic
     cti/target
-    cti/create
+    cti/actionable
 
 
 Indices and tables
