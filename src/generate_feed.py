@@ -24,7 +24,6 @@ import argparse
 from threading import Thread
 from socketserver import TCPServer
 from http.server import SimpleHTTPRequestHandler
-#from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from pymisp import MISPEvent
 
 
@@ -101,18 +100,12 @@ if __name__ == '__main__':
     output_rel = pathlib.Path(args.outputdir)
     output_abs = output_rel.resolve()
 
-    print(output_abs)
-    #generate_feed(args.inputdir, args.outputdir)
     generate_feed(input_abs, output_abs)
 
     if args.server:
         os.chdir(output_abs)
         thread = Thread(target=run_server, args=(args.port,), daemon=True)
-        #thread = Thread(target=run_server, args=(args.port, output_abs), daemon=True)
         thread.start()
-        #with ThreadingHTTPServer(("", args.port), SimpleHTTPRequestHandler) as httpd:
-        #with TCPServer(("", args.port), SimpleHTTPRequestHandler) as httpd:
-        #    httpd.serve_forever()
 
         event_files = set(os.listdir(input_abs))
         while True:
