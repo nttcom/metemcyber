@@ -19,12 +19,17 @@ import sys
 import json
 import glob
 import time
+import logging
 import pathlib
 import argparse
 from threading import Thread
 from socketserver import TCPServer
 from http.server import SimpleHTTPRequestHandler
 from pymisp import MISPEvent
+
+LOGGER = logging.getLogger(__name__)
+
+JOIN_TIMEOUT_SEC = 30
 
 
 def save_event(outputdir, event):
@@ -72,9 +77,35 @@ def generate_feed(inputdir, outputdir):
     save_manifest(outputdir, manifest)
     save_hashes(outputdir, hashes)
 
-def run_server(port):
-    with TCPServer(("", port), SimpleHTTPRequestHandler) as httpd:
-        httpd.serve_forever()
+
+class FeedHttpServer():
+
+    def __init__(self, port):
+        self.thread = None
+        self.server = None
+        self.port = port
+
+    def start(self):
+        if self.thread:
+            return
+        self.thread = Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+    def run(self):
+        with TCPServer(("", self.port), SimpleHTTPRequestHandler) as httpd:
+            self.server = httpd
+            httpd.serve_forever()
+
+    def stop(self):
+        if not self.thread or not self.server:
+            return
+        self.server.shutdown()
+        self.thread.join(timeout=JOIN_TIMEOUT_SEC)
+        if self.thread and self.thread.is_alive():
+            LOGGER.error('failed stopping httpd: %s')
+            return
+        self.thread = self.server = None
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -104,14 +135,16 @@ if __name__ == '__main__':
 
     if args.server:
         os.chdir(output_abs)
-        thread = Thread(target=run_server, args=(args.port,), daemon=True)
-        thread.start()
+        feedserver = FeedHttpServer(args.port)
+        feedserver.start()
 
         event_files = set(os.listdir(input_abs))
-        while True:
-            current_files = set(os.listdir(input_abs))
-            if event_files != current_files:
-                generate_feed(input_abs, output_abs)
-                event_files = current_files
-            time.sleep(5)
-            pass
+        try:
+            while True:
+                current_files = set(os.listdir(input_abs))
+                if event_files != current_files:
+                    generate_feed(input_abs, output_abs)
+                    event_files = current_files
+                time.sleep(1)
+        except KeyboardInterrupt:
+            feedserver.stop()
