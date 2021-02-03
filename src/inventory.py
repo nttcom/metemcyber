@@ -16,6 +16,9 @@
 
 import logging
 import time
+import inspect
+import copy
+from web3 import Web3
 from ens.constants import EMPTY_ADDR_HEX
 from ctibroker import CTIBroker
 from cticatalog import CTICatalog
@@ -23,23 +26,51 @@ from ctitoken import CTIToken
 from client_ui import PTS_RATE
 
 LOGGER = logging.getLogger('common')
+CATALOG_ID_BIAS = 1000  # XXX temporal value
+
+
+def catalog_tokens_key(catalog, token):
+    return '{token}:{catalog}'.format(token=token, catalog=catalog)
+
+def divide_token_key(token_key):
+    token, catalog = token_key.split(':', 1)
+    assert Web3.isChecksumAddress(catalog)
+    assert Web3.isChecksumAddress(token)
+    return catalog, token
 
 
 class Inventory:
     def __init__(
-            self, contracts, account_id, event_listener, catalog_address,
-            broker_address=None):
+            self, contracts, account_id, event_listener, broker_address=None):
         self.contracts = contracts
         self.account_id = account_id
         self.event_listener = event_listener
+        self.catalog_list = CatalogList(contracts, account_id, event_listener)
 
-        self.catalog = self.broker = None
-        self.switch_catalog(catalog_address)
+        self.broker = None
         self.switch_broker(broker_address)
 
+    def catalog_ctrl(self, actions, addresses):
+        assert self.catalog_list
+        if not isinstance(actions, list):
+            actions = [actions]
+        if not isinstance(addresses, list):
+            addresses = [addresses]
+        for action in actions:
+            assert action in {'add', 'remove', 'activate', 'deactivate'}
+            func = getattr(self.catalog_list, action)
+            for address in addresses:
+                func(address)
+                if action in {'add'}:
+                    self.fill_quantity(address)
+
     @property
-    def catalog_address(self):
-        return self.catalog.catalog_address if self.catalog else ''
+    def catalog_addresses(self):
+        return self.catalog_list.catalog_addresses
+
+    def list_catalogs(self, active):
+        assert self.catalog_list
+        return self.catalog_list.get_list(active)
 
     @property
     def broker_address(self):
@@ -47,39 +78,25 @@ class Inventory:
 
     @property
     def catalog_tokens(self):
-        return self.catalog.catalog_tokens if self.catalog else dict()
+        return self.catalog_list.catalog_tokens
 
-    @property
-    def is_catalog_owner(self):
-        return self.catalog.is_owner
+    def is_catalog_owner(self, address):
+        return self.catalog_list.is_owner(address)
 
     @property
     def like_users(self):
-        return self.catalog.like_users if self.catalog else dict()
+        return self.catalog_list.like_users
 
     def init_like_users(self, **kwargs):
-        self.catalog.init_like_users(**kwargs)
+        self.catalog_list.init_like_users(**kwargs)
 
     def destroy(self):
-        if self.catalog:
-            self.catalog.destroy()
-            self.catalog = None
+        if self.catalog_list:
+            self.catalog_list.destroy()
+            self.catalog_list = None
         if self.broker:
             self.broker.destroy()
             self.broker = None
-
-    def switch_catalog(self, catalog_address):
-        if self.catalog:
-            if self.catalog.catalog_address == catalog_address:
-                return
-            self.catalog.destroy()
-            self.catalog = None
-        if not catalog_address:
-            return
-        self.catalog = Catalog(
-            self.contracts, catalog_address, self.account_id,
-            self.event_listener)
-        self.fill_quantity()
 
     def switch_broker(self, broker_address):
         if self.broker:
@@ -94,113 +111,266 @@ class Inventory:
             self.event_listener)
         self.fill_quantity()
 
-    def fill_quantity(self):
-        if not self.catalog or not self.broker:
+    def fill_quantity(self, catalog_address=None):
+        if not self.catalog_list or not self.broker:
             return
-        token_addresses = list(self.catalog_tokens.keys())
-        amounts = self.broker.get_amounts(
-            self.catalog.catalog_address, token_addresses)
-        for i, token_address in enumerate(token_addresses):
-            self.catalog_tokens[token_address]['quantity'] = amounts[i]
+        self.catalog_list.fill_quantity(
+            self.broker.get_amounts, catalog_address)
 
     def amountchanged_callback(self, event):
         item = event['args']
-        if not self.catalog:
+        if not self.catalog_list:
             return
-        if item['catalog'] != self.catalog.catalog_address:
+        if item['catalog'] not in self.catalog_addresses:
             # 自身のカタログには無関係なので無視
             return
-        token_uri = item['token']
-        try:
-            token = self.catalog.safe_get_token(token_uri, 5)
-            if token is None:
-                if item['amount'] == 0:  # maybe unregistered
-                    return
-                raise Exception('not found on catalog, token: '+token_uri)
-            if token['tokenId'] > 0:
-                token['quantity'] = item['amount']
-        except Exception as err:
-            LOGGER.error(err)
+        self.catalog_list.update_quantity(
+            item['catalog'], item['token'], item['amount'])
 
     def list_own_tokens(self, account_id):
-        if not self.catalog:
+        if not self.catalog_list:
             return []
-        tokens = [k for k, v in self.catalog_tokens.items() \
-            if v['owner'] == account_id]
+        tokens = [v['token_address'] for v
+            in self.catalog_tokens.values() if v['owner'] == account_id]
         return tokens
 
-    def update_balanceof_myself(self, token_address):
-        if not self.catalog:
+    def update_balanceof_myself(self, token_address, catalog_address=None):
+        if not self.catalog_list:
             return
-        self.catalog.update_balanceof_myself(token_address)
+        self.catalog_list.update_balanceof_myself(
+            token_address, catalog_address)
 
     def restore_disseminate(self, *args, **kwargs):
-        assert self.catalog
-        self.catalog.restore_disseminate(*args, **kwargs)
+        assert self.catalog_list
+        self.catalog_list.restore_disseminate(*args, **kwargs)
 
-    def register_token(self, producer_address, token_address, metadata):
-        assert self.catalog
-        self.catalog.register_token(producer_address, token_address, metadata)
+    def register_token(
+            self, catalog_address, producer_address, token_address, metadata):
+        assert self.catalog_list
+        self.catalog_list.register_token(
+            catalog_address, producer_address, token_address, metadata)
 
-    def unregister_token(self, token_address):
-        assert self.catalog and self.broker
-        amount = self.catalog_tokens[token_address]['quantity']
+    def unregister_token(self, catalog_address, token_address):
+        assert self.catalog_list and self.broker
+        key = catalog_tokens_key(catalog_address, token_address)
+        amount = self.catalog_tokens[key]['quantity']
         if amount > 0:
-            self.broker.takeback(
-                self.catalog.catalog_address, token_address, amount)
+            self.broker.takeback(catalog_address, token_address, amount)
             # すぐに catalog_token から抹消されるので amount 更新は割愛
-        self.catalog.unregister_token(token_address)
+        self.catalog_list.unregister_token(catalog_address, token_address)
 
-    def modify_token(self, token_address, metadata):
-        assert self.catalog
-        self.catalog.modify_token(token_address, metadata)
+    def modify_token(self, catalog_address, token_address, metadata):
+        assert self.catalog_list
+        self.catalog_list.modify_token(
+            catalog_address, token_address, metadata)
 
-    def like_cti(self, token_address):
-        assert self.catalog
-        self.catalog.like_cti(token_address)
+    def like_cti(self, token_address, catalog_address=None):
+        assert self.catalog_list
+        self.catalog_list.like_cti(token_address, catalog_address)
 
-    def consign(self, token_address, amount):
-        if not self.catalog or not self.broker:
+    def consign(self, catalog_address, token_address, amount):
+        assert self.catalog_list and self.broker
+        self.broker.consign(catalog_address, token_address, amount)
+        self.catalog_list.update_balanceof_myself(
+            token_address, catalog_address)
+
+    def takeback(self, catalog_address, token_address, amount):
+        assert self.catalog_list and self.broker
+        self.broker.takeback(catalog_address, token_address, amount)
+        self.catalog_list.update_balanceof_myself(
+            token_address, catalog_address)
+
+    def buy(self, catalog_address, token_address, allow_cheaper=False):
+        assert self.catalog_list and self.broker
+        key = catalog_tokens_key(catalog_address, token_address)
+        price = self.catalog_tokens[key]['price']
+        self.broker.buy(catalog_address, token_address, price, allow_cheaper)
+        self.catalog_list.update_balanceof_myself(
+            token_address, catalog_address)
+
+    def is_catalog_private(self, catalog_address):
+        assert self.catalog_list
+        return self.catalog_list.is_private(catalog_address)
+
+    def set_private(self, catalog_address):
+        assert self.catalog_list
+        self.catalog_list.set_private(catalog_address)
+
+    def set_public(self, catalog_address):
+        assert self.catalog_list
+        self.catalog_list.set_public(catalog_address)
+
+    def authorize_user(self, catalog_address, eoa_address):
+        assert self.catalog_list
+        self.catalog_list.authorize_user(catalog_address, eoa_address)
+
+    def revoke_user(self, catalog_address, eoa_address):
+        assert self.catalog_list
+        self.catalog_list.revoke_user(catalog_address, eoa_address)
+
+    def show_authorized_users(self, catalog_address):
+        assert self.catalog_list
+        return self.catalog_list.show_authorized_users(catalog_address)
+
+
+class CatalogList:
+    def __init__(self, contracts, catalog_user, event_listener):
+        self.contracts = contracts
+        self.catalog_user = catalog_user
+        self.event_listener = event_listener
+        self.catalogs = {}  # {addr: {index, active, catalog}}
+
+    def passthrough(self, catalog_address, *args, **kwargs):
+        # Note:
+        #   This method calls the same name method in Catalog class.
+        #   See Catalog class for details of arguments.
+        catalog = self.catalogs.get(catalog_address)
+        if not catalog:
+            return None
+        finfo = inspect.getframeinfo(inspect.stack()[1][0])
+        func = getattr(catalog['catalog'], finfo.function)
+        if not callable(func):  # maybe a property
+            return func
+        return func(*args, **kwargs)
+
+    def destroy(self):
+        for catalog in self.catalogs.values():
+            catalog['catalog'].destroy()
+
+    @property
+    def catalog_addresses(self):
+        return [k for k, v in self.catalogs.items() if v['active']]
+
+    def get_list(self, active):
+        return [
+            (k, v['index'], v['active'])
+            for k, v in self.catalogs.items()
+            if active is None or v['active'] == active]
+
+    def add(self, address):
+        if address in self.catalogs.keys():
+            return self.catalogs[address]['index']
+        idx = 0 if not self.catalogs \
+            else max([x['index'] for x in self.catalogs.values()]) + 1
+        catalog = Catalog(
+            self.contracts, address, self.catalog_user, self.event_listener)
+        self.catalogs[address] = {
+            'index': idx,
+            'active': False,
+            'catalog': catalog,
+            }
+        return idx
+
+    def remove(self, address):
+        if address not in self.catalogs.keys():
             return
-        self.broker.consign(
-            self.catalog.catalog_address, token_address, amount)
-        self.catalog.update_balanceof_myself(token_address)
+        self.catalogs[address]['catalog'].destroy()
+        del self.catalogs[address]
 
-    def takeback(self, token_address, amount):
-        assert self.catalog and self.broker
-        self.broker.takeback(
-            self.catalog.catalog_address, token_address, amount)
-        self.catalog.update_balanceof_myself(token_address)
+    def activate(self, address):
+        assert address in self.catalogs.keys()
+        self.catalogs[address]['active'] = True
 
-    def buy(self, token_address, allow_cheaper=False):
-        assert self.catalog and self.broker
-        price = self.catalog_tokens[token_address]['price']
-        self.broker.buy(
-            self.catalog.catalog_address, token_address, price, allow_cheaper)
-        self.catalog.update_balanceof_myself(token_address)
+    def deactivate(self, address):
+        assert address in self.catalogs.keys()
+        self.catalogs[address]['active'] = False
 
-    def is_catalog_private(self):
-        return self.catalog.is_private if self.catalog else False
+    def update_quantity(self, catalog_address, *args, **kwargs):
+        self.passthrough(catalog_address, *args, **kwargs)
 
-    def set_private(self):
-        assert self.catalog
-        self.catalog.set_private()
+    def fill_quantity(self, get_amounts_func, catalog_address=None):
+        if catalog_address:
+            self.passthrough(catalog_address, get_amounts_func)
+            return
+        for catalog in self.catalogs.values():
+            catalog['catalog'].fill_quantity(get_amounts_func)
 
-    def set_public(self):
-        assert self.catalog
-        self.catalog.set_public()
+    def update_balanceof_myself(self, token_address, catalog_address=None):
+        if catalog_address:
+            self.passthrough(catalog_address, token_address)
+            return
+        for catalog in self.catalogs.values():
+            catalog['catalog'].update_balanceof_myself(token_address)
 
-    def authorize_user(self, eoa_address):
-        assert self.catalog
-        self.catalog.authorize_user(eoa_address)
+#    def _index_to_address(self, index):
+#        tgt = [k for k, v in self.catalogs.items() if v['index'] == index]
+#        return tgt[0] if tgt else None
 
-    def revoke_user(self, eoa_address):
-        assert self.catalog
-        self.catalog.revoke_user(eoa_address)
+    @property
+    def catalog_tokens(self):
+        return self.fixed_tokens(active=True)
 
-    def show_authorized_users(self):
-        assert self.catalog
-        return self.catalog.show_authorized_users()
+    def fixed_tokens(self, addresses=None, active=None):
+        if not addresses:
+            addresses = self.catalogs.keys()
+        fixed = dict()
+        for addr, val in self.catalogs.items():
+            if addr not in addresses:
+                continue
+            if active is not None and active != val['active']:
+                continue
+            tokens = copy.deepcopy(val['catalog'].catalog_tokens)
+            for token, metadata in tokens.items():
+                metadata['token_address'] = token
+                metadata['catalog_address'] = addr
+                metadata['tokenId'] += val['index'] * CATALOG_ID_BIAS  # overwr
+
+                key = catalog_tokens_key(addr, token)
+                fixed[key] = metadata
+        return fixed
+
+    def is_owner(self, catalog_address):
+        return self.passthrough(catalog_address)
+
+    @property
+    def like_users(self):
+        ret = dict()
+        for catalog in self.catalogs.values():
+            ret.update(catalog['catalog'].like_users)  #FIXME key may conflict
+        return ret
+
+    def init_like_users(self, **kwargs):
+        for catalog in self.catalogs.values():
+            catalog['catalog'].init_like_users(**kwargs)
+
+    def restore_disseminate(self, *args, **kwargs):
+        for catalog in self.catalogs.values():
+            catalog['catalog'].restore_disseminate(*args, **kwargs)
+
+    def register_token(self, catalog_address, *args, **kwargs):
+        self.passthrough(catalog_address, *args, **kwargs)
+
+    def unregister_token(self, catalog_address, *args, **kwargs):
+        self.passthrough(catalog_address, *args, **kwargs)
+
+    def modify_token(self, catalog_address, *args, **kwargs):
+        self.passthrough(catalog_address, *args, **kwargs)
+
+    def like_cti(self, token_address, catalog_address=None):
+        if catalog_address:
+            self.passthrough(catalog_address, token_address)
+            return
+        for catalog in self.catalogs.values():
+            catalog['catalog'].like_cti(token_address)
+
+    def is_private(self, catalog_address):
+        return self.passthrough(catalog_address)
+
+    def set_private(self, catalog_address):
+        self.passthrough(catalog_address)
+
+    def set_public(self, catalog_address):
+        self.passthrough(catalog_address)
+
+    def authorize_user(self, catalog_address, *args, **kwargs):
+        self.passthrough(catalog_address, *args, **kwargs)
+
+    def revoke_user(self, catalog_address, *args, **kwargs):
+        self.passthrough(catalog_address, *args, **kwargs)
+
+    def show_authorized_users(self, catalog_address, *args, **kwargs):
+        return self.passthrough(catalog_address, *args, **kwargs)
+
 
 class Catalog:
     def __init__(
@@ -315,6 +485,12 @@ class Catalog:
         for token_address in tokens:
             self.update_balanceof_myself(token_address)
 
+    def fill_quantity(self, get_amounts_func):
+        token_addresses = list(self.catalog_tokens.keys())
+        amounts = get_amounts_func(self.catalog_address, token_addresses)
+        for i, token_address in enumerate(token_addresses):
+            self.catalog_tokens[token_address]['quantity'] = amounts[i]
+
     def restore_disseminate(self, account_id, callback, view=None):
         for token in self.cticatalog.list_token_uris():
             if token == '':
@@ -343,6 +519,18 @@ class Catalog:
                     continue
             break
         return None
+
+    def update_quantity(self, token_address, quantity):
+        try:
+            token = self.safe_get_token(token_address, 5)
+            if token is None:
+                if quantity == 0:  # maybe unregistered
+                    return
+                raise Exception('not found on catalog, token: '+token_address)
+            if token['tokenId'] > 0:
+                token['quantity'] = quantity
+        except Exception as err:
+            LOGGER.error(err)
 
     def update_balanceof_myself(self, token_address):
         target = self.safe_get_token(token_address)
