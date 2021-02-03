@@ -49,7 +49,9 @@ class Seeker():
         tasks = dict()
         for (task_id, token, solver, seeker, state) in reversed(raw_tasks):
             try:
-                title = catalog[token]['title']
+                title = [
+                    v for v in catalog.values() if v['token_address'] == token
+                    ][0]['title']
             except:
                 title = '(no information found on current catalog)'
             tasks[task_id] = {

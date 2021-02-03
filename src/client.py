@@ -33,6 +33,7 @@ from webhook import WebhookReceiver
 
 from client_model import Player
 from client_ui import SimpleCUI, ViewerIO
+from inventory import divide_token_key
 
 if sys.version_info[0] < 3:
     raise Exception('Python 3 or a more recent version is required.')
@@ -116,21 +117,23 @@ class Controller():
         self.state = None
         self.hookurl = hookurl
 
-        self.view.vio.print(
-            '\n'
-            'connecting to Ethereum Blockchain...\n'
-            'Endpoint: ' + str(provider) + '\n'
-            'EOA address: ' + account_id)
+        if vio:
+            vio.print(
+                '\n'
+                'connecting to Ethereum Blockchain...\n'
+                'Endpoint: ' + str(provider) + '\n'
+                'EOA address: ' + account_id)
 
         try:
             self.model = Player(
                 account_id, private_key, self.provider, dev=dev)
         except (HTTPError, ValueError, ValidationError) as err:
             LOGGER.error(err)
-            self.view.vio.print(
-                'Initialization failed. '
-                'Make sure the EOA address and private key pair is correct '
-                'and you have enough Ether to operate.')
+            if vio:
+                vio.print(
+                    'Initialization failed. Make sure the EOA address and '
+                    'private key pair is correct and you have enough Ether '
+                    'to operate.')
             sys.exit(255)
 
         self.model.add_observer(self.view)
@@ -181,15 +184,16 @@ class Controller():
 
     def shopping(self):
         while True:
-            address, asset = self.view.token_selector(mode='catalog')
-            if not address:
+            token_key, asset = self.view.token_selector(mode='catalog')
+            if not token_key:
                 return
             if not self.view.confirm(asset):
                 continue
 
             caution = 'Operation failed.'
             try:
-                self.model.buy(address)
+                catalog_address, token_address = divide_token_key(token_key)
+                self.model.buy(catalog_address, token_address)
                 continue
 
             except HTTPError as err:
@@ -219,7 +223,8 @@ class Controller():
         return ''
 
     def dissemination(self):
-        if not self.model.inventory.catalog_address:
+        catalogs = self.model.inventory.catalog_addresses
+        if not catalogs:
             self.view.missing_screen('カタログ')
             return
         if not self.model.inventory.broker_address:
@@ -228,12 +233,19 @@ class Controller():
         if not self.model.operator_address:
             self.view.missing_screen('オペレータ')
             return
+        if len(catalogs) == 1:
+            # TODO
+            catalog_address = catalogs[0]
+        else:
+            catalog_address = self.view.catalog_selector(active=True)
         context, num_consign = self.view.new_asset()
+        if not context:
+            return
         accept_now = self.view.select_yes_no_screen(
             hint='チャレンジ受付を開始しますか？')
 
-        assert context
-        token_address = self.model.disseminate_new_token(context, num_consign)
+        token_address = self.model.disseminate_new_token(
+            catalog_address, context, num_consign)
         self.view.vio.print('CTIトークンを発行しました: ' + token_address)
         if accept_now:
             self.model.accept_challenge(token_address, view=self.view)
@@ -243,39 +255,55 @@ class Controller():
                 'メニューから「チャレンジの受付」を実行してください')
 
     def broker(self):
-        catalog_address = self.view.input_address_screen(
-            'カタログコントラクトアドレス', hint='新規作成')
-        if catalog_address is None:
-            return
-        if catalog_address == '':
-            is_private = self.view.select_yes_no_screen(
-                hint='プライベートカタログとして作成しますか？')
-        else:
-            is_private = False
         broker_address = self.view.input_address_screen(
             'ブローカーコントラクトアドレス', hint='新規作成')
         if broker_address is None:
             return
-        self.model.setup_inventory(catalog_address, broker_address, is_private)
-        self.view.setup_broker_done(
-            self.model.inventory.catalog_address,
-            self.model.inventory.broker_address)
+        self.model.setup_broker(broker_address)
+        self.view.setup_broker_done(self.model.inventory.broker_address)
+
+    def catalog_ctrl(self):
+        catalog_address = None
+        is_private = False
+        act = self.view.select_catalog_act_screen()
+        if not act:
+            return
+        if act == 'new':
+            is_private = self.view.select_yes_no_screen(
+                hint='プライベートカタログとして作成しますか？')
+        elif act == 'add':
+            catalog_address = self.view.input_address_screen(
+                'カタログコントラクトアドレス')
+        elif act == 'activate':
+            catalog_address = self.view.catalog_selector(active=False)
+        elif act == 'deactivate':
+            catalog_address = self.view.catalog_selector(active=True)
+        elif act == 'remove':
+            catalog_address = self.view.catalog_selector(active=None)
+        else:
+            raise Exception('Internal Error: unknown act: ' + act)
+
+        if act != 'new' and not catalog_address:
+            return
+        self.model.setup_catalog(act, catalog_address, is_private)
+        self.view.setup_catalog_done()
 
     def challenge(self):
-        address, _asset = self.view.token_selector(mode='token_holder')
-        if not address:
+        token_key, _asset = self.view.token_selector(mode='token_holder')
+        if not token_key:
             return
+        _, token_address = divide_token_key(token_key)
 
         # webhook受付時のcallbackの指定
         WebhookReceiver.set_callback(self.webhook_callback)
         if self.hookurl:
             hookurl = self.hookurl
         else:
-            hookurl = WebhookReceiver.get_url(address)
+            hookurl = WebhookReceiver.get_url(token_address)
 
-        self.model.watch_token_start(address, self.token_returned)
-        self.model.request_challenge(address, data=hookurl)
-        result = self.model.fetch_task_id(address)
+        self.model.watch_token_start(token_address, self.token_returned)
+        self.model.request_challenge(token_address, data=hookurl)
+        result = self.model.fetch_task_id(token_address)
         self.view.start_challenge(result)
 
     def token_returned(self, event):
@@ -298,24 +326,26 @@ class Controller():
             self.view.challenge_failed(msg)
 
     def challenge_acception(self):
-        address, _asset = self.view.token_selector(mode='token_publisher')
-        if not address:
+        token_key, _asset = self.view.token_selector(mode='token_publisher')
+        if not token_key:
             return
         action = self.view.challenge_action_selector()
         if not action:
             return
+        _, token_address = divide_token_key(token_key)
         if action == 'accept_challenge':
-            self.model.accept_challenge(address, view=self.view)
+            self.model.accept_challenge(token_address, view=self.view)
         elif action == 'refuse_challenge':
-            self.model.refuse_challenge(address)
+            self.model.refuse_challenge(token_address)
         else:
             raise Exception('Internal Error')
 
     def like(self):
         while True:
-            address, _asset = self.view.token_selector(mode='like')
-            if address:
-                self.model.like_cti(address)
+            token_key, _asset = self.view.token_selector(mode='like')
+            if token_key:
+                catalog_address, token_address = divide_token_key(token_key)
+                self.model.like_cti(token_address, catalog_address)
                 continue
             break
 
@@ -332,17 +362,27 @@ class Controller():
                 or self.model.default_num_consign < 0:
             err = '設定値（価格・発行数・委託数）が不正です'
         elif not (self.model.inventory and
-                  self.model.inventory.catalog and
                   self.model.inventory.broker):
-            err = 'カタログ・ブローカーが未設定です'
+            err = 'ブローカーが未設定です'
         elif not self.model.operator_address:
             err = 'オペレータが未設定です'
+        catalog_address = None
+        if err is None:
+            catalogs = self.model.inventory.catalog_addresses
+            if len(catalogs) == 0:
+                err = 'カタログが未設定です'
+            elif len(catalogs) > 1:
+                err = '複数カタログ有効時は(-mオプションでの)' +\
+                    'CTI自動発行はできません'
+            else:
+                catalog_address = catalogs[0]
         if err is not None:
             self.view.vio.print(
                 err + '\n'
                 'CTI の自動発行に失敗しました')
             return
         self.model.disseminate_token_from_mispdata(
+            catalog_address,
             self.model.default_price, self.model.default_quantity,
             self.model.default_num_consign, self.model.default_auto_accept,
             self.view)
@@ -351,7 +391,8 @@ class Controller():
         if not self.model.inventory:
             self.view.missing_screen('インベントリ')
             return
-        if not self.model.inventory.catalog_address:
+        catalogs = self.model.inventory.catalog_addresses
+        if not catalogs:
             self.view.missing_screen('カタログ')
             return
         if not self.model.inventory.broker_address:
@@ -361,20 +402,27 @@ class Controller():
             self.view.missing_screen('オペレータ')
             return
 
+        if len(catalogs) == 1:
+            # TODO
+            catalog_address = catalogs[0]
+        else:
+            catalog_address = self.view.catalog_selector(active=True)
         price, quantity, num_consign, auto_accept = \
             self.view.publish_misp_param()
         if price is not None and price >= 0 and quantity > 0:
             self.model.disseminate_token_from_mispdata(
+                catalog_address,
                 price, quantity, num_consign, auto_accept, self.view)
 
     ## temporal func to hide 'send' from menu.
     def burn_own_token(self):
         hook = lambda: self.view.vio.pager_print(
             '廃棄するトークンを選択してください')
-        token_address, asset = self.view.token_selector(
+        token_key, asset = self.view.token_selector(
             mode='token_holder', hook=hook)
-        if not token_address:
+        if not token_key:
             return
+        _, token_address = divide_token_key(token_key)
         amount = self.view.input_int_screen(
             minimum=1, maximum=asset['balanceOfUser'])
         if amount is None:
@@ -385,10 +433,11 @@ class Controller():
     def treat_own_token(self):
         hook = lambda: self.view.vio.pager_print(
             '操作するトークンを選択してください')
-        token_address, asset = self.view.token_selector(
+        token_key, asset = self.view.token_selector(
             mode='token_holder', hook=hook)
-        if not token_address:
+        if not token_key:
             return
+        _, token_address = divide_token_key(token_key)
         act = self.view.select_token_act_screen()
         if not act:
             return
@@ -409,16 +458,17 @@ class Controller():
     def dealing(self):
         hook = lambda: self.view.vio.pager_print(
             '取引するトークンを選択してください')
-        token_address, asset = self.view.token_selector(
+        token_key, asset = self.view.token_selector(
             mode='token_publisher', hook=hook)
-        if not token_address:
+        if not token_key:
             return
+        catalog_address, token_address = divide_token_key(token_key)
         act = self.view.select_dealing_act_screen()
         if not act:
             return
         if act == 'unregister':
             self.model.refuse_challenge(token_address)
-            self.model.unregister_catalog(token_address)
+            self.model.unregister_catalog(catalog_address, token_address)
             return
         if act == 'consign':
             max_amount = asset['balanceOfUser']
@@ -429,19 +479,20 @@ class Controller():
         amount = self.view.input_int_screen(minimum=1, maximum=max_amount)
         if amount is None:
             return
-        deal_func(token_address, amount)
+        deal_func(catalog_address, token_address, amount)
 
     def modify_asset(self):
         hook = lambda: self.view.vio.pager_print(
             'パラメータ変更するトークンを選択してください')
-        token_address, asset = self.view.token_selector(
+        token_key, asset = self.view.token_selector(
             mode='token_publisher', hook=hook)
-        if not token_address:
+        if not token_key:
             return
-        new_asset = self.view.modify_asset_screen(token_address, asset)
+        catalog_address, token_address = divide_token_key(token_key)
+        new_asset = self.view.modify_asset_screen(asset)
         if new_asset is None:
             return
-        self.model.update_catalog(token_address, new_asset)
+        self.model.update_catalog(catalog_address, token_address, new_asset)
 
     def cancel_task(self):
         if not self.model.operator_address:
@@ -492,7 +543,7 @@ class Controller():
         if not self.model.inventory:
             self.view.missing_screen('インベントリ')
             return
-        if not self.model.inventory.catalog_address:
+        if not self.model.inventory.catalog_addresses:
             self.view.missing_screen('カタログ')
             return
         callback = self.model.create_asset_content
@@ -503,39 +554,46 @@ class Controller():
         if not self.model.inventory:
             self.view.missing_screen('インベントリ')
             return
-        if not self.model.inventory.is_catalog_owner:
+        catalog_address = self.view.catalog_selector(active=None)
+        if not catalog_address:
+            return
+        if not self.model.inventory.is_catalog_owner(catalog_address):
             self.view.vio.print('カタログのオーナーではありません')
             return
 
-        settings = self.view.select_catalog_settings_screen()
+        settings = self.view.select_catalog_settings_screen(catalog_address)
         if not settings:
             return
         if settings == 'private':
-            self.model.inventory.set_private()
+            self.model.inventory.set_private(catalog_address)
         elif settings == 'public':
-            self.model.inventory.set_public()
+            self.model.inventory.set_public(catalog_address)
 
     def authorize_user(self):
         if not self.model.inventory:
             self.view.missing_screen('インベントリ')
             return
-        if not self.model.inventory.is_catalog_owner:
+        catalog_address = self.view.catalog_selector(active=None)
+        if not catalog_address:
+            return
+        if not self.model.inventory.is_catalog_owner(catalog_address):
             self.view.vio.print('カタログのオーナーではありません')
             return
 
         act = self.view.select_authorize_act_screen()
         if act == 'authorize':
             address = self.view.input_address_screen()
-            self.model.inventory.authorize_user(address)
+            self.model.inventory.authorize_user(catalog_address, address)
             return
         if act == 'revoke':
             address_list = self.model.inventory.show_authorized_users()
             address = self.view.revoke_user_selector(address_list)
             if address:
-                self.model.inventory.revoke_user(address)
+                self.model.inventory.revoke_user(catalog_address, address)
             return
         if act == 'show':
-            address_list = self.model.inventory.show_authorized_users()
+            address_list = self.model.inventory.show_authorized_users(
+                catalog_address)
             self.view.vio.print('アドレスリスト:')
             for address in address_list:
                 self.view.vio.print(address)

@@ -133,13 +133,22 @@ class Player():
         self.event_listener.start()
 
         # inventory (トークン・カタログの管理)のインスタンス生成
-        catalog_address = self._fix_config_address(
-            self.config['catalog']['address'])
         broker_address = self._fix_config_address(
             self.config['broker']['address'])
         self.inventory = Inventory(
             self.contracts, self.account_id,
-            self.event_listener, catalog_address, broker_address)
+            self.event_listener, broker_address)
+
+        catalog_addresses = [
+            self._fix_config_address(x.strip(" '")) for x in
+            self.config['catalog']['address'].strip('[]').split(',') if x]
+        if catalog_addresses:
+            self.inventory.catalog_ctrl(['add', 'activate'], catalog_addresses)
+        reserve_addresses = [
+            self._fix_config_address(x.strip(" '")) for x in
+            self.config['catalog']['reserves'].strip('[]').split(',') if x]
+        if reserve_addresses:
+            self.inventory.catalog_ctrl(['add'], reserve_addresses)
 
         # Seeker (チャレンジの依頼者)のインスタンス
         self.seeker = Seeker(self.contracts)
@@ -230,6 +239,7 @@ class Player():
         config = configparser.ConfigParser()
         config.add_section('catalog')
         config.set('catalog', 'address', '')
+        config.set('catalog', 'reserves', '')
         config.add_section('broker')
         config.set('broker', 'address', '')
         config.add_section('operator')
@@ -254,7 +264,11 @@ class Player():
             if not self.config.has_section(catalog):
                 self.config.add_section(catalog)
             self.config.set(
-                catalog, 'address', self.inventory.catalog_address)
+                catalog, 'address',
+                ','.join([x[0] for x in self.inventory.list_catalogs(True)]))
+            self.config.set(
+                catalog, 'reserves',
+                ','.join([x[0] for x in self.inventory.list_catalogs(False)]))
 
             broker = 'broker'
             if not self.config.has_section(broker):
@@ -327,26 +341,32 @@ class Player():
             getattr(self, state)()
         self.notify_observer()
 
-    def setup_inventory(
-            self, catalog_address='', broker_address='', is_private=False):
-        if catalog_address == '':
+    def setup_catalog(self, act, catalog_address=None, private=False):
+        if not catalog_address:
+            assert act == 'new'
             catalog_address = self.contracts.accept(CTICatalog()).\
-                new(is_private).contract_address
+                new(private).contract_address
             LOGGER.info('deployed CTICatalog. address: %s', catalog_address)
+            act = 'add'
+        if not self.inventory:
+            self.inventory = Inventory(
+                self.contracts, self.account_id, self.event_listener)
+        self.inventory.catalog_ctrl(act, catalog_address)
+        self.save_config()
+
+    def setup_broker(self, broker_address=''):
         if broker_address == '':
             broker_address = self.contracts.accept(CTIBroker()).\
                 new().contract_address
             LOGGER.info('deployed CTIBroker. address: %s', broker_address)
 
         if self.inventory:
-            self.inventory.switch_catalog(catalog_address)
             self.inventory.switch_broker(broker_address)
         else:
             # inventory インスタンスの作成
             self.inventory = Inventory(
-                self.contracts, self.account_id, catalog_address,
-                broker_address)
-
+                self.contracts, self.account_id,
+                self.event_listener, broker_address)
         self.save_config()
 
     def create_token(self, initial_supply, default_operators=None):
@@ -400,13 +420,13 @@ class Player():
         if self.solver:
             self.accept_as_solver(view)
 
-    def buy(self, token_address):
+    def buy(self, catalog_address, token_address):
         # トークンの購買処理の実装
-        self.inventory.buy(token_address, allow_cheaper=True)
+        self.inventory.buy(catalog_address, token_address, allow_cheaper=True)
 
     def disseminate_token_from_mispdata(
-            self, default_pirce, default_quantity, default_num_consign,
-            default_auto_accept, view):
+            self, catalog_address, default_pirce, default_quantity,
+            default_num_consign, default_auto_accept, view):
         # mispオブジェクトファイルの一覧をtokenとして公開する
 
         # 登録済みのtokenを取得
@@ -431,32 +451,34 @@ class Player():
                 metadata['price'] = default_pirce
                 metadata['operator'] = self.operator_address
                 metadata['quantity'] = default_quantity
+
                 token_address = self.disseminate_new_token(
-                    metadata, default_num_consign)
+                    catalog_address, metadata, default_num_consign)
                 if default_auto_accept:
                     self.accept_challenge(token_address, view)
             except KeyError:
                 LOGGER.warning('There is no Event info in %s', misp)
 
-    def disseminate_new_token(self, cti_metadata, num_consign=0):
+    def disseminate_new_token(
+            self, catalog_address, cti_metadata, num_consign=0):
         # ERC20/777 トークンを、独自トークンとして発行する
         # CTIトークンを作成
         token_address = self.create_token(cti_metadata['quantity'])
 
         # カタログに登録して詳細をアップデート
-        self.disseminate_token(token_address, cti_metadata)
+        self.disseminate_token(catalog_address, token_address, cti_metadata)
 
         if num_consign > 0:
-            self.inventory.consign(token_address, num_consign)
+            self.inventory.consign(catalog_address, token_address, num_consign)
 
         return token_address
 
-    def disseminate_token(self, token_address, cti_metadata):
+    def disseminate_token(self, catalog_address, token_address, cti_metadata):
         # トークンをカタログに登録
 
         cti_metadata['tokenAddress'] = token_address
         self.create_asset_content(cti_metadata)
-        self.register_catalog(token_address, cti_metadata)
+        self.register_catalog(catalog_address, token_address, cti_metadata)
         self.save_registered_token(cti_metadata)
 
     def create_asset_content(self, cti_metadata):
@@ -487,15 +509,16 @@ class Player():
         except FileExistsError:
             LOGGER.error('disseminate link already exists: %s', dist_linkpath)
 
-    def register_catalog(self, token_address, cti_metadata):
+    def register_catalog(self, catalog_address, token_address, cti_metadata):
         self.inventory.register_token(
-            self.account_id, token_address, cti_metadata)
+            catalog_address, self.account_id, token_address, cti_metadata)
 
-    def unregister_catalog(self, token_address):
-        self.inventory.unregister_token(token_address)
+    def unregister_catalog(self, catalog_address, token_address):
+        self.inventory.unregister_token(catalog_address, token_address)
 
-    def update_catalog(self, token_address, cti_metadata):
-        self.inventory.modify_token(token_address, cti_metadata)
+    def update_catalog(self, catalog_address, token_address, cti_metadata):
+        self.inventory.modify_token(
+            catalog_address, token_address, cti_metadata)
 
     @staticmethod
     def save_registered_token(cti_metadata):
@@ -529,11 +552,11 @@ class Player():
             LOGGER.error(err)
         return registered_tokens
 
-    def consign(self, token_address, amount):
-        self.inventory.consign(token_address, amount)
+    def consign(self, catalog_address, token_address, amount):
+        self.inventory.consign(catalog_address, token_address, amount)
 
-    def takeback(self, token_address, amount):
-        self.inventory.takeback(token_address, amount)
+    def takeback(self, catalog_address, token_address, amount):
+        self.inventory.takeback(catalog_address, token_address, amount)
 
     def watch_token_start(self, token_address, callback):
         ctitoken = self.contracts.accept(CTIToken()).get(token_address)
@@ -669,9 +692,9 @@ class Player():
         LOGGER.info('refuse_challenge token: %s', token_address)
         self.solver.refuse_challenges([token_address])
 
-    def like_cti(self, token_address):
+    def like_cti(self, token_address, catalog_address):
         assert self.inventory
-        self.inventory.like_cti(token_address)
+        self.inventory.like_cti(token_address, catalog_address)
 
     def get_like_users(self):
         try:

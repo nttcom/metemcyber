@@ -112,7 +112,9 @@ class BasicEventListener:
                     LOGGER.info(
                         'event %s: address=%s args=%s',
                         event['event'], event['address'], event['args'])
-                    value['callback'](event)
+
+                    Thread(target=value['callback'], args=[event]).start()
+
                 if self.__stopping:
                     break
             self.__lock.release()

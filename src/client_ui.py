@@ -175,14 +175,17 @@ class SimpleCUI():
             ]
         if self.model.dev:
             menu.extend([
-                (901, 'broker', 'カタログ・ブローカーの作成・変更'),
+                (900, 'catalog_ctrl', 'カタログの作成・変更'),
+                (901, 'broker', 'ブローカーの作成・変更'),
                 (902, 'operator', 'オペレータの作成・変更'),
                 (903, 'list_all_tasks', 'タスク一覧表示'),
                 (904, 'like', 'CTIトークンのLike'),
                 (905, 'init_like_users', 'Liked情報の初期化'),
                 (906, 'restore_disseminate', 'disseminate link再構成'),
-                (907, 'catalog_settings', 'カタログのプライベート/パブリックの設定'),
-                (908, 'authorize_user', 'ユーザのプライベートカタログへのアクセス許可'),
+                (907, 'catalog_settings',
+                    'カタログのプライベート/パブリックの設定'),
+                (908, 'authorize_user',
+                    'ユーザのプライベートカタログへのアクセス許可'),
                 ])
         for num, state, hint in menu:
             self.menu[num] = {'state': state, 'hint': hint}
@@ -216,7 +219,7 @@ class SimpleCUI():
         num_published = len([v for v \
             in self.model.inventory.catalog_tokens.values() \
                 if v['owner'] == self.model.account_id])
-        catalog_address = self.model.inventory.catalog_address
+        catalog_addresses = self.model.inventory.catalog_addresses
         broker_address = self.model.inventory.broker_address
         operator_address = self.model.operator_address \
             if self.model.operator_address else ''
@@ -233,19 +236,19 @@ class SimpleCUI():
         pout(' - EOAアドレス: {}'.format(self.model.account_id))
         pout(' - 所持ETH: {} Wei'.format(eth))
         pout('■ コントラクト')
-        pout(' - カタログアドレス: {}'.format(catalog_address))
+        pout(' - カタログアドレス: {}'.format(catalog_addresses))
         pout(' - ブローカーアドレス: {}'.format(broker_address))
         pout(' - オペレータアドレス: {}'.format(operator_address))
         pout('■ カタログ')
         pout(' - 所持ユニークCTIトークン数: {}'.format(num_own))
         pout(' - CTIトークン発行回数: {}'.format(num_published))
         pout('■ CTIトークン')
-        for address, asset in self.model.inventory.catalog_tokens.items():
+        for asset in self.model.inventory.catalog_tokens.values():
             if asset['balanceOfUser'] > 0:
                 pout('ID:{tokenId} 数量:{balance} - {uri}'.format(
                     tokenId=asset['tokenId'],
                     balance=asset['balanceOfUser'],
-                    uri=address))
+                    uri=asset['token_address']))
 
     def _token_selector_list(self, mode='catalog'):
         self.display_assets = []
@@ -282,29 +285,29 @@ class SimpleCUI():
         else:
             raise Exception('Internal Error')
 
-        for address, asset in assets.items():
+        for token_key, asset in assets.items():
             try:
                 if asset[balance_key] >= min_balance:
-                    self.display_assets.append((address, asset))
+                    self.display_assets.append((token_key, asset))
             except:
                 continue
         if len(self.display_assets) == 0:
             return
 
         self.vio.pager_print(
-            '+++   liked by you, liked by someone, liked by trusted user\n'
+            '+++   liked by you, by someone, by trusted users\n'
             '   *  accepting challenge as a solver')
         # Ctiごとのlike, accept情報を取得
         like_users = self.model.get_like_users()
         accepting = self.model.solver.accepting_tokens() \
             if self.model.solver else []
-        for address, asset in self.display_assets:
+        for token_key, asset in self.display_assets:
             liked_prefix = '   '
-            if address in like_users.keys():
-                if len(like_users[address]) == 0:
+            if asset['token_address'] in like_users.keys():
+                if len(like_users[asset['token_address']]) == 0:
                     continue
                 liked_myself = liked_someone = liked_trusted = False
-                for user in like_users[address]:
+                for user in like_users[asset['token_address']]:
                     if user == self.model.account_id:
                         liked_myself = True
                     elif user in self.model.trusted_users:
@@ -315,12 +318,12 @@ class SimpleCUI():
                     ('+' if liked_myself else ' ') + \
                     ('+' if liked_someone else ' ') + \
                     ('+' if liked_trusted else ' ')
-            id_prefix = '{}:'.format(asset['tokenId'])
-            accept_mrk = '*' if address in accepting else ' '
+            id_prefix = ' {}:'.format(asset['tokenId'])
+            accept_mrk = '*' if asset['token_address'] in accepting else ' '
             self.vio.pager_print(
                 liked_prefix + accept_mrk + id_prefix, asset['title'])
             self.vio.pager_print(
-                '   ', ' ', '├', 'Addr :', address)
+                '   ', ' ', '├', 'Addr :', token_key)
             self.vio.pager_print(
                 '   ', ' ', '├', 'UUID :', asset['uuid'],
                 '(' + asset['operator'] + ')')
@@ -355,9 +358,9 @@ class SimpleCUI():
                 return ('back', None)
             try:
                 token = int(command)
-                address, asset = [(k, v) for k, v \
+                token_key, asset = [(k, v) for k, v \
                     in self.display_assets if v['tokenId'] == token][0]
-                return 'select', (address, asset)
+                return 'select', (token_key, asset)
             except:
                 pass
             self.vio.print('入力値が不正です')
@@ -390,6 +393,52 @@ class SimpleCUI():
                 self.model.interest = target
                 continue
             return None, None
+
+    def _catalog_selector_list(self, active=None):
+        catalogs = self.model.inventory.list_catalogs(active)
+        self.vio.pager_print('  *  active catalog')
+        for addr, index, is_active in catalogs:
+            self.vio.pager_print('  {} {}: {}'.format(
+                '*' if is_active else ' ', index, addr))
+        return catalogs
+
+    def _catalog_selector_input(self, catalogs):
+        self.vio.pager_cancel_quit()
+        if len(catalogs) > 0:
+            self.vio.pager_print('[ ]インデックスを入力して選択する')
+        else:
+            self.vio.pager_print('選択できるアイテムがありません')
+        self.vio.pager_print('[b]メニューに戻る')
+
+        self.vio.pager_reset()
+
+        candidates = {idx: addr for addr, idx, _ in catalogs}
+        while True:
+            command = self.vio.input().strip()
+            if command == 'b':
+                return 'back', None
+            try:
+                idx = int(command)
+                if idx in candidates.keys():
+                    return 'select', candidates[idx]
+            except:
+                pass
+            self.vio.print('入力値が不正です')
+
+    def catalog_selector(self, active=None, hook=None):
+        while True:
+            self.vio.pager_reset()
+            if hook:
+                hook()
+            else:
+                self.vio.pager_print('カタログを選択してください')
+            catalogs = self._catalog_selector_list(active)
+            act, target = self._catalog_selector_input(catalogs)
+            if act == 'select':
+                return target
+            if act == 'back':
+                return None
+            return None
 
     def _task_selector_list(self, tasks, state=None):
 
@@ -554,7 +603,7 @@ class SimpleCUI():
         asset['operator'] = operator_id
         return asset, num_consign
 
-    def modify_asset_screen(self, token_address, current):
+    def modify_asset_screen(self, current):
         self.vio.print('----CTIトークンパラメータを変更します----')
         self.vio.print('(UUIDは変更できません)')
 
@@ -584,7 +633,7 @@ class SimpleCUI():
             return None
 
         self.vio.print('--[確認]--')
-        self.vio.print('  アドレス: {}'.format(token_address))
+        self.vio.print('  アドレス: {}'.format(current['token_address']))
         self.vio.print('      UUID: {}'.format(current['uuid']))
         self.vio.print('  タイトル: "{}"'.format(asset_title))
         self.vio.print('      価格: {}'.format(asset_price))
@@ -645,9 +694,13 @@ class SimpleCUI():
             'state': 'refuse_challenge', 'hint': 'チャレンジ受付解除する'}
         return self.number_selector(items)
 
-    def setup_broker_done(self, catalog, broker):
+    def setup_catalog_done(self):
         self.vio.print('作成/変更を完了しました')
-        self.vio.print('カタログアドレス:', catalog)
+        self.vio.print('登録カタログアドレス:')
+        self._catalog_selector_list()
+
+    def setup_broker_done(self, broker):
+        self.vio.print('作成/変更を完了しました')
         self.vio.print('ブローカーアドレス:', broker)
 
     def setup_operator_done(self, operator):
@@ -717,6 +770,23 @@ class SimpleCUI():
         items[3] = {'state': 'unregister', 'hint': 'トークンの登録取り消し'}
         return self.number_selector(items)
 
+    def select_catalog_act_screen(self):
+        self.vio.print('カタログ操作内容を選択してください')
+        items = dict()
+        items[0] = {'state': None, 'hint': 'キャンセル'}
+        items[1] = {'state': 'list',       'hint': '現在のリスト表示'}
+        items[2] = {'state': 'new',        'hint': '新規作成（デプロイ）'}
+        items[3] = {'state': 'add',        'hint': '追加登録'}
+        items[4] = {'state': 'activate',   'hint': '有効化'}
+        items[5] = {'state': 'deactivate', 'hint': '無効化'}
+        items[6] = {'state': 'remove',     'hint': '登録抹消'}
+        ret = self.number_selector(items)
+        if ret == 'list':
+            self.vio.print('登録カタログアドレス:')
+            self._catalog_selector_list()
+            return None
+        return ret
+
     def input_address_screen(
             self, target_hint=None, default=None, hint=None,
             ext_delimiter=None):
@@ -741,10 +811,11 @@ class SimpleCUI():
                     ext = ''
                 ext_str = ext_delimiter + ext
 
-            if target == '':
-                if default:
+            if target == '':  # empty is allowed only with default or hint
+                if default is not None:
                     return default + ext_str
-                return '' + ext_str
+                if hint is not None:
+                    return '' + ext_str
 
             if not self.model.web3.isChecksumAddress(target):
                 self.vio.print('正しいアドレスではありません')
@@ -821,9 +892,10 @@ class SimpleCUI():
         confirm = self.vio.input().strip()
         return default if confirm == '' else confirm in {'y', 'Y'}
 
-    def select_catalog_settings_screen(self):
+    def select_catalog_settings_screen(self, catalog_address):
         current_state = "プライベート " \
-            if self.model.inventory.is_catalog_private() else "パブリック"
+            if self.model.inventory.is_catalog_private(catalog_address) \
+            else "パブリック"
         self.vio.print('現在の状態: {}'.format(current_state))
         self.vio.print('設定内容を選択してください')
         items = dict()
