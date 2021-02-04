@@ -172,6 +172,7 @@ class SimpleCUI():
             (22, 'dealing', '発行トークンの追加委託・引取・登録取消'),
             (23, 'publish_misp', 'ローカルMISPデータからのCTIトークン自動配布'),
             (24, 'modify_asset', 'CTIトークンのパラメータ変更'),
+            (25, 'setup_misp_param', 'CTIトークン自動配布用パラメータ設定'),
             ]
         if self.model.dev:
             menu.extend([
@@ -402,14 +403,13 @@ class SimpleCUI():
                 '*' if is_active else ' ', index, addr))
         return catalogs
 
-    def _catalog_selector_input(self, catalogs):
+    def _catalog_selector_input(self, catalogs, default=None):
         self.vio.pager_cancel_quit()
         if len(catalogs) > 0:
             self.vio.pager_print('[ ]インデックスを入力して選択する')
         else:
             self.vio.pager_print('選択できるアイテムがありません')
         self.vio.pager_print('[b]メニューに戻る')
-
         self.vio.pager_reset()
 
         candidates = {idx: addr for addr, idx, _ in catalogs}
@@ -418,6 +418,8 @@ class SimpleCUI():
             if command == 'b':
                 return 'back', None
             try:
+                if default and command == '':
+                    return 'select', default
                 idx = int(command)
                 if idx in candidates.keys():
                     return 'select', candidates[idx]
@@ -425,15 +427,17 @@ class SimpleCUI():
                 pass
             self.vio.print('入力値が不正です')
 
-    def catalog_selector(self, active=None, hook=None):
+    def catalog_selector(self, active=None, hook=None, default=None):
         while True:
             self.vio.pager_reset()
             if hook:
                 hook()
             else:
                 self.vio.pager_print('カタログを選択してください')
+            if default is not None:
+                self.vio.print('(空白でデフォルト: {})'.format(default))
             catalogs = self._catalog_selector_list(active)
-            act, target = self._catalog_selector_input(catalogs)
+            act, target = self._catalog_selector_input(catalogs, default)
             if act == 'select':
                 return target
             if act == 'back':
@@ -725,33 +729,38 @@ class SimpleCUI():
             self.vio.print('不正な値です')
 
     def publish_misp_param(self):
-        self.vio.print('未配布のMISPデータをCTIトークンとして自動配布します')
+        default = self.model.default_catalog
+        catalog = self.catalog_selector(active=None, default=default)
+        if catalog is None:
+            return None, None, None, None, None
 
         default = self.model.default_price \
             if self.model.default_price >= 0 else None
         price = self.input_int_screen('価格', minimum=0, default=default)
         if price is None:
-            return None, None, None, None
+            return None, None, None, None, None
 
         default = self.model.default_quantity \
             if self.model.default_quantity > 0 else None
         quantity = self.input_int_screen('発行数', minimum=1, default=default)
         if quantity is None:
-            return None, None, None, None
+            return None, None, None, None, None
 
         default = self.model.default_num_consign \
             if self.model.default_num_consign > 0 else None
         num_consign = self.input_int_screen(
             'カタログ登録数', minimum=0, default=default)
         if num_consign is None:
-            return None, None, None, None
+            return None, None, None, None, None
 
         default = self.model.default_auto_accept
         auto_accept = self.select_yes_no_screen(
             hint='チャレンジ受付を開始しますか？',
             default=default)
+        if auto_accept is None:
+            return None, None, None, None, None
 
-        return price, quantity, num_consign, auto_accept
+        return catalog, price, quantity, num_consign, auto_accept
 
     def select_token_act_screen(self):
         self.vio.print('操作内容を選択してください')
