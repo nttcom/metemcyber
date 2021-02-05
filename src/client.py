@@ -357,7 +357,9 @@ class Controller():
 
     def disseminate_mispdata(self):
         err = None
-        if self.model.default_price < 0 \
+        if not self.model.default_catalog:
+            err = 'カタログが未設定です'
+        elif self.model.default_price < 0 \
                 or self.model.default_quantity < 0 \
                 or self.model.default_num_consign < 0:
             err = '設定値（価格・発行数・委託数）が不正です'
@@ -366,28 +368,18 @@ class Controller():
             err = 'ブローカーが未設定です'
         elif not self.model.operator_address:
             err = 'オペレータが未設定です'
-        catalog_address = None
-        if err is None:
-            catalogs = self.model.inventory.catalog_addresses
-            if len(catalogs) == 0:
-                err = 'カタログが未設定です'
-            elif len(catalogs) > 1:
-                err = '複数カタログ有効時は(-mオプションでの)' +\
-                    'CTI自動発行はできません'
-            else:
-                catalog_address = catalogs[0]
         if err is not None:
             self.view.vio.print(
                 err + '\n'
                 'CTI の自動発行に失敗しました')
             return
         self.model.disseminate_token_from_mispdata(
-            catalog_address,
+            self.model.default_catalog,
             self.model.default_price, self.model.default_quantity,
             self.model.default_num_consign, self.model.default_auto_accept,
             self.view)
 
-    def publish_misp(self):
+    def _publish_misp(self, edit_param_mode=False):
         if not self.model.inventory:
             self.view.missing_screen('インベントリ')
             return
@@ -402,17 +394,27 @@ class Controller():
             self.view.missing_screen('オペレータ')
             return
 
-        if len(catalogs) == 1:
-            # TODO
-            catalog_address = catalogs[0]
-        else:
-            catalog_address = self.view.catalog_selector(active=True)
-        price, quantity, num_consign, auto_accept = \
+        self.view.vio.print(
+            'MISPデータの自動配布用パラメータを設定します'
+            if edit_param_mode else
+            '未配布のMISPデータをCTIトークンとして自動配布します')
+        catalog_address, price, quantity, num_consign, auto_accept = \
             self.view.publish_misp_param()
-        if price is not None and price >= 0 and quantity > 0:
+        if catalog_address is None:
+            return
+        if edit_param_mode:
+            self.model.set_misp_config(
+                catalog_address, price, quantity, num_consign, auto_accept)
+        else:
             self.model.disseminate_token_from_mispdata(
                 catalog_address,
                 price, quantity, num_consign, auto_accept, self.view)
+
+    def publish_misp(self):
+        self._publish_misp()
+
+    def setup_misp_param(self):
+        self._publish_misp(edit_param_mode=True)
 
     ## temporal func to hide 'send' from menu.
     def burn_own_token(self):

@@ -162,7 +162,12 @@ class Player():
             self.solver = None
 
         # MISP設定のinsert
-        self.load_misp_config(MISP_INI_FILEPATH)
+        self.default_catalog = None
+        self.default_price = -1
+        self.default_quantity = -1
+        self.default_num_consign = -1
+        self.default_auto_accept = False
+        self.load_misp_config()
 
     def deploy_erc1820(self):
         # ERC777を利用するにはERC1820が必要
@@ -293,17 +298,15 @@ class Player():
             self.config.write(fout)
             LOGGER.info('update config.')
 
-    def load_misp_config(self, fname):
+    def load_misp_config(self):
+        fname = MISP_INI_FILEPATH
         # MISPに関する設定を設定ファイルから読み取る
-        self.default_price = -1
-        self.default_quantity = -1
-        self.default_num_consign = -1
-        self.default_auto_accept = False
         if not os.path.exists(fname):
             return
         config = configparser.ConfigParser()
         config.read(fname)
         try:
+            self.default_catalog = config["MISP"].get("default_catalog")
             self.default_price = config["MISP"].getint("defaultprice")
             self.default_quantity = config["MISP"].getint("defaultquantity")
             self.default_num_consign = config["MISP"].getint(
@@ -314,6 +317,27 @@ class Player():
         except KeyError as err:
             LOGGER.warning('MISP configファイルの読み込みに失敗しました')
             LOGGER.warning(err)
+
+    def save_misp_config(self):
+        fname = MISP_INI_FILEPATH
+        conf = configparser.ConfigParser()
+        conf.add_section('MISP')
+        conf.set('MISP', 'default_catalog', self.default_catalog)
+        conf.set('MISP', 'defaultprice', str(self.default_price))
+        conf.set('MISP', 'defaultquantity', str(self.default_quantity))
+        conf.set('MISP', 'default_num_consign',str(self.default_num_consign))
+        conf.set('MISP', 'default_auto_accept', str(self.default_auto_accept))
+        with open(fname, 'w') as fout:
+            conf.write(fout)
+
+    def set_misp_config(
+            self, catalog, price, quantity, num_consign, auto_accept):
+        self.default_catalog = catalog
+        self.default_price = price
+        self.default_quantity = quantity
+        self.default_num_consign = num_consign
+        self.default_auto_accept = auto_accept
+        self.save_misp_config()
 
     @staticmethod
     def uuid_to_filepath(uuid):
