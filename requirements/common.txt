@@ -12,3 +12,5 @@ Flask==1.1.2
 pymisp==2.4.133
 google-cloud-storage==1.32.0
 rusty-rlp
+docopt==0.6.2
+kedro==0.17.0
