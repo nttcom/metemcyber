@@ -35,18 +35,25 @@ if __name__ == '__main__':
     config.add_section('general')
     config.read(CONFIG_INI_FILEPATH)
 
-    # get key
+    key = args['<key>']
+    value = args['<value>']
+    
     # print all option values
     if args['--list']:
         for option in config['general']:
             print(option, ":", config['general'][option])
-    elif args['<key>']:
-        print(config['general'][args['<key>']])
-    # set key=value
-    elif args['<key>'] and args['<value>']:
-        config.set('general', args['<key>'], args['<value>'])
-        with open(CONFIG_INI_FILEPATH, 'w') as fout:
-            config.write(fout)
-            print('update config.')
+    elif key:
+        if config.has_option('general', key):
+            # get value from key
+            if not value:
+                print('Not a valid key: {0}'.format(key))
+            # set key = value
+            else:
+                config.set('general', key, value)
+                with open(CONFIG_INI_FILEPATH, 'w') as fout:
+                    config.write(fout)
+                    print('update config.')
+        else:
+            print('Not a valid key: {0}'.format(key))
     else:
-        exit("%r is not valid in the config command. See 'metemctl config --help'.")
+        exit("Options are not set. See 'metemctl config --help'.")
