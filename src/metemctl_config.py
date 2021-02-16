@@ -29,7 +29,7 @@ CONFIG_INI_FILEPATH = "metemctl.ini"
 
 if __name__ == '__main__':
 
-    args = docopt(__doc__, help=True)
+    args = docopt(__doc__)
         
     config = configparser.ConfigParser()
     config.add_section('general')
