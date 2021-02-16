@@ -39,4 +39,4 @@ if __name__ == '__main__':
         url = config['general']['misp_url']
         exit(call([browser, url]))
     else:
-        exit("Option is not set. See 'metemctl misp --help'.")
+        exit("Options are not set. See 'metemctl misp --help'.")
