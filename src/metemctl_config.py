@@ -15,10 +15,12 @@
 #
 
 """
-usage: metemctl config [options] [<key>] [<value>]
+usage:  metemctl config get [options] <key>
+        metemctl config set [options] <key> <value>
+        metemctl config list [options]
 
     -h, --help
-    -l, --list      Print option values within the general section
+    -s, --section <name>
 
 """
 from docopt import docopt
@@ -35,25 +37,32 @@ if __name__ == '__main__':
     config.add_section('general')
     config.read(CONFIG_INI_FILEPATH)
 
-    key = args['<key>']
-    value = args['<value>']
-    
-    # print all option values
-    if args['--list']:
-        for option in config['general']:
-            print(option, ":", config['general'][option])
-    elif key:
+    if args['--section']:
+        section = args['--section']
+    else:
+        section = 'general'
+
+    # get value from key
+    if args['get']:
+        key = args['<key>']
         if config.has_option('general', key):
-            # get value from key
-            if not value:
-                print(config['general'][key])
-            # set key = value
-            else:
-                config.set('general', key, value)
-                with open(CONFIG_INI_FILEPATH, 'w') as fout:
-                    config.write(fout)
-                    print('update config.')
+            print(config['general'][key])
         else:
             print('Not a valid key: {0}'.format(key))
+    # set key=value
+    elif args['set']:
+        key = args['<key>']
+        value = args['<value>']
+        if config.has_option('general', key):
+            config.set('general', key, value)
+            with open(CONFIG_INI_FILEPATH, 'w') as fout:
+                config.write(fout)
+                print('update config.')
+        else:
+            print('Not a valid key: {0}'.format(key))
+    # print all option values
+    elif args['list']:
+        for option in config[section]:
+            print(option, ":", config[section][option])
     else:
         exit("Options are not set. See 'metemctl config --help'.")
