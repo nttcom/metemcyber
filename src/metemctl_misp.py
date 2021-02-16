@@ -15,31 +15,28 @@
 #
 
 """
-usage: metemctl misp [options] <command>
+usage: metemctl misp [options]
 
 options:
    -h, --help
-
+   -o, --open    access config file
 """
 from docopt import docopt
 import configparser
 from subprocess import call
 
-CONFIG_INI_FILEPATH = "metemctl.ini"
-
+CONFIG_INI_FILEPATH = 'metemctl.ini'
 
 if __name__ == '__main__':
 
-    args = docopt(__doc__,
-                  options_first=True)
+    args = docopt(__doc__)
     
     config = configparser.ConfigParser()
     config.read(CONFIG_INI_FILEPATH)
     
-    do = args['<command>']
-    if do == "access":
-        path = config['general']["browser_path"]
-        url = config['general']["misp_url"]
-        exit(call([path, url]))
+    if args['--open']:
+        browser = config['general']['browser_path']
+        url = config['general']['misp_url']
+        exit(call([browser, url]))
     else:
-        exit("%r is not valid in the config command. See 'metemctl config --help'." % args['<command>'])
+        exit("Option is not set. See 'metemctl misp --help'.")
