@@ -46,7 +46,7 @@ if __name__ == '__main__':
         if config.has_option('general', key):
             # get value from key
             if not value:
-                print('Not a valid key: {0}'.format(key))
+                print(config['general'][key])
             # set key = value
             else:
                 config.set('general', key, value)
