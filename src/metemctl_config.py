@@ -15,10 +15,12 @@
 #
 
 """
-usage: metemctl config <command> [<target>] [<value>]
+usage:  metemctl config get [options] <key>
+        metemctl config set [options] <key> <value>
+        metemctl config list [options]
 
-options:
-   -h, --help
+    -h, --help
+    -s, --section <name>
 
 """
 from docopt import docopt
@@ -29,35 +31,38 @@ CONFIG_INI_FILEPATH = "metemctl.ini"
 
 if __name__ == '__main__':
 
-    args = docopt(__doc__,
-                  options_first=True)
-    
-    config = configparser.ConfigParser()
-    config.add_section('general')
-    config.read(CONFIG_INI_FILEPATH)
-    
-    do = args['<command>']
-    target = args['<target>']
-    value = args['<value>']
+    args = docopt(__doc__)
 
-    # get command
-    if do == "get":
-        if target:
-            print(config['general'][target])
+    if args['--section']:
+        section = args['--section']
+    else:
+        section = 'general'
+
+    config = configparser.ConfigParser()
+    config.add_section(section)
+    config.read(CONFIG_INI_FILEPATH)
+
+    # get value from key
+    if args['get']:
+        key = args['<key>']
+        if config.has_option(section, key):
+            print(config[section][key])
         else:
-            print("Please specify the <target> in the 'get' command. See 'metemctl config --help'.")
-    # set command
-    elif do == "set" and target:
-        if target and value:
-            config.set('general', target, value)
+            print('Not a valid key: {0}'.format(key))
+    # set key=value
+    elif args['set']:
+        key = args['<key>']
+        value = args['<value>']
+        if config.has_option(section, key):
+            config.set(section, key, value)
             with open(CONFIG_INI_FILEPATH, 'w') as fout:
                 config.write(fout)
                 print('update config.')
         else:
-            print("Please specify the <target> and <value> in the 'set' command. See 'metemctl config --help'.")
-    # list command
-    elif do == "list":
-        for option in config['general']:
-            print(option, ":", config['general'][option])
+            print('Not a valid key: {0}'.format(key))
+    # print all option values
+    elif args['list']:
+        for option in config[section]:
+            print(option, ":", config[section][option])
     else:
-        exit("%r is not valid in the config command. See 'metemctl config --help'." % args['<command>'])
+        exit("Options are not set. See 'metemctl config --help'.")
