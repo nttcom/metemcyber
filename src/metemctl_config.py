@@ -32,29 +32,29 @@ CONFIG_INI_FILEPATH = "metemctl.ini"
 if __name__ == '__main__':
 
     args = docopt(__doc__)
-        
-    config = configparser.ConfigParser()
-    config.add_section('general')
-    config.read(CONFIG_INI_FILEPATH)
 
     if args['--section']:
         section = args['--section']
     else:
         section = 'general'
 
+    config = configparser.ConfigParser()
+    config.add_section(section)
+    config.read(CONFIG_INI_FILEPATH)
+
     # get value from key
     if args['get']:
         key = args['<key>']
-        if config.has_option('general', key):
-            print(config['general'][key])
+        if config.has_option(section, key):
+            print(config[section][key])
         else:
             print('Not a valid key: {0}'.format(key))
     # set key=value
     elif args['set']:
         key = args['<key>']
         value = args['<value>']
-        if config.has_option('general', key):
-            config.set('general', key, value)
+        if config.has_option(section, key):
+            config.set(section, key, value)
             with open(CONFIG_INI_FILEPATH, 'w') as fout:
                 config.write(fout)
                 print('update config.')
