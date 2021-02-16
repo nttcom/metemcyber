@@ -15,8 +15,7 @@
 #
 
 """
-usage:
-    metemctl config [options] [<key>] [<value>]
+usage: metemctl config [options] [<key>] [<value>]
 
     -h, --help
     -l, --list      Print option values within the general section
