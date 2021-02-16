@@ -36,7 +36,11 @@ if __name__ == '__main__':
     config.read(CONFIG_INI_FILEPATH)
 
     # get key
-    if args['<key>']:
+    # print all option values
+    if args['--list']:
+        for option in config['general']:
+            print(option, ":", config['general'][option])
+    elif args['<key>']:
         print(config['general'][args['<key>']])
     # set key=value
     elif args['<key>'] and args['<value>']:
@@ -44,9 +48,5 @@ if __name__ == '__main__':
         with open(CONFIG_INI_FILEPATH, 'w') as fout:
             config.write(fout)
             print('update config.')
-    # print all option values
-    elif args['--list']:
-        for option in config['general']:
-            print(option, ":", config['general'][option])
     else:
         exit("%r is not valid in the config command. See 'metemctl config --help'.")
