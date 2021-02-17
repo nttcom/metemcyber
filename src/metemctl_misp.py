@@ -32,7 +32,6 @@ CONFIG_INI_FILEPATH = 'metemctl.ini'
 if __name__ == '__main__':
 
     args = docopt(__doc__)
-    print(args)
     
     config = configparser.ConfigParser()
     config.read(CONFIG_INI_FILEPATH)
