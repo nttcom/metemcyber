@@ -1,6 +1,59 @@
 {
+  "name": "my-app",
+  "version": "0.1.0",
+  "private": true,
+  "main": "public/electron.js",
+  "homepage": "./",
   "dependencies": {
-    "@openzeppelin/contracts": "^3.2.2-solc-0.7",
-    "@openzeppelin/test-helpers": "^0.5.9"
+    "@testing-library/jest-dom": "^5.11.4",
+    "@testing-library/react": "^11.1.0",
+    "@testing-library/user-event": "^12.1.10",
+    "electron-is-dev": "^1.2.0",
+    "electron-rebuild": "^2.3.5",
+    "node-pty": "^0.10.0",
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1",
+    "react-scripts": "4.0.2",
+    "web-vitals": "^1.0.1",
+    "reactstrap": "^8.9.0",
+    "bootstrap": "^4.6.0",
+    "ngrok": "^3.4.0",
+    "react-router-dom": "^5.2.0"
+  },
+  "scripts": {
+    "react-start": "cross-env BROWSER=none react-scripts start",
+    "react-build": "react-scripts build",
+    "react-test": "react-scripts test",
+    "react-eject": "react-scripts eject",
+    "electron-start": "wait-on http://localhost:3000 && electron .",
+    "electron-build": "electron-builder",
+    "start": "run-p react-start electron-start",
+    "build": "run-s react-build electron-build",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^11.1.0",
+    "electron-builder": "^22.9.1",
+    "npm-run-all": "^4.1.5",
+    "wait-on": "^5.2.0"
   }
 }
