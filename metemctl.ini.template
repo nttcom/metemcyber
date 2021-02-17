@@ -5,3 +5,6 @@ misp_url = http://misp.localhost
 misp_auth_key = YOUR_MISP_AUTH_KEY
 misp_ssl_cert = 0
 misp_json_dumpdir = ./fetched_misp_events
+wallet_addr = YOUR_WALLET_ADDRESS
+slack_webhook_url = SLACK_WEBHOOK_URL
+endpoint_url = ETHEREUM_JSON_RPC_ENDPOINT
