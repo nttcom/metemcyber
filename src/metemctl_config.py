@@ -15,10 +15,12 @@
 #
 
 """
-usage:  metemctl config get [options] <key>
+usage:  metemctl config
+        metemctl config get [options] <key>
         metemctl config set [options] <key> <value>
         metemctl config list [options]
 
+options:
     -h, --help
     -s, --section <name>
 
@@ -65,4 +67,4 @@ if __name__ == '__main__':
         for option in config[section]:
             print(option, ":", config[section][option])
     else:
-        exit("Options are not set. See 'metemctl config --help'.")
+        exit("Invalid command. See 'metemctl config --help'.")
