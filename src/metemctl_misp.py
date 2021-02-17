@@ -15,11 +15,13 @@
 #
 
 """
-usage: metemctl misp [options]
+usage:  metemctl misp
+        metemctl misp open [--url <misp-location>]
 
 options:
    -h, --help
-   -o, --open    access config file
+   -l, --url <misp-location>
+
 """
 from docopt import docopt
 import configparser
@@ -34,9 +36,11 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read(CONFIG_INI_FILEPATH)
     
-    if args['--open']:
+    if args['open']:
         browser = config['general']['browser_path']
         url = config['general']['misp_url']
+        if args['--url']:
+            url = args['--url']
         exit(call([browser, url]))
     else:
-        exit("Options are not set. See 'metemctl misp --help'.")
+        exit("Invalid command. See 'metemctl misp --help'.")
