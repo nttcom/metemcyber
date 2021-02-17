@@ -44,4 +44,4 @@ if __name__ == '__main__':
             url = args['--url']
         exit(call([browser, url]))
     else:
-        exit("Options are not set. See 'metemctl misp --help'.")
+        exit("Invalid command. See 'metemctl misp --help'.")
