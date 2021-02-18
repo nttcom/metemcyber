@@ -63,11 +63,16 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read(CONFIG_INI_FILEPATH)
 
+    endpoint = config['general']['endpoint_url']
+    w3 = Web3(Web3.HTTPProvider(endpoint))
+    keyfile_path = config['general']['keyfile']
+    my_account_id, my_private_key = decode_keyfile(keyfile_path, w3)
+    w3.eth.defaultAccount = my_account_id
+
     # get wallet address
-    wallet = config['general']['wallet_addr']
     if args['--eoa']:
-        wallet = args['--eoa']
-    wallet = Web3.toChecksumAddress(wallet)
+        w3.eth.defaultAccount = args['--eoa']
+    w3.eth.defaultAccount = Web3.toChecksumAddress(w3.eth.defaultAccount)
     # send money request
     if args['okawari']:
         # get access token for slack 
@@ -77,15 +82,13 @@ if __name__ == '__main__':
         requests.post(
             slack_url,
             data = json.dumps({
-                'text': wallet
+                'text': w3.eth.defaultAccount
             })
         )
 
     # show user account infomation
     elif args['info']:
         # set the access point of Web3
-        endpoint = config['general']['endpoint_url']
-        w3 = Web3(Web3.HTTPProvider(endpoint))
         if w3.isConnected():
             # PoA であれば geth_poa_middleware を利用
             try:
@@ -94,21 +97,17 @@ if __name__ == '__main__':
                 w3.middleware_onion.inject(geth_poa_middleware, layer=0)
 
             # check wallet in the eoa address
-            balance = w3.eth.getBalance(wallet)
+            balance = w3.eth.getBalance(w3.eth.defaultAccount)
             
             # print balance of wallet
             print('--------------------')
             print('Summary')
-            print('  - EOA Address:', wallet)
+            print('  - EOA Address:', w3.eth.defaultAccount)
             print('  - Balance:', balance, 'Wei')
             print('--------------------')
     elif args['send-ether'] and args['<value>']:
         # load account
-        keyfile_path = config['general']['keyfile']
-        endpoint = config['general']['endpoint_url']
-        w3 = Web3(Web3.HTTPProvider(endpoint))
-        my_account_id, my_private_key = decode_keyfile(keyfile_path, w3)
-        w3.eth.defaultAccount = my_account_id
+
 
         # load send address
         # PoA であれば geth_poa_middleware を利用
