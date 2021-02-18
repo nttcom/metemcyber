@@ -47,7 +47,8 @@ def decode_keyfile(filename, w3):
         with open(filename) as keyfile:
             enc_data = keyfile.read()
         address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
-        word = getpass('Enter password for keyfile:')
+        print('You can also use an env METEMCTL_KEYFILE_PASSWORD.')
+        word = os.getenv('METEMCTL_KEYFILE_PASSWORD') or getpass('Enter password for keyfile:')
         private_key = w3.eth.account.decrypt(enc_data, word).hex()
         return address, private_key
     except Exception as err:

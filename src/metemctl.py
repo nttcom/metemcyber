@@ -21,7 +21,7 @@ usage: metemctl [--version]
 options:
    -h, --help
 
-The most commonly used metmctl commands are:
+The most commonly used metemctl commands are:
    new        Create a new workflow
    config     Operate the config of metemctl
 
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     argv = [args['<command>']] + args['<args>']
 
     #サブコマンドのリストを追加
-    if args['<command>'] in 'new config'.split():
+    if args['<command>'] in 'new config misp account'.split():
         exit(call(['python', 'src/metemctl_%s.py' % args['<command>']] + argv))
     elif args['<command>'] in ['help', None]:
         exit(call(['python', 'src/metemctl.py', '--help']))
