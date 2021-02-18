@@ -18,7 +18,7 @@
 usage:  metemctl account
         metemctl account info [options]
         metemctl account okawari [options]
-        metemctl account send-ether <dest> [options]
+        metemctl account send-ether <dest> <value> [options]
 
 options:
     -h, --help
@@ -102,7 +102,7 @@ if __name__ == '__main__':
             print('  - EOA Address:', wallet)
             print('  - Balance:', balance, 'Wei')
             print('--------------------')
-    elif args['send-ether']:
+    elif args['send-ether'] and args['<value>']:
         # load account
         keyfile_path = config['general']['keyfile']
         endpoint = config['general']['endpoint_url']
@@ -121,13 +121,13 @@ if __name__ == '__main__':
                 construct_sign_and_send_raw_middleware(my_private_key))
 
         eoa = args['<dest>']
-        if not '0x' in eoa: # add prefix "0x" for Web3.py
+        if not eoa.startswith('0x'): # add prefix "0x" for Web3.py
             eoa = '0x' + eoa
         if Web3.isAddress(eoa):
             if not Web3.isChecksumAddress(eoa):
                 eoa = Web3.toChecksumAddress(eoa)
             # set balance
-            value = Web3.toWei(1, 'ether')
+            value = Web3.toWei(args['<value>'], 'ether')
             # send transaction(tx)
             tx_hash = w3.eth.sendTransaction({'to': eoa, 'from': w3.eth.defaultAccount, 'value': value})
             # check send tx status
