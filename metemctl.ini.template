@@ -8,3 +8,4 @@ misp_json_dumpdir = ./fetched_misp_events
 wallet_addr = YOUR_WALLET_ADDRESS
 slack_webhook_url = SLACK_WEBHOOK_URL
 endpoint_url = ETHEREUM_JSON_RPC_ENDPOINT
+keyfile = /path/to/YOUR_KEYFILE

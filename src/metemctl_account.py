@@ -18,6 +18,7 @@
 usage:  metemctl account
         metemctl account info [options]
         metemctl account okawari [options]
+        metemctl account send-ether <dest> [options]
 
 options:
     -h, --help
@@ -33,8 +34,27 @@ from web3 import Web3
 from web3.exceptions import ExtraDataLengthError
 from web3.middleware import geth_poa_middleware
 from web3.middleware import construct_sign_and_send_raw_middleware
+from getpass import getpass
+import sys
+import os
+import re
 
 CONFIG_INI_FILEPATH = 'metemctl.ini'
+
+def decode_keyfile(filename, w3):
+    # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
+    try:
+        with open(filename) as keyfile:
+            enc_data = keyfile.read()
+        address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
+        word = getpass('Enter password for keyfile:')
+        private_key = w3.eth.account.decrypt(enc_data, word).hex()
+        return address, private_key
+    except Exception as err:
+        print('ERROR:', err)
+        print('cannot decode keyfile:', os.path.basename(filename))
+        sys.exit()
+
 
 if __name__ == '__main__':
 
@@ -42,6 +62,7 @@ if __name__ == '__main__':
 
     config = configparser.ConfigParser()
     config.read(CONFIG_INI_FILEPATH)
+
     # get wallet address
     wallet = config['general']['wallet_addr']
     if args['--eoa']:
@@ -81,6 +102,39 @@ if __name__ == '__main__':
             print('  - EOA Address:', wallet)
             print('  - Balance:', balance, 'Wei')
             print('--------------------')
-         
+    elif args['send-ether']:
+        # load account
+        keyfile_path = config['general']['keyfile']
+        endpoint = config['general']['endpoint_url']
+        w3 = Web3(Web3.HTTPProvider(endpoint))
+        my_account_id, my_private_key = decode_keyfile(keyfile_path, w3)
+        w3.eth.defaultAccount = my_account_id
+
+        # load send address
+        # PoA であれば geth_poa_middleware を利用
+        try:
+            w3.eth.getBlock("latest")
+        except ExtraDataLengthError:
+            w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+        if my_private_key:
+            w3.middleware_onion.add(
+                construct_sign_and_send_raw_middleware(my_private_key))
+
+        eoa = args['<dest>']
+        if not '0x' in eoa: # add prefix "0x" for Web3.py
+            eoa = '0x' + eoa
+        if Web3.isAddress(eoa):
+            if not Web3.isChecksumAddress(eoa):
+                eoa = Web3.toChecksumAddress(eoa)
+            # set balance
+            value = Web3.toWei(1, 'ether')
+            # send transaction(tx)
+            tx_hash = w3.eth.sendTransaction({'to': eoa, 'from': w3.eth.defaultAccount, 'value': value})
+            # check send tx status
+            tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+            if tx_receipt['status'] != 1:
+                print('Payment failed.')
+        else:
+            print('Wrong address')        
     else:
         exit("Invalid command. See 'metemctl account --help'.")
