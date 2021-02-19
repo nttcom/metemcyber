@@ -7,7 +7,7 @@ npm install
 
 ### 鍵ファイルの配置
 
-metemcyberディレクトリ直下に鍵ファイルを配置
+metemcyberディレクトリ直下に'keyfile'ディレクトリを作成後、'keyfile'ディレクトリ内に鍵ファイルを配置
 
 ### GUIの起動
 

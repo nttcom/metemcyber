@@ -4,20 +4,12 @@ const path = require('path')
 const isDev = require("electron-is-dev");
 const pty = require('node-pty');
 const ngrok = require('ngrok');
+const fs = require('fs');
 
 let proc = [];
 let addr = "";
 
-async function createWindow() {
-  console.log(__dirname)
-  /*
-  proc = pty.spawn('sh', [__dirname + '/test.sh']);
-  proc.on('data', function (data) {
-    data.split("\r\n").map((val) => {
-      console.log(val)
-    })
-  })
-  */
+async function createWindow() {  
   const mainWindow = new BrowserWindow({
     width: 1600,
     height: 1200,
@@ -78,7 +70,7 @@ ipcMain.on('select-menu', async (event, arg) => {
       console.log(val)
       switch (val) {
         case 'コマンドを入力してください':
-          event.returnValue = returnVal;      
+          event.returnValue = returnVal;
           break;
         default:
           returnVal.push(val);
@@ -91,20 +83,27 @@ ipcMain.on('select-menu', async (event, arg) => {
 
 ipcMain.on('select-logout', async (event, arg) => {
   proc.write('0' + "\n");
-  event.returnValue = "logout"; 
+  event.returnValue = "logout";
 });
 
 ipcMain.on('login', async (event, arg) => {
-  //console.log('arg:' + arg)
+  const keyfileDir = './keyfile';
+  let keyfileName = '';
+  // Get keyfile name.
+  fs.readdir(keyfileDir, (err, files) => {
+    if (err) throw err;
+      keyfileName = files[0];
+  });
 
   addr = await ngrok.connect(51004);
   console.log(addr);
+
   // Create the browser window.
   proc = pty.spawn('bash', [
     `metemcyber_ctl.sh`,
     "-",
     "client",
-    "-f  UTC--2021-01-26T10-51-57.656708747Z--5a6bdbbee9cc9ff4aabfa349be7c226d8fe30491",
+    `-f  ${keyfileDir}/${keyfileName}`,
     `-w  ${addr}`
   ],
     {
