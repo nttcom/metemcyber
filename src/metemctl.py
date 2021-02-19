@@ -24,6 +24,8 @@ options:
 The most commonly used metemctl commands are:
    new        Create a new workflow
    config     Operate the config of metemctl
+   misp       
+   account
 
 See 'metemctl help <command>' for more information on a specific command.
 
@@ -41,9 +43,11 @@ if __name__ == '__main__':
     argv = [args['<command>']] + args['<args>']
 
     #サブコマンドのリストを追加
-    if args['<command>'] in 'new config misp account'.split():
+    valid_commands = 'new config misp account'.split()
+    if args['<command>'] in valid_commands:
         exit(call(['python', 'src/metemctl_%s.py' % args['<command>']] + argv))
     elif args['<command>'] in ['help', None]:
         exit(call(['python', 'src/metemctl.py', '--help']))
     else:
-        exit("%r is not a metemctl.py command. See 'metemctl help'." % args['<command>'])
+        display_command_list = " ".join(["<{0}>".format(command) for command in valid_commands])
+        exit("'{0}' is not a metemctl command. You can use {1} command. See 'metemctl help'.".format(args['<command>'], display_command_list))
