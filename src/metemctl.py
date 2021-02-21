@@ -43,7 +43,7 @@ if __name__ == '__main__':
     argv = [args['<command>']] + args['<args>']
 
     #サブコマンドのリストを追加
-    valid_commands = 'new config misp account'.split()
+    valid_commands = 'new config misp account publish'.split()
     if args['<command>'] in valid_commands:
         exit(call(['python', 'src/metemctl_%s.py' % args['<command>']] + argv))
     elif args['<command>'] in ['help', None]:
