@@ -36,10 +36,17 @@ import os
 import sys
 from getpass import getpass
 import glob
+from pathlib import Path
+import csv
+import logging
+
+LOGGER = logging.getLogger('common')
 
 CONFIG_INI_FILEPATH = "metemctl.ini"
 WORKSPACE_CONFIG_INI_FILEPATH = "./workspace/config.ini"
 MISP_DATAFILE_PATH = os.getenv('MISP_DATAFILE_PATH', './fetched_misp_events')
+MISP_INI_FILEPATH = './workspace/misp.ini'
+REGISTERED_TOKEN_TSV = './workspace/registered_token.tsv'
 
 def decode_keyfile(filename, w3):
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
@@ -59,6 +66,23 @@ def decode_keyfile(filename, w3):
         print('cannot decode keyfile:', os.path.basename(filename))
         sys.exit()
 
+# for debug
+def listURL(catalog_address):
+    contract_path = './src/contracts_data/CTICatalog.combined.json'
+    with open(contract_path, 'r') as contract_file:
+        contract_json = json.loads(contract_file.read())['contracts']['CTICatalog.sol:CTICatalog']
+    contract_metadata = json.loads(contract_json['metadata'])
+    print(w3.eth.contract(address=catalog_address, abi=contract_metadata['output']['abi']).functions.listTokenURIs().call())
+
+# for debug
+def ctiInfo(catalog_address, token_address):
+    contract_path = './src/contracts_data/CTICatalog.combined.json'
+    with open(contract_path, 'r') as contract_file:
+        contract_json = json.loads(contract_file.read())['contracts']['CTICatalog.sol:CTICatalog']
+    contract_metadata = json.loads(contract_json['metadata'])
+    print(w3.eth.contract(address=catalog_address, abi=contract_metadata['output']['abi']).functions.getCtiInfo(token_address).call())
+
+
 def deploy_CTItoken(w3, token_balance, operators):
     # load compiled smartcontract
     contract_path = './src/contracts_data/CTIToken.combined.json'
@@ -73,6 +97,8 @@ def deploy_CTItoken(w3, token_balance, operators):
     else:
         return None
 
+
+
 def read_dir(misp_json_dir):
     if os.path.isdir(misp_json_dir):
         misp_json_path = os.path.join(misp_json_dir, '*.json')
@@ -80,6 +106,102 @@ def read_dir(misp_json_dir):
         return glob.glob(misp_json_path)
     else:
         return None
+
+
+def save_registered_token(cti_metadata):
+    # cticatalog コントラクトに登録したtokenのmetadataを保存する
+    fieldnames = [
+        'uuid', 'tokenAddress', 'title', 'price', 'operator', 'quantity']
+
+    is_empty = not os.path.isfile(REGISTERED_TOKEN_TSV)
+
+    with open(REGISTERED_TOKEN_TSV, 'a', newline='') as tsvfile:
+        writer = csv.DictWriter(
+            tsvfile, fieldnames=fieldnames, extrasaction='ignore',
+            delimiter='\t')
+        if is_empty:
+            writer.writeheader()
+        writer.writerow(cti_metadata)
+
+
+def fetch_registered_token():
+    # 登録済みトークンのfetch
+    registered_tokens = []
+    try:
+        with open(REGISTERED_TOKEN_TSV, newline='') as tsvfile:
+            tsv = csv.DictReader(tsvfile, delimiter='\t')
+            for row in tsv:
+                registered_tokens.append(row)
+            return registered_tokens
+    except FileNotFoundError:
+        pass
+    except Exception as err:
+        LOGGER.error(err)
+    return registered_tokens
+
+
+def create_metadata(misp_json_file, operators, misp_config):
+    uuid = Path(misp_json_file).stem
+    # 登録済みのtokenを取得
+    registered_token = fetch_registered_token()
+    registered_uuid = [token.get('uuid') for token in registered_token]
+    # if uuid in registered_uuid:
+    #     return None
+    metadata = {}
+    with open(misp_json_file) as fin:
+        misp = json.load(fin)
+    metadata['uuid'] = uuid
+    metadata['title'] = misp['Event']['info']
+    metadata['price'] = misp_config['MISP']['defaultprice'] # misp.ini
+    metadata['operator'] = ','.join(operators)
+    metadata['quantity'] = misp_config['MISP']['defaultquantity']
+    
+    return metadata
+
+
+def register_cti(w3, catalog_address, token_address, uuid, title, price, operator, abi):
+    func = w3.eth.contract(address=catalog_address, abi=abi).functions.registerCti(token_address, uuid, title, int(price), operator)
+    tx_hash = func.transact()
+    w3.eth.waitForTransactionReceipt(tx_hash)
+
+
+
+def publish_cti(w3, catalog_address, token_address, abi):
+    func = w3.eth.contract(address=catalog_address, abi=abi).functions.publishCti(w3.eth.defaultAccount, token_address)
+    tx_hash = func.transact()
+    w3.eth.waitForTransactionReceipt(tx_hash)
+
+
+
+def register_catalog(w3, catalog_address, token_address, cti_metadata):
+    # トークンをカタログに登録
+    cti_metadata['tokenAddress'] = token_address
+    save_registered_token(cti_metadata)
+    
+    contract_path = './src/contracts_data/CTICatalog.combined.json'
+    with open(contract_path, 'r') as contract_file:
+        contract_json = json.loads(contract_file.read())['contracts']['CTICatalog.sol:CTICatalog']
+    contract_metadata = json.loads(contract_json['metadata'])
+    if contract_metadata and token_balance and len(operators) > 0:
+        abi = contract_metadata['output']['abi']
+        
+        register_cti(
+            w3,
+            catalog_address,
+            token_address,
+            cti_metadata['uuid'],
+            cti_metadata['title'],
+            cti_metadata['price'],
+            cti_metadata['operator'],
+            abi)
+        
+        publish_cti(
+            w3,
+            catalog_address,
+            token_address,
+            abi)
+
+
 
 if __name__ == '__main__':
 
@@ -90,6 +212,9 @@ if __name__ == '__main__':
     
     workspace_config = configparser.ConfigParser()
     workspace_config.read(WORKSPACE_CONFIG_INI_FILEPATH)
+    
+    misp_config = configparser.ConfigParser()
+    misp_config.read(MISP_INI_FILEPATH)
     
     if args['--dir']:
         misp_json_dir = args['--dir']
@@ -132,22 +257,24 @@ if __name__ == '__main__':
         if not os.path.isfile(misp_json_file):
             exit(f'{misp_json_file} is not a file.')
         #set token_balance and operators
-        token_balance = 100
+        token_balance = int(misp_config['MISP']['defaultquantity'])
         operators = workspace_config['operator']['address'].split(',')
         if workspace_config['operator']['address'] == "":
             operators = ['0xe338Eb236dDd7c5485f11DF4CA02522f208c715b']
+        
+        # deploy CTI token
         token_address = deploy_CTItoken(w3, token_balance, operators)
         if not token_address:
             exit('Error. Failed to get token address.')
         
         #TODO: カタログに登録するための関数を実装する
-        # register_catalog(catalog_address, token_address, cti_metadata)
+        catalog_address = workspace_config['catalog']['address']
+        if catalog_address == "":
+            exit('Error. Failed to get catalog address.')
         
+        #create metadata
+        cti_metadata = create_metadata(misp_json_file, operators, misp_config)
+        register_catalog(w3, catalog_address, token_address, cti_metadata)
         
-
-
-
-
-        
-        
-        
+        listURL(catalog_address)
+        ctiInfo(catalog_address, token_address)
