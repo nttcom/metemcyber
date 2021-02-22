@@ -39,6 +39,7 @@ import glob
 
 CONFIG_INI_FILEPATH = "metemctl.ini"
 WORKSPACE_CONFIG_INI_FILEPATH = "./workspace/config.ini"
+MISP_DATAFILE_PATH = os.getenv('MISP_DATAFILE_PATH', './fetched_misp_events')
 
 def decode_keyfile(filename, w3):
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
@@ -72,6 +73,13 @@ def deploy_CTItoken(w3, token_balance, operators):
     else:
         return None
 
+def read_dir(misp_json_dir):
+    if os.path.isdir(misp_json_dir):
+        misp_json_path = os.path.join(misp_json_dir, '*.json')
+        # get json file list by glob
+        return glob.glob(misp_json_path)
+    else:
+        exit(f'{misp_json_dir} is not a directory.')
 
 if __name__ == '__main__':
 
@@ -85,25 +93,14 @@ if __name__ == '__main__':
     
     if args['--dir']:
         misp_json_dir = args['--dir']
-        # check misp_json_dir is directory
-        if os.path.isdir(misp_json_dir):
-            misp_json_path = os.path.join(misp_json_dir, '*.json')
-            # get json file list by glob
-            misp_json_files = glob.glob(misp_json_path)
-        else:
-            exit(f'{misp_json_dir} is not a directory.')
+        misp_json_files = read_dir(misp_json_dir)
         
     # get value from key
     elif args['<filename>']:
         misp_json_files = [args['<filename>']]
     else:
         misp_json_dir = config['misp_json_dumpdir']
-        if os.path.isdir(misp_json_dir):
-            misp_json_path = os.path.join(misp_json_dir, '*.json')
-            # get json file list by glob
-            misp_json_files = glob.glob(misp_json_path)
-        else:
-            exit(f'{misp_json_dir} is not a directory.')
+        misp_json_files = read_dir(misp_json_dir)
     
     # set provider
     endpoint = config['general']['endpoint_url']
@@ -141,3 +138,12 @@ if __name__ == '__main__':
         
         #TODO: カタログに登録するための関数を実装する
         # register_catalog(catalog_address, token_address, cti_metadata)
+        
+        
+
+
+
+
+        
+        
+        
