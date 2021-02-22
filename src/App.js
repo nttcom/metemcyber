@@ -14,8 +14,8 @@ class App extends Component {
     return (
     <BrowserRouter>
       <Switch>
-        <Route exact path="/overview" name="Overview" render={props => <DefaultLayout {...props} />} />
-        <Route path="/" name="Home" render={props => <Login {...props} />} />
+        <Route path="/contents" name="Overview" render={props => <DefaultLayout {...props} />} />
+        <Route path="/login" name="Home" render={props => <Login {...props} />} />
       </Switch>
     </BrowserRouter>
     );

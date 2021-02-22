@@ -1,23 +1,22 @@
 import React, { useState } from 'react';
-import { List, Nav, NavItem, NavLink } from 'reactstrap';
+import { Nav, NavItem, NavLink } from 'reactstrap';
+import { Route, Switch } from 'react-router-dom';
 import './default.css';
+import Account from './account';
 
 
 
 function DefaultLayout(props) {
     const { ipcRenderer } = window
-    const [content, setContent] = useState([]);
 
     const handleAccount = () => {
-        const retValue = ipcRenderer.sendSync('select-menu', '1');
-        console.log(retValue);
-        setContent(retValue);
+        props.history.push('/contents/account');
     }
 
     const handleLogout = () => {
         const retValue = ipcRenderer.sendSync('select-logout');
         console.log(retValue)
-        props.history.push('/');
+        props.history.push('/login');
     }
 
     return (
@@ -59,13 +58,11 @@ function DefaultLayout(props) {
                     <NavLink disabled href="#">CTIトークンのパラメータ変更</NavLink>
                 </NavItem>
             </Nav>
-            <List type="unstyled" className="main-content">
-                {
-                    content.map((val, idx) => {
-                        return <li key={idx}>{val}</li>
-                    })
-                }
-            </List>
+            <div className="main-content">
+                <Switch>
+                    <Route path="/contents/account" name="account" render={props => <Account {...props} />} />
+                </Switch>
+            </div>
         </div>
     );
 }
