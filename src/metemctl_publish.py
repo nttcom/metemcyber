@@ -79,7 +79,7 @@ def read_dir(misp_json_dir):
         # get json file list by glob
         return glob.glob(misp_json_path)
     else:
-        exit(f'{misp_json_dir} is not a directory.')
+        return None
 
 if __name__ == '__main__':
 
@@ -94,6 +94,8 @@ if __name__ == '__main__':
     if args['--dir']:
         misp_json_dir = args['--dir']
         misp_json_files = read_dir(misp_json_dir)
+        if not misp_json_files:
+            exit(f'{misp_json_dir} is not a directory.')
         
     # get value from key
     elif args['<filename>']:
@@ -101,6 +103,8 @@ if __name__ == '__main__':
     else:
         misp_json_dir = config['misp_json_dumpdir']
         misp_json_files = read_dir(misp_json_dir)
+        if not misp_json_files:
+            exit(f'{misp_json_dir} is not a directory.')
     
     # set provider
     endpoint = config['general']['endpoint_url']
