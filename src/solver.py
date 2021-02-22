@@ -59,6 +59,8 @@ class ChallengeListener(BasicEventListener):
 class BaseSolver:
 
     def __init__(self, contracts, account_id, operator_address):
+        LOGGER.info(
+            'initializing solver %s for %s', self, operator_address)
         self.contracts = contracts
         self.account_id = account_id
         self.operator_address = operator_address
@@ -67,36 +69,30 @@ class BaseSolver:
         self.listener = None
 
     def destroy(self):
-        LOGGER.info('BaseSolver: destructing %s', self.operator_address)
-        if not self.listener:
-            del self
-            return
-        self.listener.stop()
-        tokens = self.listener.list_accepting()
-        if len(tokens) > 0:
-            self.ctioperator.unregister_tokens(tokens)
-        del self.listener
-        del self
+        LOGGER.info(
+            'destructing solver %s for %s', self, self.operator_address)
+        if self.listener:
+            self.listener.stop()
+            self.listener = None
 
-    def notify_first_accept(self, view):
-        pass
+    def notify_first_accept(self):
+        return None
 
     def accepting_tokens(self):
         return self.listener.list_accepting() if self.listener else []
 
-    def accept_challenges(self, token_addresses, view=None):
+    def accept_challenges(self, token_addresses):
         LOGGER.info('BaseSolver: accept: %s', token_addresses)
         if len(token_addresses) == 0:
-            return
-        need_notify = self.listener is None or \
-            (len(self.listener.accepting) == 0 and view)
+            return None
+        need_notify = \
+            self.listener is None or len(self.listener.accepting) == 0
         if not self.listener:
             self.listener = ChallengeListener(self, 'TokensReceivedCalled')
             self.listener.start()
         self.listener.accept_tokens(token_addresses, self.process_challenge)
         self.ctioperator.register_tokens(token_addresses)
-        if need_notify and view:
-            self.notify_first_accept(view)
+        return self.notify_first_accept() if need_notify else None
 
     def refuse_challenges(self, token_addresses):
         LOGGER.info('BaseSolver: refuse: %s', token_addresses)

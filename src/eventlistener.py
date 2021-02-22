@@ -38,6 +38,9 @@ class BasicEventListener:
         self.__pending_filters = list() # {key:x, filter:x, callback:x}
         self.__pending_lock = Lock()
 
+    def destroy(self):
+        self.stop()
+
     def add_event_filter(self, key, event_filter, callback):
         self.__lock.acquire()
         if key in self.__event_filters.keys():

@@ -170,7 +170,8 @@ class SimpleCUI():
             (20, 'dissemination', '新規CTIトークンの配布'),
             (21, 'challenge_acception', 'チャレンジの受付開始・解除'),
             (22, 'dealing', '発行トークンの追加委託・引取・登録取消'),
-            (23, 'publish_misp', 'ローカルMISPデータからのCTIトークン自動配布'),
+            (23, 'publish_misp',
+             'ローカルMISPデータからのCTIトークン自動配布'),
             (24, 'modify_asset', 'CTIトークンのパラメータ変更'),
             (25, 'setup_misp_param', 'CTIトークン自動配布用パラメータ設定'),
             ]
@@ -184,9 +185,9 @@ class SimpleCUI():
                 (905, 'init_like_users', 'Liked情報の初期化'),
                 (906, 'restore_disseminate', 'disseminate link再構成'),
                 (907, 'catalog_settings',
-                    'カタログのプライベート/パブリックの設定'),
+                 'カタログのプライベート/パブリックの設定'),
                 (908, 'authorize_user',
-                    'ユーザのプライベートカタログへのアクセス許可'),
+                 'ユーザのプライベートカタログへのアクセス許可'),
                 ])
         for num, state, hint in menu:
             self.menu[num] = {'state': state, 'hint': hint}

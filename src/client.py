@@ -141,7 +141,7 @@ class Controller():
         # observerに通知してセットアップ
         self.model.state = 'initalize'
 
-        self.model.accept_as_solver(self.view)
+#        self.model.accept_as_solver(self.view)
 
     def menu(self, command=None):
         if command:
@@ -175,11 +175,8 @@ class Controller():
 
     def exit_handler(self, _signum, __):
         LOGGER.info('exiting process')
-        if self.model and self.model.solver:
-            self.model.solver.destroy()
-        if self.model and self.model.inventory:
-            self.model.inventory.destroy()
-
+        if self.model:
+            self.model.destroy()
         sys.exit(os.EX_OK)
 
     def shopping(self):
@@ -248,8 +245,11 @@ class Controller():
             catalog_address, context, num_consign)
         self.view.vio.print('CTIトークンを発行しました: ' + token_address)
         if accept_now:
-            self.model.accept_challenge(token_address, view=self.view)
+            msg = self.model.accept_challenge(token_address)
+            if self.view and msg:
+                self.view.vio.print(msg)
         else:
+            # XXX FIXME need update message
             self.view.vio.print(
                 'チャレンジ受付を開始するには client の再起動、もしくは'
                 'メニューから「チャレンジの受付」を実行してください')
@@ -334,7 +334,9 @@ class Controller():
             return
         _, token_address = divide_token_key(token_key)
         if action == 'accept_challenge':
-            self.model.accept_challenge(token_address, view=self.view)
+            msg = self.model.accept_challenge(token_address)
+            if self.view and msg:
+                self.view.vio.print(msg)
         elif action == 'refuse_challenge':
             self.model.refuse_challenge(token_address)
         else:
@@ -522,6 +524,18 @@ class Controller():
         ## do nothing
 
     def operator(self):
+        use_daemon = self.model.solver.use_daemon
+        use_daemon = self.view.select_yes_no_screen(
+            hint='Solver Daemon に接続しますか？(現在値:{})'.format(
+                'Yes' if use_daemon else 'No'),
+            default=use_daemon)
+        if use_daemon:
+            try:
+                self.model.solver.try_client_connection()
+            except Exception as err:
+                self.view.common_failed(str(err))
+                return
+
         operator_address = self.view.input_address_screen(
             'オペレータコントラクトアドレス', hint='新規作成',
             ext_delimiter='@')
@@ -534,9 +548,10 @@ class Controller():
             [operator_address, solver_pluginfile] = tmp
         else:
             solver_pluginfile = ''
+
         try:
             self.model.setup_operator(
-                operator_address, solver_pluginfile, self.view)
+                operator_address, solver_pluginfile, use_daemon)
             self.view.setup_operator_done(self.model.operator_address)
         except Exception as err:
             self.view.common_failed(str(err))

@@ -50,6 +50,12 @@ class Inventory:
         self.broker = None
         self.switch_broker(broker_address)
 
+    def destroy(self):
+        if self.catalog_list:
+            self.catalog_list.destroy()
+        if self.broker:
+            self.broker.destroy()
+
     def catalog_ctrl(self, actions, addresses):
         assert self.catalog_list
         if not isinstance(actions, list):
@@ -90,14 +96,6 @@ class Inventory:
     def init_like_users(self, **kwargs):
         self.catalog_list.init_like_users(**kwargs)
 
-    def destroy(self):
-        if self.catalog_list:
-            self.catalog_list.destroy()
-            self.catalog_list = None
-        if self.broker:
-            self.broker.destroy()
-            self.broker = None
-
     def switch_broker(self, broker_address):
         if self.broker:
             if self.broker.broker_address == broker_address:
@@ -130,7 +128,8 @@ class Inventory:
     def list_own_tokens(self, account_id):
         if not self.catalog_list:
             return []
-        tokens = [v['token_address'] for v
+        tokens = [
+            v['token_address'] for v
             in self.catalog_tokens.values() if v['owner'] == account_id]
         return tokens
 
@@ -220,6 +219,10 @@ class CatalogList:
         self.event_listener = event_listener
         self.catalogs = {}  # {addr: {index, active, catalog}}
 
+    def destroy(self):
+        for catalog in self.catalogs.values():
+            catalog['catalog'].destroy()
+
     def passthrough(self, catalog_address, *args, **kwargs):
         # Note:
         #   This method calls the same name method in Catalog class.
@@ -232,10 +235,6 @@ class CatalogList:
         if not callable(func):  # maybe a property
             return func
         return func(*args, **kwargs)
-
-    def destroy(self):
-        for catalog in self.catalogs.values():
-            catalog['catalog'].destroy()
 
     @property
     def catalog_addresses(self):
@@ -396,17 +395,17 @@ class Catalog:
         self.init_catalog()
         self.init_like_users(search_blocks=172800)
 
-    @property
-    def is_private(self):
-        # カタログがプライベートかを確認する
-        return self.cticatalog.is_private()
-
     def destroy(self):
         LOGGER.info('Catalog: destructing %s', self.catalog_address)
         self.event_listener.remove_event_filter(
             'CtiInfo:'+self.catalog_address)
         self.event_listener.remove_event_filter(
             'CtiLiked:'+self.catalog_address)
+
+    @property
+    def is_private(self):
+        # カタログがプライベートかを確認する
+        return self.cticatalog.is_private()
 
     def init_like_users(self, **kwargs):
         self.like_users = dict()

@@ -33,15 +33,13 @@ class Solver(BaseSolver):
         super().__init__(contracts, account_id, operator_address)
         self.uploader = Uploader()
 
-    def notify_first_accept(self, view):
+    def notify_first_accept(self):
         if FUNCTIONS_URL:
-            url = FUNCTIONS_URL
-            view.vio.print('Solver として受付を開始しました。')
-            view.vio.print(
+            return \
+                'Solver として受付を開始しました。\n' + \
                 'チャレンジ結果は中継点( {} )にアップロードされます'.\
-                format(url))
-        else:
-            view.vio.print('Solver用のURLが設定されていません。')
+                format(FUNCTIONS_URL)
+        return 'Solver用のURLが設定されていません。'
 
     def process_challenge(self, token_address, event):
         LOGGER.info('GCSSolver: callback: %s', token_address)

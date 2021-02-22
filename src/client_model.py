@@ -40,6 +40,7 @@ from wallet import Wallet
 from inventory import Inventory
 from plugin import PluginManager
 from eventlistener import BasicEventListener
+from solver_wrapper import SolverWrapper
 
 LOGGER = logging.getLogger('common')
 GASLOG = logging.getLogger('gaslog')
@@ -57,8 +58,6 @@ FILESERVER_ASSETS_PATH = os.getenv(
 ## DOWNLOADED_CTI_PATH should be different from MISP_DATAFILE_PATH.
 DOWNLOADED_CTI_PATH = os.getenv(
     'DOWNLOADED_CTI_PATH', './download')
-## the directory where plugins are placed
-PLUGINS_PATH = os.getenv('PLUGINS_PATH', './src/plugins')
 
 ERC1820_RAW_TX_FILEPATH = './src/erc1820.tx.raw'
 CONFIG_INI_FILEPATH = './workspace/config.ini'
@@ -86,7 +85,7 @@ class Player():
 
     def __init__(self, account_id, private_key, provider, dev=False):
         self.plugin = PluginManager()
-        self.plugin.load(PLUGINS_PATH)
+        self.plugin.load()
         self.plugin.set_default_solverclass('gcs_solver.py')
 
         self.dev = dev
@@ -113,16 +112,7 @@ class Player():
         # Wallet の情報
         self.wallet = Wallet(self.web3, self.account_id)
 
-        # オペレータ(トークンの交換などを担当)のコントラクト
-        self.operator_address = None
         self.load_config()
-
-        self.operator_address = self._fix_config_address(
-            self.config['operator']['address'])
-        if self.config['operator']['solver_pluginfile']:
-            self.plugin.set_solverclass(
-                self.operator_address,
-                self.config['operator']['solver_pluginfile'])
 
         self.contracts = Contracts(self.web3)
         self.deploy_metemcyberutil()
@@ -153,13 +143,19 @@ class Player():
         # Seeker (チャレンジの依頼者)のインスタンス
         self.seeker = Seeker(self.contracts)
 
-        # Solver (チャレンジの受領者)としてのインスタンス
-        if self.operator_address:
-            solverclass = self.plugin.get_solverclass(self.operator_address)
-            self.solver = solverclass(
-                self.contracts, self.account_id, self.operator_address)
-        else:
-            self.solver = None
+        # Solver Wrapper
+        self.operator_address = self._fix_config_address(
+            self.config['operator']['address'])
+        # TODO WORKAROUND for save_config
+        if self.config['operator']['solver_pluginfile']:
+            self.plugin.set_solverclass(
+                self.operator_address,
+                self.config['operator']['solver_pluginfile'])
+        self.solver = SolverWrapper(
+            account_id, private_key, self.contracts, self.plugin,
+            self.operator_address,
+            self.config['operator']['solver_pluginfile'],
+            (self.config['operator']['solver_daemon'] == 'True'))
 
         # MISP設定のinsert
         self.default_catalog = None
@@ -168,6 +164,14 @@ class Player():
         self.default_num_consign = -1
         self.default_auto_accept = False
         self.load_misp_config()
+
+    def destroy(self):
+        if self.solver:
+            self.solver.destroy()
+        if self.inventory:
+            self.inventory.destroy()
+        if self.event_listener:
+            self.event_listener.destroy()
 
     def deploy_erc1820(self):
         # ERC777を利用するにはERC1820が必要
@@ -251,6 +255,7 @@ class Player():
         config.set('operator', 'address', '')
         config.set('operator', 'owner', '')
         config.set('operator', 'solver_pluginfile', '')
+        config.set('operator', 'solver_daemon', 'False')
         config.add_section('metemcyber_util')
         config.set('metemcyber_util', 'address', '')
         config.set('metemcyber_util', 'placeholder', '')
@@ -281,18 +286,19 @@ class Player():
             self.config.set(
                 broker, 'address', self.inventory.broker_address)
 
-        operator = 'operator'
-        if not self.config.has_section(operator):
-            self.config.add_section(operator)
-        self.config.set(
-            operator, 'address',
-            self.operator_address if self.operator_address else '')
-        self.config.set(
-            operator, 'owner', self.account_id if self.account_id else '')
-        if self.plugin and self.operator_address:
-            fname = self.plugin.get_plugin_filename(self.operator_address)
+        if hasattr(self, 'operator_address') and self.operator_address:
+            operator = 'operator'
+            if not self.config.has_section(operator):
+                self.config.add_section(operator)
+            self.config.set(operator, 'address', self.operator_address)
             self.config.set(
-                operator, 'solver_pluginfile', fname if fname else '')
+                operator, 'owner', self.account_id if self.account_id else '')
+            if self.plugin and self.operator_address:
+                fname = self.plugin.get_plugin_filename(self.operator_address)
+                self.config.set(
+                    operator, 'solver_pluginfile', fname if fname else '')
+            self.config.set(
+                operator, 'solver_daemon', str(self.solver.use_daemon))
 
         with open(CONFIG_INI_FILEPATH, 'w') as fout:
             self.config.write(fout)
@@ -325,7 +331,7 @@ class Player():
         conf.set('MISP', 'default_catalog', self.default_catalog)
         conf.set('MISP', 'defaultprice', str(self.default_price))
         conf.set('MISP', 'defaultquantity', str(self.default_quantity))
-        conf.set('MISP', 'default_num_consign',str(self.default_num_consign))
+        conf.set('MISP', 'default_num_consign', str(self.default_num_consign))
         conf.set('MISP', 'default_auto_accept', str(self.default_auto_accept))
         with open(fname, 'w') as fout:
             conf.write(fout)
@@ -399,50 +405,39 @@ class Player():
             initial_supply, default_operators if default_operators else [])
         return ctitoken.contract_address
 
-    def accept_as_solver(self, view=None):
+    def accept_as_solver(self):
         LOGGER.info('accept as solver')
         if not self.inventory or not self.solver:
-            return
+            return None
         own_tokens = self.inventory.list_own_tokens(self.account_id)
         if len(own_tokens) == 0:
-            return
-        self.solver.accept_challenges(own_tokens, view=view)
+            return None
+        msg = self.solver.accept_challenges(own_tokens)
         self.solver.reemit_pending_tasks()
+        return msg
 
     def setup_operator(
-            self, operator_address='', solver_pluginfile='', view=None):
-        if operator_address == self.operator_address:
-            return
-
-        if solver_pluginfile and \
-                not self.plugin.is_pluginfile(solver_pluginfile):
-            raise Exception('invalid plugin file: ' + solver_pluginfile)
-
-        old_operator_address = self.operator_address
-        if operator_address == '':
-            # オペレータのデプロイ
+            self, operator_address, solver_pluginfile, use_daemon):
+        if not operator_address:
             ctioperator = self.contracts.accept(CTIOperator())
             operator_address = ctioperator.new().contract_address
             ctioperator.set_recipient()
+            if solver_pluginfile:
+                self.plugin.set_solverclass(
+                    operator_address, solver_pluginfile)
 
+        # TODO
+        # WORKAROUND for save_config
         if solver_pluginfile:
+            if not self.plugin.is_pluginfile(solver_pluginfile):
+                raise Exception('invalid plugin file: ' + solver_pluginfile)
             self.plugin.set_solverclass(operator_address, solver_pluginfile)
 
-        if operator_address != old_operator_address:
-            if self.solver:
-                self.solver.destroy()
-            if operator_address:
-                solverclass = self.plugin.get_solverclass(operator_address)
-                self.solver = solverclass(
-                    self.contracts, self.account_id, operator_address)
-            else:
-                self.solver = None
+        self.solver.setup_solver(
+            operator_address, solver_pluginfile, use_daemon)
 
         self.operator_address = operator_address
         self.save_config()
-
-        if self.solver:
-            self.accept_as_solver(view)
 
     def buy(self, catalog_address, token_address):
         # トークンの購買処理の実装
@@ -465,11 +460,12 @@ class Player():
             with open(obj_path) as fin:
                 misp = json.load(fin)
             try:
-                view.vio.print(
-                    'disseminating CTI: \n'
-                    '  UUID: ' + uuid + '\n'
-                    '  TITLE: ' + misp['Event']['info'] + '\n'
-                    )
+                if view:
+                    view.vio.print(
+                        'disseminating CTI: \n'
+                        '  UUID: ' + uuid + '\n'
+                        '  TITLE: ' + misp['Event']['info'] + '\n'
+                        )
                 metadata['uuid'] = uuid
                 metadata['title'] = misp['Event']['info']
                 metadata['price'] = default_pirce
@@ -479,7 +475,9 @@ class Player():
                 token_address = self.disseminate_new_token(
                     catalog_address, metadata, default_num_consign)
                 if default_auto_accept:
-                    self.accept_challenge(token_address, view)
+                    msg = self.accept_challenge(token_address)
+                    if view and msg:
+                        view.vio.print(msg)
             except KeyError:
                 LOGGER.warning('There is no Event info in %s', misp)
 
@@ -708,9 +706,9 @@ class Player():
 
         return dict(filtered_assets)
 
-    def accept_challenge(self, token_address, view=None):
+    def accept_challenge(self, token_address):
         LOGGER.info('accept_challenge token: %s', token_address)
-        self.solver.accept_challenges([token_address], view=view)
+        return self.solver.accept_challenges([token_address])
 
     def refuse_challenge(self, token_address):
         LOGGER.info('refuse_challenge token: %s', token_address)

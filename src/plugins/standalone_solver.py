@@ -15,6 +15,7 @@
 #
 
 import logging
+import socket
 from threading import Thread
 from socketserver import TCPServer
 from http.server import SimpleHTTPRequestHandler
@@ -27,6 +28,7 @@ LOGGER = logging.getLogger('common')
 JOIN_TIMEOUT_SEC = 30
 LISTEN_ADDR = ''
 LISTEN_PORT = 50080
+LISTEN_PORT_RANGE = 1000
 CONTENTS_ROOT = FILESERVER_ASSETS_PATH
 
 
@@ -53,7 +55,7 @@ class LocalHttpServer():
         self.thread = None
         self.server = None
         self.addr = LISTEN_ADDR
-        self.port = LISTEN_PORT
+        self.port = 0
         self.handler = SimpleHandler
 
     def start(self):
@@ -63,38 +65,48 @@ class LocalHttpServer():
         self.thread.start()
 
     def run(self):
-        LOGGER.info(
-            '%s: starting httpd: %s', self.__class__.__name__, self.identity)
-        with TCPServer((self.addr, self.port), self.handler) as httpd:
-            self.server = httpd
-            httpd.serve_forever()
-        LOGGER.info(
-            '%s: stopped httpd: %s', self.__class__.__name__, self.identity)
+        for self.port in range(LISTEN_PORT, LISTEN_PORT+LISTEN_PORT_RANGE+1):
+            try:
+                LOGGER.info(
+                    '%s: starting httpd: %s at %s:%d',
+                    self.__class__.__name__, self.identity,
+                    self.addr, self.port)
+                with TCPServer((self.addr, self.port), self.handler) as httpd:
+                    self.server = httpd
+                    httpd.serve_forever()
+                LOGGER.info(
+                    '%s: stopped httpd: %s',
+                    self.__class__.__name__, self.identity)
+                return
+            except OSError as err:
+                if err.errno == 98:  # EADDRINUSE (address already in use)
+                    continue
+                raise
+        raise Exception("cannot assign listen port for httpd")
 
     def stop(self):
-        if not self.thread or not self.server:
-            return
-        self.server.shutdown()
-        self.thread.join(timeout=JOIN_TIMEOUT_SEC)
-        if self.thread and self.thread.is_alive():
-            LOGGER.error('failed stopping httpd: %s', self.identity)
-            return
-        self.thread = self.server = None
+        if self.server:
+            self.server.shutdown()
+            self.server = None
+        if self.thread:
+            self.thread.join(timeout=JOIN_TIMEOUT_SEC)
+            if self.thread.is_alive():
+                LOGGER.error('failed stopping httpd: %s', self.identity)
+            self.thread = None
 
 
 class Solver(BaseSolver):
 
-    def __init__(self, *args):
-        super().__init__(*args)
-        operator_address = args[2]
+    def __init__(self, contracts, account_id, operator_address):
+        super().__init__(contracts, account_id, operator_address)
         self.fileserver = LocalHttpServer(operator_address)
         self.fileserver.start()
 
     def destroy(self):
+        super().destroy()
         if self.fileserver:
             self.fileserver.stop()
             self.fileserver = None
-        super().destroy()
 
     def process_challenge(self, token_address, event):
         LOGGER.info('StandaloneSolver: callback: %s', token_address)
@@ -127,8 +139,9 @@ class Solver(BaseSolver):
             self.finish_task(task_id, data)
             LOGGER.info('finished task %s', task_id)
 
-    @staticmethod
-    def create_misp_download_url(account_id, cti_address):
+    def create_misp_download_url(self, _account_id, cti_address):
         url = 'http://{host}:{port}/{path}'.format(
-            host=account_id, port=LISTEN_PORT, path=cti_address)
+            host=socket.gethostname(),
+            port=self.fileserver.port,
+            path=cti_address)
         return url
