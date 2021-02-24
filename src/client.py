@@ -253,9 +253,8 @@ class Controller():
             if self.view and msg:
                 self.view.vio.print(msg)
         else:
-            # XXX FIXME need update message
             self.view.vio.print(
-                'チャレンジ受付を開始するには client の再起動、もしくは'
+                'チャレンジ受付を開始するには'
                 'メニューから「チャレンジの受付」を実行してください')
 
     def broker(self):
