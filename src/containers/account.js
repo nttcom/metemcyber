@@ -14,6 +14,7 @@ function Account(props) {
         console.log(retValue);
         setContent(retValue);
         setIsLoading(false);
+        return () => console.log('unmounting...');
     }, [])
     return (
         <div>
