@@ -249,7 +249,7 @@ class Controller():
             catalog_address, context, num_consign)
         self.view.vio.print('CTIトークンを発行しました: ' + token_address)
         if accept_now:
-            msg = self.model.accept_challenges(token_address)
+            msg = self.model.accept_challenges([token_address])
             if self.view and msg:
                 self.view.vio.print(msg)
         else:
