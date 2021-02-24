@@ -3,6 +3,7 @@ import { Nav, NavItem, NavLink } from 'reactstrap';
 import { Route, Switch } from 'react-router-dom';
 import './default.css';
 import Account from './account';
+import Buy from './buycti';
 
 
 
@@ -10,12 +11,11 @@ function DefaultLayout(props) {
     const { ipcRenderer } = window
 
     const handleAccount = () => {
-        props.history.push('/contents/account');
+        window.location.href = '/contents/account';
     }
 
     const handleLogout = () => {
         const retValue = ipcRenderer.sendSync('select-logout');
-        console.log(retValue)
         props.history.push('/login');
     }
 
@@ -31,7 +31,7 @@ function DefaultLayout(props) {
             </Nav>
             <Nav vertical className="side-nav">
                 <NavItem>
-                    <NavLink disabled href="#">CTIトークンの購入</NavLink>
+                    <NavLink href="/contents/buy">CTIトークンの購入</NavLink>
                 </NavItem>
                 <NavItem>
                     <NavLink disabled href="#">チャレンジの実行</NavLink>
@@ -61,6 +61,7 @@ function DefaultLayout(props) {
             <div className="main-content">
                 <Switch>
                     <Route path="/contents/account" name="account" render={props => <Account {...props} />} />
+                    <Route path="/contents/buy" name="account" render={props => <Buy {...props} />} />
                 </Switch>
             </div>
         </div>

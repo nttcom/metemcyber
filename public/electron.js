@@ -66,33 +66,133 @@ ipcMain.on('synchronous-message', (event, arg) => {
 
 ipcMain.on('select-menu', async (event, arg) => {
   console.log('arg:' + arg)
-  const output = await getOutput(arg, 'コマンドを入力してください');
-
-  let returnVal = {
-    summary: {},
-    contract: {},
-    catalog: {},
-    token: {}
-  };
-  output.map((val) => {
-    if (val.indexOf("EOAアドレス") !== -1) {
-      returnVal.summary.eoa_address = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("所持ETH") !== -1) {
-      returnVal.summary.eth_balance = val.split(" ").slice(-2)[0];
-    } else if (val.indexOf("カタログアドレス") !== -1) {
-      returnVal.contract.catalog_address = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("ブローカーアドレス") !== -1) {
-      returnVal.contract.broker_address = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("オペレータアドレス") !== -1) {
-      returnVal.contract.operator_address = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("所持ユニークCTIトークン数") !== -1) {
-      returnVal.catalog.number_of_unique_token = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("CTIトークン発行回数") !== -1) {
-      returnVal.catalog.number_of_token_issue = val.split(" ").slice(-1)[0];
-    }
-  })
+  let returnVal = {};
+  if (menu == 10) {
+    proc.write('b' + "\n");
+  }
+  returnVal = await execMainMenu(arg);
   event.returnValue = returnVal;
 });
+
+ipcMain.on('select-10', async (event, arg) => {
+  console.log('arg:' + arg)
+  let returnVal = {};
+  let output = [];
+
+  if (arg[0] === 's') {
+    proc.write('s' + "\n");
+    output = await getOutput(arg[1], '[ ]インデックスを入力して選択する');
+  } else if (arg[0] === 'a') {
+    output = await getOutput('a', '[ ]インデックスを入力して選択する');
+  } else {
+    proc.write(arg[0] + "\n");
+    output = await getOutput('1', '[ ]インデックスを入力して選択する');
+  }
+
+  returnVal = {
+    item: [],
+  };
+  output.splice(0, output.indexOf('   *  accepting challenge as a solver') + 1);
+  output.pop();
+
+  let item = {};
+  let count = 0;
+  output.map((val) => {
+    count++;
+    if (count === 1) {
+      if (val.split(" ")[5] !== undefined) {
+        item.id = val.split(" ")[5].slice(0, -1);
+      }
+      item.name = val.split(": ").slice(-1)[0];
+    } else if (count === 2) {
+      item.addr = val.split(" ").slice(-1)[0];
+    } else if (count === 3) {
+      item.uuid = val.split(": ").slice(-1)[0];
+    } else if (count === 4) {
+      const tmpAry = val.split(" ");
+      item.price = tmpAry[8];
+      item.left = tmpAry[13];
+      count = 0;
+      returnVal.item.push(item);
+      item = {};
+    }
+  })
+  console.log(returnVal);
+
+  event.returnValue = returnVal;
+});
+
+async function execMainMenu(arg) {
+  let returnVal = {};
+  let output = [];
+  switch (arg) {
+    case '1':
+      output = await getOutput(arg, 'コマンドを入力してください');
+
+      returnVal = {
+        summary: {},
+        contract: {},
+        catalog: {},
+        token: {}
+      };
+      output.map((val) => {
+        if (val.indexOf("EOAアドレス") !== -1) {
+          returnVal.summary.eoa_address = val.split(" ").slice(-1)[0];
+        } else if (val.indexOf("所持ETH") !== -1) {
+          returnVal.summary.eth_balance = val.split(" ").slice(-2)[0];
+        } else if (val.indexOf("カタログアドレス") !== -1) {
+          returnVal.contract.catalog_address = val.split(" ").slice(-1)[0];
+        } else if (val.indexOf("ブローカーアドレス") !== -1) {
+          returnVal.contract.broker_address = val.split(" ").slice(-1)[0];
+        } else if (val.indexOf("オペレータアドレス") !== -1) {
+          returnVal.contract.operator_address = val.split(" ").slice(-1)[0];
+        } else if (val.indexOf("所持ユニークCTIトークン数") !== -1) {
+          returnVal.catalog.number_of_unique_token = val.split(" ").slice(-1)[0];
+        } else if (val.indexOf("CTIトークン発行回数") !== -1) {
+          returnVal.catalog.number_of_token_issue = val.split(" ").slice(-1)[0];
+        }
+      })
+      menu = 1;
+      break;
+    case '10':
+      output = await getOutput(arg, '[ ]インデックスを入力して選択する');
+
+      returnVal = {
+        item: [],
+      };
+      output.splice(0, output.indexOf('   *  accepting challenge as a solver') + 1);
+      output.pop();
+
+      let item = {};
+      let count = 0;
+      output.map((val) => {
+        count++;
+        if (count === 1) {
+          if (val.split(" ")[5] !== undefined) {
+            item.id = val.split(" ")[5].slice(0, -1);
+          }
+          item.name = val.split(": ").slice(-1)[0];
+        } else if (count === 2) {
+          item.addr = val.split(" ").slice(-1)[0];
+        } else if (count === 3) {
+          item.uuid = val.split(": ").slice(-1)[0];
+        } else if (count === 4) {
+          const tmpAry = val.split(" ");
+          item.price = tmpAry[8];
+          item.left = tmpAry[13];
+          count = 0;
+          returnVal.item.push(item);
+          item = {};
+        }
+      })
+      console.log(returnVal);
+      menu = 10;
+      break;
+    default:
+      break;
+  }
+  return returnVal;
+}
 
 async function getOutput(input, endStr) {
   const returnVal = [];
@@ -102,6 +202,8 @@ async function getOutput(input, endStr) {
         switch (val) {
           case endStr:
             resolve();
+            break;
+          case '':
             break;
           default:
             returnVal.push(val);
@@ -115,6 +217,10 @@ async function getOutput(input, endStr) {
 }
 
 ipcMain.on('select-logout', async (event, arg) => {
+  proc.on('data', () => { });
+  if (menu == 10) {
+    proc.write('b' + "\n");
+  }
   proc.write('0' + "\n");
   event.returnValue = "logout";
 });
@@ -140,8 +246,8 @@ ipcMain.on('login', async (event, arg) => {
     `-w  ${addr}`
   ],
     {
-      cols: 80,
-      rows: 30,
+      cols: 500,
+      rows: 500,
     }
   );
   await new Promise((resolve) => {

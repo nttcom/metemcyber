@@ -18,4 +18,10 @@
     left: 300px;
     padding: 20px;
     position: fixed;
+    height: 100%;
+    width: 100%;
+}
+
+.search {
+    width: 600px;
 }

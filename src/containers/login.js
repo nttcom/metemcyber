@@ -8,7 +8,6 @@ function Login(props) {
     const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
-        console.log(window.location.href);
         setPass(e.target.value)
     }
 
@@ -20,8 +19,6 @@ function Login(props) {
             props.history.push('/contents')
         });
         ipcRenderer.send('login', pass)
-        
-        //props.history.push('/overview')
     }
 
     return (
