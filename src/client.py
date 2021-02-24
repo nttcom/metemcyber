@@ -117,12 +117,11 @@ class Controller():
         self.state = None
         self.hookurl = hookurl
 
-        if vio:
-            vio.print(
-                '\n'
-                'connecting to Ethereum Blockchain...\n'
-                'Endpoint: ' + str(provider) + '\n'
-                'EOA address: ' + account_id)
+        self.view.vio.print(
+            '\n'
+            'connecting to Ethereum Blockchain...\n'
+            'Endpoint: ' + str(provider) + '\n'
+            'EOA address: ' + account_id)
 
         try:
             self.model = Player(
@@ -141,7 +140,9 @@ class Controller():
         # observerに通知してセットアップ
         self.model.state = 'initalize'
 
-#        self.model.accept_as_solver(self.view)
+        msg = self.model.accept_registered_tokens()
+        if msg:
+            self.view.vio.print(msg)
 
     def menu(self, command=None):
         if command:
@@ -230,6 +231,9 @@ class Controller():
         if not self.model.operator_address:
             self.view.missing_screen('オペレータ')
             return
+        if not self.model.solver or not self.model.solver.is_setup():
+            self.view.missing_screen('Solver')
+            return
         if len(catalogs) == 1:
             # TODO
             catalog_address = catalogs[0]
@@ -245,7 +249,7 @@ class Controller():
             catalog_address, context, num_consign)
         self.view.vio.print('CTIトークンを発行しました: ' + token_address)
         if accept_now:
-            msg = self.model.accept_challenge(token_address)
+            msg = self.model.accept_challenges(token_address)
             if self.view and msg:
                 self.view.vio.print(msg)
         else:
@@ -326,19 +330,33 @@ class Controller():
             self.view.challenge_failed(msg)
 
     def challenge_acception(self):
-        token_key, _asset = self.view.token_selector(mode='token_publisher')
-        if not token_key:
+        if not self.model.solver or not self.model.solver.is_setup():
+            self.view.missing_screen('Solver')
             return
-        action = self.view.challenge_action_selector()
-        if not action:
+        act = self.view.select_challenge_act_screen()
+        if not act:
             return
-        _, token_address = divide_token_key(token_key)
-        if action == 'accept_challenge':
-            msg = self.model.accept_challenge(token_address)
+        if act == 'accept':
+            mode = 'solver_accepting'
+        elif act == 'refuse':
+            mode='solver_refusing'
+        else:
+            raise Exception('Internal Error')
+
+        selected, _asset = self.view.token_selector(mode=mode)
+        if not selected:
+            return
+        if isinstance(selected, list):
+            tokens = [asset['token_address'] for _, asset in selected]
+        else:
+            _, token_address = divide_token_key(selected)
+            tokens = [token_address]
+        if act == 'accept':
+            msg = self.model.accept_challenges(tokens)
             if self.view and msg:
                 self.view.vio.print(msg)
-        elif action == 'refuse_challenge':
-            self.model.refuse_challenge(token_address)
+        elif act == 'refuse':
+            self.model.refuse_challenges(tokens)
         else:
             raise Exception('Internal Error')
 
@@ -394,6 +412,9 @@ class Controller():
             return
         if not self.model.operator_address:
             self.view.missing_screen('オペレータ')
+            return
+        if not self.model.solver.is_setup():
+            self.view.missing_screen('Solver')
             return
 
         self.view.vio.print(
@@ -460,6 +481,9 @@ class Controller():
             raise Exception('Internal Error')
 
     def dealing(self):
+        if not self.model.solver or not self.model.solver.is_setup():
+            self.view.missing_screen('Solver')
+            return
         hook = lambda: self.view.vio.pager_print(
             '取引するトークンを選択してください')
         token_key, asset = self.view.token_selector(
@@ -471,7 +495,7 @@ class Controller():
         if not act:
             return
         if act == 'unregister':
-            self.model.refuse_challenge(token_address)
+            self.model.refuse_challenges([token_address])
             self.model.unregister_catalog(catalog_address, token_address)
             return
         if act == 'consign':
@@ -553,6 +577,9 @@ class Controller():
             self.model.setup_operator(
                 operator_address, solver_pluginfile, use_daemon)
             self.view.setup_operator_done(self.model.operator_address)
+            msg = self.model.accept_registered_tokens()
+            if msg:
+                self.view.vio.print(msg)
         except Exception as err:
             self.view.common_failed(str(err))
 

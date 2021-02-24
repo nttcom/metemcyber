@@ -264,19 +264,23 @@ class SimpleCUI():
         else:
             base_assets = self.model.inventory.catalog_tokens
 
+        acception = None  # neither True nor False
         if mode in {'catalog', 'like'}: ## shopping catalog
             # tokens listed in catalog.
             assets = base_assets
             balance_key = 'quantity'
             min_balance = 1 if mode == 'catalog' else 0
 
-        elif mode == 'token_publisher': ## acceptable as solver
+        elif mode in {
+                'token_publisher', 'solver_accepting', 'solver_refusing'}:
             # tokens which owner is me - published by me.
             assets = {
                 k: v for k, v in base_assets.items() \
                     if v['owner'] == self.model.account_id}
             balance_key = 'balanceOfUser'
             min_balance = 0
+            if mode in {'solver_accepting', 'solver_refusing'}:
+                acception = (mode != 'solver_accepting')
 
         elif mode == 'token_holder': ## challengeable
             # tokens i have.
@@ -287,12 +291,14 @@ class SimpleCUI():
         else:
             raise Exception('Internal Error')
 
-        for token_key, asset in assets.items():
-            try:
-                if asset[balance_key] >= min_balance:
-                    self.display_assets.append((token_key, asset))
-            except:
-                continue
+        accepting = self.model.solver.accepting_tokens() \
+            if self.model.solver.is_setup() else []
+
+        self.display_assets = [
+            (token_key, asset) for token_key, asset in assets.items()
+            if asset[balance_key] >= min_balance and
+                (acception is None or
+                 (asset['token_address'] in accepting) == acception)]
         if len(self.display_assets) == 0:
             return
 
@@ -301,8 +307,6 @@ class SimpleCUI():
             '   *  accepting challenge as a solver')
         # Ctiごとのlike, accept情報を取得
         like_users = self.model.get_like_users()
-        accepting = self.model.solver.accepting_tokens() \
-            if self.model.solver else []
         for token_key, asset in self.display_assets:
             liked_prefix = '   '
             if asset['token_address'] in like_users.keys():
@@ -339,6 +343,7 @@ class SimpleCUI():
 
         if len(self.display_assets) > 0:
             self.vio.pager_print('[ ]インデックスを入力して選択する')
+            self.vio.pager_print('[*]全てのアイテムを選択する')
         else:
             self.vio.pager_print('選択できるアイテムがありません')
         self.vio.pager_print('[s]アイテムを検索する')
@@ -358,6 +363,8 @@ class SimpleCUI():
                 return ('search', keyword)
             if command == 'b':
                 return ('back', None)
+            if command == '*':
+                return ('select_list', self.display_assets)
             try:
                 token = int(command)
                 token_key, asset = [(k, v) for k, v \
@@ -368,18 +375,17 @@ class SimpleCUI():
             self.vio.print('入力値が不正です')
 
     def token_selector(self, mode='catalog', hook=None):
-
         if not hook:
             str_tgt = '購入' if mode == 'catalog' else \
                 'Like' if mode == 'like' else \
                 'チャレンジ' if mode == 'token_holder' else \
-                'チャレンジ受付・解除' if mode == 'token_publisher' else \
+                'チャレンジ受付' if mode == 'solver_accepting' else \
+                'チャレンジ受付解除' if mode == 'solver_refusing' else \
                 None
             assert str_tgt
             hook = lambda: self.vio.pager_print(
                 '{}するアイテムを選択してください (1pts = {}ETH)'.\
                 format(str_tgt, float(PTS_RATE/(10**18))))
-
         while True:
             self.vio.pager_reset()
             if hook:
@@ -387,8 +393,11 @@ class SimpleCUI():
             self._token_selector_list(mode)
             act, target = self._token_selector_input()
             if act == 'select':
-                address, asset = target
-                return address, asset
+                token_key, asset = target
+                return token_key, asset
+            if act == 'select_list':
+                assert isinstance(target, list)
+                return target, None  # FIXME returning extended data type
             if act == 'back':
                 return None, None
             if act == 'search':
@@ -769,6 +778,14 @@ class SimpleCUI():
         items[0] = {'state': None, 'hint': 'キャンセル'}
         items[1] = {'state': 'send', 'hint': 'トークンの送付（譲渡）'}
         items[2] = {'state': 'burn', 'hint': 'トークンの廃棄'}
+        return self.number_selector(items)
+
+    def select_challenge_act_screen(self):
+        self.vio.print('操作内容を選択してください')
+        items = dict()
+        items[0] = {'state': None, 'hint': 'キャンセル'}
+        items[1] = {'state': 'accept', 'hint': 'チャレンジ受付'}
+        items[2] = {'state': 'refuse', 'hint': 'チャレンジ受付解除'}
         return self.number_selector(items)
 
     def select_dealing_act_screen(self):

@@ -405,16 +405,17 @@ class Player():
             initial_supply, default_operators if default_operators else [])
         return ctitoken.contract_address
 
-    def accept_as_solver(self):
-        LOGGER.info('accept as solver')
-        if not self.inventory or not self.solver:
+    def accept_registered_tokens(self):
+        if not self.inventory or not self.solver.is_setup():
             return None
         own_tokens = self.inventory.list_own_tokens(self.account_id)
-        if len(own_tokens) == 0:
+        return self.solver.accept_registered(own_tokens)
+
+    def accept_published_tokens(self):
+        if not self.inventory or not self.solver.is_setup():
             return None
-        msg = self.solver.accept_challenges(own_tokens)
-        self.solver.reemit_pending_tasks()
-        return msg
+        own_tokens = self.inventory.list_own_tokens(self.account_id)
+        return self.solver.accept_challenges(own_tokens)
 
     def setup_operator(
             self, operator_address, solver_pluginfile, use_daemon):
@@ -432,7 +433,6 @@ class Player():
             if not self.plugin.is_pluginfile(solver_pluginfile):
                 raise Exception('invalid plugin file: ' + solver_pluginfile)
             self.plugin.set_solverclass(operator_address, solver_pluginfile)
-
         self.solver.setup_solver(
             operator_address, solver_pluginfile, use_daemon)
 
@@ -475,7 +475,7 @@ class Player():
                 token_address = self.disseminate_new_token(
                     catalog_address, metadata, default_num_consign)
                 if default_auto_accept:
-                    msg = self.accept_challenge(token_address)
+                    msg = self.accept_challenges([token_address])
                     if view and msg:
                         view.vio.print(msg)
             except KeyError:
@@ -706,13 +706,13 @@ class Player():
 
         return dict(filtered_assets)
 
-    def accept_challenge(self, token_address):
-        LOGGER.info('accept_challenge token: %s', token_address)
-        return self.solver.accept_challenges([token_address])
+    def accept_challenges(self, token_addresses):
+        LOGGER.info('accept_challenge tokens: %s', token_addresses)
+        return self.solver.accept_challenges(token_addresses)
 
-    def refuse_challenge(self, token_address):
-        LOGGER.info('refuse_challenge token: %s', token_address)
-        self.solver.refuse_challenges([token_address])
+    def refuse_challenges(self, token_addresses):
+        LOGGER.info('refuse_challenge tokens: %s', token_addresses)
+        self.solver.refuse_challenges(token_addresses)
 
     def like_cti(self, token_address, catalog_address):
         assert self.inventory

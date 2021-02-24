@@ -92,10 +92,14 @@ class CTIOperator(ContractVisitor):
         if tx_receipt['status'] != 1:
             raise ValueError('Transaction failed: cancelTask')
 
-    def reemit_pending_tasks(self):
-        func = self.contract.functions.reemitPendingTasks()
+    def reemit_pending_tasks(self, tokens):
+        func = self.contract.functions.reemitPendingTasks(tokens)
         tx_hash = func.transact()
         tx_receipt = self.contracts.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('reemitPendingTasks', tx_receipt)
         if tx_receipt['status'] != 1:
             raise ValueError('Transaction failed: reemitPendingTasks')
+
+    def check_registered(self, token_addresses):
+        func = self.contract.functions.checkRegistered(token_addresses)
+        return func.call()

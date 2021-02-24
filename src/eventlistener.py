@@ -92,6 +92,8 @@ class BasicEventListener:
         if self.__thread and self.__thread.is_alive():
             LOGGER.error('failed stopping listener: %s', self.__identity)
             return
+        self.__event_filters.clear()
+        self.__pending_filters.clear()
         self.__thread = None
 
     def __run(self):

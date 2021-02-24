@@ -1,3 +1,19 @@
+#
+#    Copyright 2021, NTT Communications Corp.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#
+
 import logging
 import inspect
 from multi_solver import MCSClient
@@ -37,6 +53,10 @@ class SolverWrapper():
             self.solver.destroy()
         if self.client:
             self.client.destroy()
+
+    def is_setup(self):
+        return ((self.use_daemon and self.client) or
+                (not self.use_daemon and self.solver))
 
     def try_client_connection(self):
         if self.client:
@@ -127,6 +147,9 @@ class SolverWrapper():
             return self.client.solver(funcname, *args, **kwargs)
         raise Exception('missing solver')
 
+    def accept_registered(self, tokens):
+        return self._passthrough(tokens)
+
     def accept_challenges(self, tokens):
         return self._passthrough(tokens)
 
@@ -137,5 +160,5 @@ class SolverWrapper():
         ret = self._passthrough()
         return [] if ret is None else ret
 
-    def reemit_pending_tasks(self):
-        self._passthrough()
+    def reemit_pending_tasks(self, tokens):
+        self._passthrough(tokens)
