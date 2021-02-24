@@ -182,6 +182,8 @@ def register_cti(w3, catalog_address, token_address, uuid, title, price, operato
         token_address, uuid, title, int(price), operator)
     tx_hash = func.transact()
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+    if tx_receipt['status'] != 1:
+        raise ValueError('register CTI: transaction failed.')
 
 
 def publish_cti(w3, catalog_address, token_address, abi):
@@ -189,6 +191,8 @@ def publish_cti(w3, catalog_address, token_address, abi):
         w3.eth.defaultAccount, token_address)
     tx_hash = func.transact()
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+    if tx_receipt['status'] != 1:
+        raise ValueError('publish CTI: transaction failed.')
 
 
 def register_catalog(w3, catalog_address, token_address, cti_metadata):
@@ -201,7 +205,7 @@ def register_catalog(w3, catalog_address, token_address, cti_metadata):
         contract_json = json.loads(contract_file.read())[
             'contracts']['CTICatalog.sol:CTICatalog']
     contract_metadata = json.loads(contract_json['metadata'])
-    if contract_metadata and len(operators) > 0:
+    if contract_metadata:
         abi = contract_metadata['output']['abi']
 
         register_cti(
@@ -219,6 +223,41 @@ def register_catalog(w3, catalog_address, token_address, cti_metadata):
             catalog_address,
             token_address,
             abi)
+
+#/Users/nishino/Projects/metemcyber/node_modules/@openzeppelin/contracts/token/ERC777/ERC777.sol:ERC777
+
+def authorize_operator(token_address, broker_address):
+    contract_path = './src/contracts_data/CTIToken.combined.json'
+    with open(contract_path, 'r') as contract_file:
+        contract_json = json.loads(contract_file.read())[
+            'contracts']['CTIToken.sol:CTIToken']
+    contract_metadata = json.loads(contract_json['metadata'])
+    if contract_metadata:
+        abi = contract_metadata['output']['abi']
+
+    func = w3.eth.contract(
+        address=token_address, abi=abi).functions.authorizeOperator(broker_address)
+    tx_hash = func.transact()
+    tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+    if tx_receipt['status'] != 1:
+        raise ValueError('authorize operator: Transaction failed: ')
+
+
+def consign_token(w3, broker_address, catalog_address, token_address, stock):
+    contract_path = './src/contracts_data/CTIBroker.combined.json'
+    with open(contract_path, 'r') as contract_file:
+        contract_json = json.loads(contract_file.read())[
+            'contracts']['CTIBroker.sol:CTIBroker']
+    contract_metadata = json.loads(contract_json['metadata'])
+    if contract_metadata:
+        abi = contract_metadata['output']['abi']
+
+    func = w3.eth.contract(address=broker_address, abi=abi).functions.consignToken(
+        catalog_address, token_address, int(stock))
+    tx_hash = func.transact()
+    tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+    if tx_receipt['status'] != 1:
+        raise ValueError('consign token: transaction failed.')
 
 
 if __name__ == '__main__':
@@ -308,12 +347,12 @@ if __name__ == '__main__':
 
         # create metadata
         cti_metadata = create_metadata(misp_json_file, operators, misp_config)
-        #元のカタログ 0x43402fbc73f7610D00e47060fB1Cae9bCC4fEC72
-        
+        # 元のカタログ 0x43402fbc73f7610D00e47060fB1Cae9bCC4fEC72
+
         if not cti_metadata:
             exit('Error. The CTI already exists in tsvfile.')
-        if cti_metadata['uuid'] in registered_uuids:
-            exit('Error. The CTI already exists in catalog.')
+        # if cti_metadata['uuid'] in registered_uuids:
+        #     exit('Error. The CTI already exists in catalog.')
 
         # deploy CTI token
         token_address = deploy_CTItoken(w3, token_quantity, operators)
@@ -321,5 +360,14 @@ if __name__ == '__main__':
             exit('Error. Failed to get token address.')
 
         register_catalog(w3, catalog_address, token_address, cti_metadata)
-        
-        #TODO: brokerに出品するためのコードを書く
+
+        broker_address = workspace_config['broker']['address']
+        stock = misp_config['MISP']['default_num_consign']
+
+        # Note: token owner should authorize me as operator in advance.
+        authorize_operator(token_address, broker_address)
+
+        consign_token(w3, broker_address, catalog_address,
+                      token_address, stock)
+
+        #TODO: brokerに委託する在庫数をオプションで指定できるようにする
