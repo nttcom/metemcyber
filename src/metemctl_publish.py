@@ -15,13 +15,16 @@
 #
 
 """
-usage:  metemctl publish
-        metemctl publish <filename>
-        metemctl publish [--dir <misp_json_dir>]
+usage:  metemctl publish [options]
+        metemctl publish <filename> [options]
+        metemctl publish [--dir <misp_json_dir>] [options]
 
 options:
-    -h, --help
-    -r, --dir <misp_json_dir>
+    -h, --help                          Show this screen.
+    -r, --dir <misp_json_dir>           Specify json directory.
+    -p, --price <token_price>           Specify token price.
+    -q, --quantity <token_quantity>     Specify token quantity.
+    -s, --stock <token_stock>           Specify token stock.
     
 """
 
@@ -107,12 +110,14 @@ def deploy_CTItoken(w3, token_quantity, operators):
             'contracts']['CTIToken.sol:CTIToken']
     contract_metadata = json.loads(contract_json['metadata'])
     if contract_metadata and token_quantity and len(operators) > 0:
-        tx_hash = w3.eth.contract(abi=contract_metadata['output']['abi'], bytecode=contract_json['bin']).constructor(
-            token_quantity, operators).transact()
-        # address = w3.eth.waitForTransactionReceipt(tx_hash)['contractAddress']
+        func = w3.eth.contract(abi=contract_metadata['output']['abi'], bytecode=contract_json['bin']).constructor(
+            token_quantity, operators)
+        tx_hash = func.transact()
         tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
         address = tx_receipt['contractAddress']
         # print(f'Deployed {contract_path} to: {address}\n')
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: deploy CTItoken')
         return address
     else:
         return None
@@ -158,32 +163,31 @@ def fetch_registered_token():
     return registered_tokens
 
 
-def create_metadata(misp_json_file, operators, misp_config):
+def create_metadata(misp_json_file, operators, token_price, token_quantity):
     uuid = Path(misp_json_file).stem
-    # 登録済みのtokenを取得 from tsvfile
+    # get registered token info from "registered_token.tsv"
     registered_token = fetch_registered_token()
     registered_uuid = [token.get('uuid') for token in registered_token]
-    # if uuid in registered_uuid:
-    #     return None
+    if uuid in registered_uuid:
+        return None
     metadata = {}
     with open(misp_json_file) as fin:
         misp = json.load(fin)
     metadata['uuid'] = uuid
     metadata['title'] = misp['Event']['info']
-    metadata['price'] = misp_config['MISP']['defaultprice']
+    metadata['price'] = token_price
     metadata['operator'] = ','.join(operators)
-    metadata['quantity'] = misp_config['MISP']['defaultquantity']
-
+    metadata['quantity'] = token_quantity
     return metadata
 
 
 def register_cti(w3, catalog_address, token_address, uuid, title, price, operator, abi):
     func = w3.eth.contract(address=catalog_address, abi=abi).functions.registerCti(
-        token_address, uuid, title, int(price), operator)
+        token_address, uuid, title, price, operator)
     tx_hash = func.transact()
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
     if tx_receipt['status'] != 1:
-        raise ValueError('register CTI: transaction failed.')
+        raise ValueError('Transaction failed: register CTI')
 
 
 def publish_cti(w3, catalog_address, token_address, abi):
@@ -192,7 +196,7 @@ def publish_cti(w3, catalog_address, token_address, abi):
     tx_hash = func.transact()
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
     if tx_receipt['status'] != 1:
-        raise ValueError('publish CTI: transaction failed.')
+        raise ValueError('Transaction failed: publish CTI')
 
 
 def register_catalog(w3, catalog_address, token_address, cti_metadata):
@@ -224,7 +228,6 @@ def register_catalog(w3, catalog_address, token_address, cti_metadata):
             token_address,
             abi)
 
-#/Users/nishino/Projects/metemcyber/node_modules/@openzeppelin/contracts/token/ERC777/ERC777.sol:ERC777
 
 def authorize_operator(token_address, broker_address):
     contract_path = './src/contracts_data/CTIToken.combined.json'
@@ -240,7 +243,7 @@ def authorize_operator(token_address, broker_address):
     tx_hash = func.transact()
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
     if tx_receipt['status'] != 1:
-        raise ValueError('authorize operator: Transaction failed: ')
+        raise ValueError('Transaction failed: authorize operator')
 
 
 def consign_token(w3, broker_address, catalog_address, token_address, stock):
@@ -253,11 +256,11 @@ def consign_token(w3, broker_address, catalog_address, token_address, stock):
         abi = contract_metadata['output']['abi']
 
     func = w3.eth.contract(address=broker_address, abi=abi).functions.consignToken(
-        catalog_address, token_address, int(stock))
+        catalog_address, token_address, stock)
     tx_hash = func.transact()
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
     if tx_receipt['status'] != 1:
-        raise ValueError('consign token: transaction failed.')
+        raise ValueError('Transaction failed: consign token')
 
 
 if __name__ == '__main__':
@@ -273,7 +276,7 @@ if __name__ == '__main__':
 
     misp_config = configparser.ConfigParser()
     misp_config.read(MISP_INI_FILEPATH)
-
+    
     # make json file list
     if args['--dir']:
         # read json directory
@@ -295,17 +298,44 @@ if __name__ == '__main__':
         if not misp_json_files:
             exit(f'Error. {misp_json_dir} is not a directory.')
 
+    #TODO set token price, quantity, stock
+    # create_metadata内でデフォルト値を参照しているのでそちらも変更すること
+    token_price = int(misp_config['MISP']['defaultprice'])
+    token_quantity = int(misp_config['MISP']['defaultquantity'])
+    token_stock = int(misp_config['MISP']['default_num_consign'])
+    
+    output_price = 'token price   :' + str(token_price).rjust(8) + ' (default)'
+    output_quantity = 'token quantity:' + str(token_quantity).rjust(8) + ' (default)'
+    output_stock = 'token stock   :' + str(token_stock).rjust(8) + ' (default)'
+    
+    if args['--price']:
+        token_price = int(args['--price'])
+        output_price = 'token price   :' + str(token_price).rjust(8)
+    if args['--quantity']:
+        token_quantity = int(args['--quantity'])
+        output_quantity = 'token quantity:' + str(token_quantity).rjust(8)
+    if args['--stock']:
+        token_stock = int(args['--stock'])
+        output_stock = 'token stock   :' + str(token_stock).rjust(8)
+
+    print("TOKEN INFO-----------")
+    print(output_price)
+    print(output_quantity)
+    print(output_stock)
+    print("---------------------")
+    
     # set endpoint
     endpoint = config['general']['endpoint_url']
     w3 = Web3(Web3.HTTPProvider(endpoint))
 
     # set account
     keyfile_path = config['general']['keyfile']
+    if keyfile_path == "":
+        exit('Error. Failed to get keyfile path.')
     my_account_id, my_private_key = decode_keyfile(keyfile_path, w3)
     w3.eth.defaultAccount = my_account_id
 
-    # set token quantity, operators, catalog address
-    token_quantity = int(misp_config['MISP']['defaultquantity'])
+    # set operators, catalog address
     operators = workspace_config['operator']['address'].split(',')
     if workspace_config['operator']['address'] == "":
         operators = ['0xe338Eb236dDd7c5485f11DF4CA02522f208c715b']
@@ -343,16 +373,14 @@ if __name__ == '__main__':
             if not ext == '.json':
                 exit(f"{args['<filename>']} is not a json file.")
 
-        # カタログに登録するための関数を実装する
-
         # create metadata
-        cti_metadata = create_metadata(misp_json_file, operators, misp_config)
-        # 元のカタログ 0x43402fbc73f7610D00e47060fB1Cae9bCC4fEC72
+        cti_metadata = create_metadata(misp_json_file, operators, token_price, token_quantity)
 
+        # if the CTI already exists, exit
         if not cti_metadata:
-            exit('Error. The CTI already exists in tsvfile.')
-        # if cti_metadata['uuid'] in registered_uuids:
-        #     exit('Error. The CTI already exists in catalog.')
+            exit('Error. The CTI already exists in "registered_token.tsv".')
+        if cti_metadata['uuid'] in registered_uuids:
+            exit('Error. The CTI already exists in catalog.')
 
         # deploy CTI token
         token_address = deploy_CTItoken(w3, token_quantity, operators)
@@ -362,12 +390,13 @@ if __name__ == '__main__':
         register_catalog(w3, catalog_address, token_address, cti_metadata)
 
         broker_address = workspace_config['broker']['address']
-        stock = misp_config['MISP']['default_num_consign']
 
         # Note: token owner should authorize me as operator in advance.
         authorize_operator(token_address, broker_address)
 
         consign_token(w3, broker_address, catalog_address,
-                      token_address, stock)
+                      token_address, token_stock)
 
         #TODO: brokerに委託する在庫数をオプションで指定できるようにする
+        # price, quantity, num_consign(stock)が初期値を用いている
+        # 10, 100, 10
