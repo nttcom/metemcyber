@@ -71,13 +71,18 @@ def decode_keyfile(filename, w3):
         sys.exit()
 
 
-def list_token_uris(catalog_address):
-    contract_path = './src/contracts_data/CTICatalog.combined.json'
+def load_contract(contract_path, contract_key):
     with open(contract_path, 'r') as contract_file:
         contract_json = json.loads(contract_file.read())[
-            'contracts']['CTICatalog.sol:CTICatalog']
+            'contracts'][contract_key]
     contract_metadata = json.loads(contract_json['metadata'])
+    return contract_json, contract_metadata
 
+
+def list_token_uris(catalog_address):
+    contract_path = './src/contracts_data/CTICatalog.combined.json'
+    contract_key = 'CTICatalog.sol:CTICatalog'
+    _, contract_metadata = load_contract(contract_path, contract_key)
     # Note: array contains "" which means unregistered.
     func = w3.eth.contract(address=catalog_address,
                            abi=contract_metadata['output']['abi']).functions.listTokenURIs()
@@ -89,10 +94,8 @@ def list_token_uris(catalog_address):
 
 def get_cti_uuid(catalog_address, token_address):
     contract_path = './src/contracts_data/CTICatalog.combined.json'
-    with open(contract_path, 'r') as contract_file:
-        contract_json = json.loads(contract_file.read())[
-            'contracts']['CTICatalog.sol:CTICatalog']
-    contract_metadata = json.loads(contract_json['metadata'])
+    contract_key = 'CTICatalog.sol:CTICatalog'
+    _, contract_metadata = load_contract(contract_path, contract_key)
     if token_address:
         func = w3.eth.contract(
             address=catalog_address, abi=contract_metadata['output']['abi']).functions.getCtiInfo(token_address)
@@ -103,12 +106,10 @@ def get_cti_uuid(catalog_address, token_address):
 
 
 def deploy_CTItoken(w3, token_quantity, operators):
-    # load compiled smartcontract
     contract_path = './src/contracts_data/CTIToken.combined.json'
-    with open(contract_path, 'r') as contract_file:
-        contract_json = json.loads(contract_file.read())[
-            'contracts']['CTIToken.sol:CTIToken']
-    contract_metadata = json.loads(contract_json['metadata'])
+    contract_key = 'CTIToken.sol:CTIToken'
+    contract_json, contract_metadata = load_contract(
+        contract_path, contract_key)
     if contract_metadata and token_quantity and len(operators) > 0:
         func = w3.eth.contract(abi=contract_metadata['output']['abi'], bytecode=contract_json['bin']).constructor(
             token_quantity, operators)
@@ -118,7 +119,9 @@ def deploy_CTItoken(w3, token_quantity, operators):
         # print(f'Deployed {contract_path} to: {address}\n')
         if tx_receipt['status'] != 1:
             raise ValueError('Transaction failed: deploy CTItoken')
-        return address
+        else:
+            print('deploy  token: success')
+            return address
     else:
         return None
 
@@ -164,15 +167,15 @@ def fetch_registered_token():
 
 
 def create_metadata(misp_json_file, operators, token_price, token_quantity):
-    uuid = Path(misp_json_file).stem
     # get registered token info from "registered_token.tsv"
     registered_token = fetch_registered_token()
     registered_uuid = [token.get('uuid') for token in registered_token]
-    if uuid in registered_uuid:
-        return None
     metadata = {}
     with open(misp_json_file) as fin:
         misp = json.load(fin)
+    uuid = misp['Event']['uuid']
+    if uuid in registered_uuid:
+        return None
     metadata['uuid'] = uuid
     metadata['title'] = misp['Event']['info']
     metadata['price'] = token_price
@@ -188,6 +191,8 @@ def register_cti(w3, catalog_address, token_address, uuid, title, price, operato
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
     if tx_receipt['status'] != 1:
         raise ValueError('Transaction failed: register CTI')
+    else:
+        print('register cti : success')
 
 
 def publish_cti(w3, catalog_address, token_address, abi):
@@ -197,21 +202,19 @@ def publish_cti(w3, catalog_address, token_address, abi):
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
     if tx_receipt['status'] != 1:
         raise ValueError('Transaction failed: publish CTI')
+    else:
+        print('publish  cti : success')
 
 
 def register_catalog(w3, catalog_address, token_address, cti_metadata):
-    # トークンをカタログに登録
+    # register token with catalog
     cti_metadata['tokenAddress'] = token_address
     save_registered_token(cti_metadata)
-
     contract_path = './src/contracts_data/CTICatalog.combined.json'
-    with open(contract_path, 'r') as contract_file:
-        contract_json = json.loads(contract_file.read())[
-            'contracts']['CTICatalog.sol:CTICatalog']
-    contract_metadata = json.loads(contract_json['metadata'])
+    contract_key = 'CTICatalog.sol:CTICatalog'
+    _, contract_metadata = load_contract(contract_path, contract_key)
     if contract_metadata:
         abi = contract_metadata['output']['abi']
-
         register_cti(
             w3,
             catalog_address,
@@ -231,36 +234,39 @@ def register_catalog(w3, catalog_address, token_address, cti_metadata):
 
 def authorize_operator(token_address, broker_address):
     contract_path = './src/contracts_data/CTIToken.combined.json'
-    with open(contract_path, 'r') as contract_file:
-        contract_json = json.loads(contract_file.read())[
-            'contracts']['CTIToken.sol:CTIToken']
-    contract_metadata = json.loads(contract_json['metadata'])
+    contract_key = 'CTIToken.sol:CTIToken'
+
+    _, contract_metadata = load_contract(contract_path, contract_key)
+    # with open(contract_path, 'r') as contract_file:
+    #     contract_json = json.loads(contract_file.read())[
+    #         'contracts']['CTIToken.sol:CTIToken']
+    # contract_metadata = json.loads(contract_json['metadata'])
     if contract_metadata:
         abi = contract_metadata['output']['abi']
 
-    func = w3.eth.contract(
-        address=token_address, abi=abi).functions.authorizeOperator(broker_address)
-    tx_hash = func.transact()
-    tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
-    if tx_receipt['status'] != 1:
-        raise ValueError('Transaction failed: authorize operator')
+        func = w3.eth.contract(
+            address=token_address, abi=abi).functions.authorizeOperator(broker_address)
+        tx_hash = func.transact()
+        tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: authorize operator')
 
 
 def consign_token(w3, broker_address, catalog_address, token_address, stock):
     contract_path = './src/contracts_data/CTIBroker.combined.json'
-    with open(contract_path, 'r') as contract_file:
-        contract_json = json.loads(contract_file.read())[
-            'contracts']['CTIBroker.sol:CTIBroker']
-    contract_metadata = json.loads(contract_json['metadata'])
+    contract_key = 'CTIBroker.sol:CTIBroker'
+    _, contract_metadata = load_contract(contract_path, contract_key)
     if contract_metadata:
         abi = contract_metadata['output']['abi']
 
-    func = w3.eth.contract(address=broker_address, abi=abi).functions.consignToken(
-        catalog_address, token_address, stock)
-    tx_hash = func.transact()
-    tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
-    if tx_receipt['status'] != 1:
-        raise ValueError('Transaction failed: consign token')
+        func = w3.eth.contract(address=broker_address, abi=abi).functions.consignToken(
+            catalog_address, token_address, stock)
+        tx_hash = func.transact()
+        tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: consign token')
+        else:
+            print('consign token: success')
 
 
 if __name__ == '__main__':
@@ -314,12 +320,12 @@ if __name__ == '__main__':
     output_quantity = 'token quantity:' + str(token_quantity).rjust(8)
     output_stock = 'token stock   :' + str(token_stock).rjust(8)
 
-    print("TOKEN INFO-----------")
+    print("-------------TOKEN INFO-------------")
     print(output_price if args['--price'] else output_price + " (default)")
     print(output_quantity if args['--quantity']
           else output_quantity + " (default)")
     print(output_stock if args['--stock'] else output_stock + " (default)")
-    print("---------------------")
+    print("------------------------------------")
 
     # set endpoint
     endpoint = config['general']['endpoint_url']
@@ -360,15 +366,21 @@ if __name__ == '__main__':
                 construct_sign_and_send_raw_middleware(my_private_key)
             )
 
+    print('')
+    print('---PUBLISH START---')
+    publish_count = 0
+
     # register json file in the catalog
     for misp_json_file in misp_json_files:
         # check json file
         if not os.path.isfile(misp_json_file):
-            exit(f'{misp_json_file} is not a file.')
+            print(f'Error. {misp_json_file} is not a file.')
+            continue
         else:
             root, ext = os.path.splitext(misp_json_file)
             if not ext == '.json':
-                exit(f"{args['<filename>']} is not a json file.")
+                print(f"Error. {args['<filename>']} is not a json file.")
+                continue
 
         # create metadata
         cti_metadata = create_metadata(
@@ -376,14 +388,20 @@ if __name__ == '__main__':
 
         # if the CTI already exists, exit
         if not cti_metadata:
-            exit('Error. The CTI already exists in "registered_token.tsv".')
+            print('Error. ' + 'uuid of the MISP EVENT(' + misp_json_file + ') already exists in "registered_token.tsv".')
+            continue
         if cti_metadata['uuid'] in registered_uuids:
-            exit('Error. The CTI already exists in catalog.')
+            print('Error. ' + 'uuid of the MISP EVENT(' + misp_json_file + ') already exists in the catalog.')
+            continue
+
+        print('MISP EVENT: "' +
+              cti_metadata['title'] + '"(' + misp_json_file + ')' + ' loaded.')
 
         # deploy CTI token
         token_address = deploy_CTItoken(w3, token_quantity, operators)
         if not token_address:
-            exit('Error. Failed to get token address.')
+            print('Error. Failed to get token address.')
+            continue
 
         # register token with catalog
         register_catalog(w3, catalog_address, token_address, cti_metadata)
@@ -397,3 +415,17 @@ if __name__ == '__main__':
         # consign token
         consign_token(w3, broker_address, catalog_address,
                       token_address, token_stock)
+
+        print('MISP EVENT: "' +
+              cti_metadata['title'] + '"(' + misp_json_file + ')' + ' published.')
+        print('')
+        publish_count += 1
+
+print('---PUBLISH FINISHED---')
+print('')
+if publish_count == 0:
+    print('publish failed.')
+elif publish_count == 1:
+    print('1 event is published.')
+else:
+    print(publish_count + ' events are published.')
