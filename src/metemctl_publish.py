@@ -276,7 +276,7 @@ if __name__ == '__main__':
 
     misp_config = configparser.ConfigParser()
     misp_config.read(MISP_INI_FILEPATH)
-    
+
     # make json file list
     if args['--dir']:
         # read json directory
@@ -298,32 +298,29 @@ if __name__ == '__main__':
         if not misp_json_files:
             exit(f'Error. {misp_json_dir} is not a directory.')
 
-    #TODO set token price, quantity, stock
-    # create_metadata内でデフォルト値を参照しているのでそちらも変更すること
+    # set default price, quantity, stock
     token_price = int(misp_config['MISP']['defaultprice'])
     token_quantity = int(misp_config['MISP']['defaultquantity'])
     token_stock = int(misp_config['MISP']['default_num_consign'])
-    
-    output_price = 'token price   :' + str(token_price).rjust(8) + ' (default)'
-    output_quantity = 'token quantity:' + str(token_quantity).rjust(8) + ' (default)'
-    output_stock = 'token stock   :' + str(token_stock).rjust(8) + ' (default)'
-    
+
     if args['--price']:
         token_price = int(args['--price'])
-        output_price = 'token price   :' + str(token_price).rjust(8)
     if args['--quantity']:
         token_quantity = int(args['--quantity'])
-        output_quantity = 'token quantity:' + str(token_quantity).rjust(8)
     if args['--stock']:
         token_stock = int(args['--stock'])
-        output_stock = 'token stock   :' + str(token_stock).rjust(8)
+
+    output_price = 'token price   :' + str(token_price).rjust(8)
+    output_quantity = 'token quantity:' + str(token_quantity).rjust(8)
+    output_stock = 'token stock   :' + str(token_stock).rjust(8)
 
     print("TOKEN INFO-----------")
-    print(output_price)
-    print(output_quantity)
-    print(output_stock)
+    print(output_price if args['--price'] else output_price + " (default)")
+    print(output_quantity if args['--quantity']
+          else output_quantity + " (default)")
+    print(output_stock if args['--stock'] else output_stock + " (default)")
     print("---------------------")
-    
+
     # set endpoint
     endpoint = config['general']['endpoint_url']
     w3 = Web3(Web3.HTTPProvider(endpoint))
@@ -374,7 +371,8 @@ if __name__ == '__main__':
                 exit(f"{args['<filename>']} is not a json file.")
 
         # create metadata
-        cti_metadata = create_metadata(misp_json_file, operators, token_price, token_quantity)
+        cti_metadata = create_metadata(
+            misp_json_file, operators, token_price, token_quantity)
 
         # if the CTI already exists, exit
         if not cti_metadata:
@@ -387,16 +385,15 @@ if __name__ == '__main__':
         if not token_address:
             exit('Error. Failed to get token address.')
 
+        # register token with catalog
         register_catalog(w3, catalog_address, token_address, cti_metadata)
 
         broker_address = workspace_config['broker']['address']
 
-        # Note: token owner should authorize me as operator in advance.
+        # broker should be authorized as operator in advance.
+        # authorize broker as operator
         authorize_operator(token_address, broker_address)
 
+        # consign token
         consign_token(w3, broker_address, catalog_address,
                       token_address, token_stock)
-
-        #TODO: brokerに委託する在庫数をオプションで指定できるようにする
-        # price, quantity, num_consign(stock)が初期値を用いている
-        # 10, 100, 10
