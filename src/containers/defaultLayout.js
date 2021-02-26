@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { Nav, NavItem, NavLink } from 'reactstrap';
 import { Route, Switch } from 'react-router-dom';
 import './default.css';
@@ -9,6 +9,12 @@ import Buy from './buycti';
 
 function DefaultLayout(props) {
     const { ipcRenderer } = window
+
+    useEffect(() => {
+        if (sessionStorage.getItem('searchText') === null) {
+            sessionStorage.setItem('searchText', '');
+        }
+    }, [])
 
     const handleAccount = () => {
         window.location.href = '/contents/account';

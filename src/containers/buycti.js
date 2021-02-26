@@ -8,12 +8,12 @@ function BuyCti(props) {
     const { ipcRenderer } = window;
     const [content, setContent] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSearch, setIsSearch] = useState(false);
-    const [searchText, setSearchText] = useState("");
+    const [searchText, setSearchText] = useState(sessionStorage.getItem('searchText'));
     const [modalToggle, setModalToggle] = useState(false);
     const [targetId, setTargetId] = useState('');
 
     useEffect(() => {
+        console.log(sessionStorage.getItem('searchText'));
         const retValue = ipcRenderer.sendSync('select-menu', '10');
         console.log(retValue)
         setContent(retValue);
@@ -30,17 +30,18 @@ function BuyCti(props) {
     }
 
     const handleSearch = () => {
+        sessionStorage.setItem('searchText', searchText);
         const retValue = ipcRenderer.sendSync('select-10', ['s', searchText]);
         console.log(retValue)
         setContent(retValue);
-        setIsSearch(!isSearch);
     }
 
     const handleRelease = () => {
+        sessionStorage.setItem('searchText', '');
         const retValue = ipcRenderer.sendSync('select-10', ['a']);
         console.log(retValue)
+        setSearchText('');
         setContent(retValue);
-        setIsSearch(!isSearch);
     }
 
     const handlePurchase = (e) => {
@@ -63,8 +64,8 @@ function BuyCti(props) {
                         <InputGroup>
                             <Input value={searchText} onChange={handleChange} />
                             <InputGroupAddon addonType="append">
-                                <Button color="secondary" onClick={handleSearch} disabled={isSearch}>検索</Button>
-                                <Button color="secondary" onClick={handleRelease} disabled={!isSearch}>解除</Button>
+                                <Button color="secondary" onClick={handleSearch}>検索</Button>
+                                <Button color="secondary" onClick={handleRelease}>解除</Button>
                             </InputGroupAddon>
                         </InputGroup>
                     </div>
@@ -81,6 +82,7 @@ function BuyCti(props) {
                                     </ul>
                                 </li>
                             })}
+                            {content.item.length === 0 && "アイテムは存在しません"}
                         </List>
                     </div>
                 </div>

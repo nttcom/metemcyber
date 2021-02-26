@@ -43,9 +43,21 @@ function Account(props) {
                             <li>CTIトークン発行回数：{content.catalog.number_of_token_issue}</li>
                         </ul>
                     </li>
+                    <li> CTIトークン
+                    <ul>
+                            {content.tokens.map((val, idx) => {
+                                return <li key={idx}>ID:{val.id}
+                                    <ul>
+                                        <li>Quantity：{val.quantity}</li>
+                                        <li>Addr：{val.addr}</li>
+                                    </ul>
+                                </li>
+                            })}
+                        </ul>
+                    </li>
                 </List>
             }
-        </div>
+        </div >
     );
 }
 

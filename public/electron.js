@@ -58,18 +58,18 @@ ipcMain.on('select-menu', async (event, arg) => {
   console.log('arg:' + arg)
   let returnVal = {};
   if (menu == 10) {
-    await proc.write('b' + "\n");
+    await getOutput("b", 'コマンドを入力してください');
   }
 
   let output = [];
   switch (arg) {
     case '1':
-      output = await getOutput(arg, 'コマンドを入力してください');
+      output = await getOutput(arg, 'コマンドを入力してください', [[/--------------------/g, " "], [/■/g, ""], [/ID:/g, " ID:"]]);
       returnVal = extractOutput1(output);
       menu = 1;
       break;
     case '10':
-      output = await getOutput(arg, '[ ]インデックスを入力して選択する');
+      output = await getOutput(arg, '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
       returnVal = extractOutput10(output);
       menu = 10;
       break;
@@ -87,12 +87,12 @@ ipcMain.on('select-10', async (event, arg) => {
 
   if (arg[0] === 's') {
     proc.write('s' + "\n");
-    output = await getOutput(arg[1], '[ ]インデックスを入力して選択する');
+    output = await getOutput(arg[1], '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
   } else if (arg[0] === 'a') {
-    output = await getOutput('a', '[ ]インデックスを入力して選択する');
+    output = await getOutput('a', '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
   } else {
     proc.write(arg[0] + "\n");
-    output = await getOutput('1', '[ ]インデックスを入力して選択する');
+    output = await getOutput('1', '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
   }
   returnVal = extractOutput10(output);
 
@@ -105,25 +105,38 @@ function extractOutput1(output) {
     summary: {},
     contract: {},
     catalog: {},
-    token: {}
+    tokens: []
   };
-  output.map((val) => {
-    if (val.indexOf("EOAアドレス") !== -1) {
-      returnVal.summary.eoa_address = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("所持ETH") !== -1) {
-      returnVal.summary.eth_balance = val.split(" ").slice(-2)[0];
-    } else if (val.indexOf("カタログアドレス") !== -1) {
-      returnVal.contract.catalog_address = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("ブローカーアドレス") !== -1) {
-      returnVal.contract.broker_address = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("オペレータアドレス") !== -1) {
-      returnVal.contract.operator_address = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("所持ユニークCTIトークン数") !== -1) {
-      returnVal.catalog.number_of_unique_token = val.split(" ").slice(-1)[0];
-    } else if (val.indexOf("CTIトークン発行回数") !== -1) {
-      returnVal.catalog.number_of_token_issue = val.split(" ").slice(-1)[0];
-    }
-  })
+
+  returnVal.summary.eoa_address = output[output.indexOf('EOAアドレス:') + 1];
+  returnVal.summary.eth_balance = `${output[output.indexOf('所持ETH:') + 1]} Wei`;
+  returnVal.contract.catalog_address = output[output.indexOf('カタログアドレス:') + 1];
+  returnVal.contract.broker_address = output[output.indexOf('ブローカーアドレス:') + 1];
+  returnVal.contract.operator_address = output[output.indexOf('オペレータアドレス:') + 1];
+  returnVal.catalog.number_of_unique_token = output[output.indexOf('所持ユニークCTIトークン数:') + 1];
+  returnVal.catalog.number_of_token_issue = output[output.indexOf('CTIトークン発行回数:') + 1];
+
+  let tokens = output.slice(output.indexOf('CTIトークン') + 1, -1);
+  while (tokens.length > 1) {
+    let token = {
+      id: '',
+      quantity: '',
+      addr: ''
+    };
+
+    token.id = tokens[0].slice(tokens[0].indexOf(':') + 1);
+    token.quantity = tokens[1].slice(tokens[1].indexOf(':') + 1);
+    token.addr = tokens[3];
+
+    tokens.splice(0, 4);
+    returnVal.tokens.push(token);
+    token = {
+      id: '',
+      quantity: '',
+      addr: ''
+    };
+  }
+
   console.log(returnVal);
   return returnVal;
 }
@@ -132,55 +145,74 @@ function extractOutput10(output) {
   let returnVal = {
     item: [],
   };
-  output.splice(0, output.indexOf('   *  accepting challenge as a solver') + 1);
-  output.pop();
 
-  let item = {};
-  let count = 0;
-  output.map((val) => {
-    count++;
-    if (count === 1) {
-      if (val.split(" ")[5] !== undefined) {
-        item.id = val.split(" ")[5].slice(0, -1);
-      }
-      item.name = val.split(": ").slice(-1)[0];
-    } else if (count === 2) {
-      item.addr = val.split(" ").slice(-1)[0];
-    } else if (count === 3) {
-      item.uuid = val.split(": ").slice(-1)[0];
-    } else if (count === 4) {
-      const tmpAry = val.split(" ");
-      item.price = tmpAry[8];
-      item.left = tmpAry[13];
-      count = 0;
-      returnVal.item.push(item);
-      item = {};
+  let item = {
+    addr: '',
+    uuid: '',
+    price: '',
+    left: ''
+  };
+
+  while (output[0].indexOf(':') !== -1) {
+
+    //値チェック
+    if (output.indexOf('Addr') === -1 && output.indexOf('UUID') === -1) {
+      break;
     }
-  })
+    item.id = output[0].slice(0, -1);
+    item.name = output.slice(1, output.indexOf('Addr')).join(" ");
+
+    output.splice(0, output.indexOf('Addr'));
+
+    output.slice(output.indexOf('Addr') + 2, output.indexOf('UUID')).map((val) => {
+      console.log(val);
+      item.addr += val;
+    })
+
+    output.slice(output.indexOf('UUID') + 2, output.indexOf('Price:')).map((val) => {
+      item.uuid += val;
+    })
+
+    item.price = output[output.indexOf('Price:') + 1];
+    item.left = output[output.indexOf('tokens') - 1];
+
+    output.splice(0, output.indexOf('left') + 1);
+    returnVal.item.push(item);
+    item = {
+      addr: '',
+      uuid: '',
+      price: '',
+      left: ''
+    };
+  }
+
   console.log(returnVal);
   return returnVal;
 }
 
-async function getOutput(input, endStr) {
-  const returnVal = [];
+async function getOutput(input, endStr, replaces = []) {
+  let returnVal = "";
   await new Promise((resolve) => {
     proc.on('data', function (data) {
       data.split("\r\n").map((val) => {
-
         switch (val) {
           case endStr:
             resolve();
             break;
-          case '':
-            break;
           default:
-            returnVal.push(val);
+            returnVal += val;
             break;
         }
       })
     });
     proc.write(input + "\n");
   })
+  console.log(returnVal);
+  replaces.map((val) => {
+    returnVal = returnVal.replace(val[0], val[1]);
+  })
+  returnVal = returnVal.split(" ").filter(val => val !== '')
+  console.log(returnVal);
   return returnVal;
 }
 
