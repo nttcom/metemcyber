@@ -52,7 +52,7 @@ MISP_INI_FILEPATH = './workspace/misp.ini'
 REGISTERED_TOKEN_TSV = './workspace/registered_token.tsv'
 
 
-def decode_keyfile(filename, w3):
+def decode_keyfile(w3, filename):
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
     try:
         with open(filename) as keyfile:
@@ -79,7 +79,7 @@ def load_contract(contract_path, contract_key):
     return contract_json, contract_metadata
 
 
-def list_token_uris(catalog_address):
+def list_token_uris(w3, catalog_address):
     contract_path = './src/contracts_data/CTICatalog.combined.json'
     contract_key = 'CTICatalog.sol:CTICatalog'
     _, contract_metadata = load_contract(contract_path, contract_key)
@@ -92,7 +92,7 @@ def list_token_uris(catalog_address):
     return [uri for uri in token_uris if uri != '']
 
 
-def get_cti_uuid(catalog_address, token_address):
+def get_cti_uuid(w3, catalog_address, token_address):
     contract_path = './src/contracts_data/CTICatalog.combined.json'
     contract_key = 'CTICatalog.sol:CTICatalog'
     _, contract_metadata = load_contract(contract_path, contract_key)
@@ -232,7 +232,7 @@ def register_catalog(w3, catalog_address, token_address, cti_metadata):
             abi)
 
 
-def authorize_operator(token_address, broker_address):
+def authorize_operator(w3, token_address, broker_address):
     contract_path = './src/contracts_data/CTIToken.combined.json'
     contract_key = 'CTIToken.sol:CTIToken'
 
@@ -335,7 +335,7 @@ if __name__ == '__main__':
     keyfile_path = config['general']['keyfile']
     if keyfile_path == "":
         exit('Error. Failed to get keyfile path.')
-    my_account_id, my_private_key = decode_keyfile(keyfile_path, w3)
+    my_account_id, my_private_key = decode_keyfile(w3, keyfile_path)
     w3.eth.defaultAccount = my_account_id
 
     # set operators, catalog address
@@ -348,9 +348,9 @@ if __name__ == '__main__':
 
     # access catalog to get registered uuid list
     registered_uuids = []
-    registered_token_uris = list_token_uris(catalog_address)
+    registered_token_uris = list_token_uris(w3, catalog_address)
     for registered_token_uri in registered_token_uris:
-        registered_uuid = get_cti_uuid(catalog_address, registered_token_uri)
+        registered_uuid = get_cti_uuid(w3, catalog_address, registered_token_uri)
         if registered_uuid:
             registered_uuids.append(registered_uuid)
 
@@ -410,7 +410,7 @@ if __name__ == '__main__':
 
         # broker should be authorized as operator in advance.
         # authorize broker as operator
-        authorize_operator(token_address, broker_address)
+        authorize_operator(w3, token_address, broker_address)
 
         # consign token
         consign_token(w3, broker_address, catalog_address,
