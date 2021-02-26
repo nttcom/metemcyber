@@ -307,7 +307,7 @@ if __name__ == '__main__':
     # set price, quantity, stock
     # load default value
     try:
-        token_price_default = misp_config['MISP']['defaultpric']
+        token_price_default = misp_config['MISP']['defaultprice']
         token_quantity_default = misp_config['MISP']['defaultquantity']
         token_stock_default = misp_config['MISP']['default_num_consign']
     except KeyError:
