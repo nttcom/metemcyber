@@ -21,10 +21,10 @@ usage:  metemctl publish [options]
 
 options:
     -h, --help                          Show this screen.
-    -r, --dir <misp_json_dir>           Specify json directory.
-    -p, --price <token_price>           Specify token price.
-    -q, --quantity <token_quantity>     Specify token quantity.
-    -s, --stock <token_stock>           Specify token stock.
+    -r, --dir <misp_json_dir>           Specify "json directory".
+    -p, --price <token_price>           Specify "token price".
+    -q, --quantity <token_quantity>     Specify "token quantity".
+    -s, --stock <token_stock>           Specify "token stock".
     
 """
 
@@ -43,7 +43,7 @@ from pathlib import Path
 import csv
 import logging
 
-LOGGER = logging.getLogger('common')
+LOGGER = logging.getLogger('metemctl publish')
 
 CONFIG_INI_FILEPATH = "metemctl.ini"
 WORKSPACE_CONFIG_INI_FILEPATH = "./workspace/config.ini"
@@ -276,7 +276,7 @@ if __name__ == '__main__':
     # load config
     config = configparser.ConfigParser()
     config.read(CONFIG_INI_FILEPATH)
-
+    
     workspace_config = configparser.ConfigParser()
     workspace_config.read(WORKSPACE_CONFIG_INI_FILEPATH)
 
@@ -304,18 +304,47 @@ if __name__ == '__main__':
         if not misp_json_files:
             exit(f'Error. {misp_json_dir} is not a directory.')
 
-    # set default price, quantity, stock
-    token_price = int(misp_config['MISP']['defaultprice'])
-    token_quantity = int(misp_config['MISP']['defaultquantity'])
-    token_stock = int(misp_config['MISP']['default_num_consign'])
+    # set price, quantity, stock
+    # load default value
+    try:
+        token_price_default = misp_config['MISP']['defaultpric']
+        token_quantity_default = misp_config['MISP']['defaultquantity']
+        token_stock_default = misp_config['MISP']['default_num_consign']
+    except KeyError:
+        exit('Key error. Check config file("misp.ini").')
 
+    # if value from config file is digit then value load
+    if token_price_default.isdigit():
+        token_price = int(token_price_default)
+    else:
+        exit('Error. "defaultprice" in config file("misp.ini") is invalid.')
+    if token_quantity_default.isdigit():
+        token_quantity = int(token_quantity_default)
+    else:
+        exit('Error. "defaultquantity" in config file("misp.ini") is invalid.')
+    if token_stock_default.isdigit():
+        token_stock = int(token_stock_default)
+    else:
+        exit('Error. "default_num_consign" in config file("misp.ini") is invalid.')
+
+    # if option input, check digit and rewrite value.
     if args['--price']:
-        token_price = int(args['--price'])
+        if args['--price'].isdigit():
+            token_price = int(args['--price'])
+        else:
+            exit('Error. "token price" must be a positive integer only.')
     if args['--quantity']:
-        token_quantity = int(args['--quantity'])
+        if args['--quantity'].isdigit():
+            token_quantity = int(args['--quantity'])
+        else:
+            exit('Error. "token quantity" must be a positive integer only.')
     if args['--stock']:
-        token_stock = int(args['--stock'])
+        if args['--stock'].isdigit():
+            token_stock = int(args['--stock'])
+        else:
+            exit('Error. "token stock" must be a positive integer only.')
 
+    # print token info
     output_price = 'token price   :' + str(token_price).rjust(8)
     output_quantity = 'token quantity:' + str(token_quantity).rjust(8)
     output_stock = 'token stock   :' + str(token_stock).rjust(8)
@@ -350,7 +379,8 @@ if __name__ == '__main__':
     registered_uuids = []
     registered_token_uris = list_token_uris(w3, catalog_address)
     for registered_token_uri in registered_token_uris:
-        registered_uuid = get_cti_uuid(w3, catalog_address, registered_token_uri)
+        registered_uuid = get_cti_uuid(
+            w3, catalog_address, registered_token_uri)
         if registered_uuid:
             registered_uuids.append(registered_uuid)
 
@@ -388,10 +418,12 @@ if __name__ == '__main__':
 
         # if the CTI already exists, exit
         if not cti_metadata:
-            print('Error. ' + 'uuid of the MISP EVENT(' + misp_json_file + ') already exists in "registered_token.tsv".')
+            print('Error. ' + 'uuid of the MISP EVENT(' + misp_json_file +
+                  ') already exists in "registered_token.tsv".')
             continue
         if cti_metadata['uuid'] in registered_uuids:
-            print('Error. ' + 'uuid of the MISP EVENT(' + misp_json_file + ') already exists in the catalog.')
+            print('Error. ' + 'uuid of the MISP EVENT(' +
+                  misp_json_file + ') already exists in the catalog.')
             continue
 
         print('MISP EVENT: "' +
