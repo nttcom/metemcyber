@@ -23,6 +23,9 @@ from solver import BaseSolver
 
 LOGGER = logging.getLogger('common')
 
+## the directory where plugins are placed
+PLUGINS_PATH = os.getenv('PLUGINS_PATH', './src/plugins')
+
 
 SOLVER_CLASSNAME = 'Solver'
 
@@ -38,7 +41,7 @@ class PluginManager():
         self._modules = dict()  ## {filename : module}
         self._solvers = dict()  ## {operator_address: (solver_class, filename)}
 
-    def load(self, path):
+    def load(self, path=PLUGINS_PATH):
         if self._modules:
             LOGGER.debug('Plugin: already loaded')
             return

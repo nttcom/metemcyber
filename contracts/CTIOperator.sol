@@ -98,16 +98,21 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
         );
     }
 
-    function reemitPendingTasks() public {
+    function reemitPendingTasks(address[] memory tokens) public {
         for (uint i=0; i<_tasks.length; i++) {
             if (_tasks[i].state != TaskState.Pending)
                 continue;
-            emit TokensReceivedCalled(
-                _tasks[i].seeker,
-                _userData[i],
-                _tasks[i].token,
-                _tasks[i].taskId
-            );
+            for (uint j=0; j<tokens.length; j++) {
+                if (_tasks[i].token == tokens[j]) {
+                    emit TokensReceivedCalled(
+                        _tasks[i].seeker,
+                        _userData[i],
+                        _tasks[i].token,
+                        _tasks[i].taskId
+                    );
+                    break;
+                }
+            }
         }
     }
 
@@ -166,6 +171,21 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
                 }
             }
         }
+    }
+
+    function checkRegistered(
+        address[] memory tokens
+    ) public view returns (bool[] memory) {
+        bool[] memory result = new bool[](tokens.length);
+        for (uint i = 0; i < tokens.length; i++) {
+            for (uint j = 0; j < _solvers[tokens[i]].length; j++) {
+                if (_solvers[tokens[i]][j] == msg.sender) {
+                    result[i] = true;
+                    break;
+                }
+            }
+        }
+        return result;
     }
 
     function accepted(uint256 taskId) public {
