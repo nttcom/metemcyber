@@ -75,8 +75,8 @@ class CTICatalog(ContractVisitor):
 
     def get_cti_info(self, token_address):
         func = self.contract.functions.getCtiInfo(token_address)
-        uuid, token_id, owner, title, price, operator, likecount = func.call()
-        return uuid, token_id, owner, title, price, operator, likecount
+        token_id, owner, uuid, title, price, operator, likecount = func.call()
+        return token_id, owner, uuid, title, price, operator, likecount
 
     def like_cti(self, token_address):
         func = self.contract.functions.likeCti(token_address)
