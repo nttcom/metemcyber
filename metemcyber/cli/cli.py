@@ -65,8 +65,8 @@ def app_callback(ctx: typer.Context):
     ctx.meta['config'] = config
 
     ether = Ether(config['general']['endpoint_url'])
-    eoa, _ = decode_keyfile(config['general']['keyfile'])
-    ctx.meta['account'] = Account(ether.web3, eoa, None)
+    eoa, pkey = decode_keyfile(config['general']['keyfile'])
+    ctx.meta['account'] = Account(ether.web3_with_signature(pkey), eoa)
 
 
 @app.command()

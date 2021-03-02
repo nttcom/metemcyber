@@ -18,7 +18,7 @@ from .wallet import Wallet
 
 
 class Account:
-    def __init__(self, web3, eoa, private_key):
+    def __init__(self, web3, eoa):
         self.eoa = eoa
         self.web3 = web3
         self.wallet = Wallet(web3, eoa)
