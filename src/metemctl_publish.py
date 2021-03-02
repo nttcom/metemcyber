@@ -276,7 +276,7 @@ if __name__ == '__main__':
     # load config
     config = configparser.ConfigParser()
     config.read(CONFIG_INI_FILEPATH)
-    
+
     workspace_config = configparser.ConfigParser()
     workspace_config.read(WORKSPACE_CONFIG_INI_FILEPATH)
 
@@ -299,50 +299,52 @@ if __name__ == '__main__':
             exit(f"Error. {args['<filename>']} is not a json file.")
     else:
         # read default json directory
-        misp_json_dir = config['general']['misp_json_dumpdir']
+        try:
+            misp_json_dir = config['general']['misp_json_dumpdir']
+        except KeyError:
+            exit('Key error. Check config file("metemctl.ini")')
         misp_json_files = read_dir(misp_json_dir)
         if not misp_json_files:
             exit(f'Error. {misp_json_dir} is not a directory.')
 
     # set price, quantity, stock
-    # load default value
-    try:
-        token_price_default = misp_config['MISP']['defaultprice']
-        token_quantity_default = misp_config['MISP']['defaultquantity']
-        token_stock_default = misp_config['MISP']['default_num_consign']
-    except KeyError:
-        exit('Key error. Check config file("misp.ini").')
-
-    # if value from config file is digit then value load
-    if token_price_default.isdigit():
-        token_price = int(token_price_default)
-    else:
-        exit('Error. "defaultprice" in config file("misp.ini") is invalid.')
-    if token_quantity_default.isdigit():
-        token_quantity = int(token_quantity_default)
-    else:
-        exit('Error. "defaultquantity" in config file("misp.ini") is invalid.')
-    if token_stock_default.isdigit():
-        token_stock = int(token_stock_default)
-    else:
-        exit('Error. "default_num_consign" in config file("misp.ini") is invalid.')
-
-    # if option input, check digit and rewrite value.
+    # if option is entered, value load from input.
+    # if option is not entered, value load from config file.
     if args['--price']:
         if args['--price'].isdigit():
             token_price = int(args['--price'])
         else:
             exit('Error. "token price" must be a positive integer only.')
+    else:
+        try:
+            if misp_config['MISP']['defaultprice'].isdigit():
+                token_price = int(misp_config['MISP']['defaultprice'])
+        except KeyError:
+            exit('Key "defaultprice" error. Check config file("misp.ini").')
+
     if args['--quantity']:
         if args['--quantity'].isdigit():
             token_quantity = int(args['--quantity'])
         else:
             exit('Error. "token quantity" must be a positive integer only.')
+    else:
+        try:
+            if misp_config['MISP']['defaultquantity'].isdigit():
+                token_quantity = int(misp_config['MISP']['defaultquantity'])
+        except KeyError:
+            exit('Key "defaultquantity" error. Check config file("misp.ini").')
+
     if args['--stock']:
         if args['--stock'].isdigit():
             token_stock = int(args['--stock'])
         else:
             exit('Error. "token stock" must be a positive integer only.')
+    else:
+        try:
+            if misp_config['MISP']['default_num_consign'].isdigit():
+                token_stock = int(misp_config['MISP']['default_num_consign'])
+        except KeyError:
+            exit('Key "default_num_consign" error. Check config file("misp.ini").')
 
     # print token info
     output_price = 'token price   :' + str(token_price).rjust(8)
@@ -356,14 +358,17 @@ if __name__ == '__main__':
     print(output_stock if args['--stock'] else output_stock + " (default)")
     print("------------------------------------")
 
+    # load endpoint, account
+    try:
+        endpoint = config['general']['endpoint_url']
+        keyfile_path = config['general']['keyfile']
+    except KeyError:
+        exit('Key error. Check config file("metemctl.ini").')
+
     # set endpoint
-    endpoint = config['general']['endpoint_url']
     w3 = Web3(Web3.HTTPProvider(endpoint))
 
     # set account
-    keyfile_path = config['general']['keyfile']
-    if keyfile_path == "":
-        exit('Error. Failed to get keyfile path.')
     my_account_id, my_private_key = decode_keyfile(w3, keyfile_path)
     w3.eth.defaultAccount = my_account_id
 
@@ -374,15 +379,6 @@ if __name__ == '__main__':
     catalog_address = workspace_config['catalog']['address']
     if catalog_address == "":
         exit('Error. Failed to get catalog address.')
-
-    # access catalog to get registered uuid list
-    registered_uuids = []
-    registered_token_uris = list_token_uris(w3, catalog_address)
-    for registered_token_uri in registered_token_uris:
-        registered_uuid = get_cti_uuid(
-            w3, catalog_address, registered_token_uri)
-        if registered_uuid:
-            registered_uuids.append(registered_uuid)
 
     # check PoA
     if w3.isConnected():
@@ -395,6 +391,15 @@ if __name__ == '__main__':
             w3.middleware_onion.add(
                 construct_sign_and_send_raw_middleware(my_private_key)
             )
+
+    # access catalog to get registered uuid list
+    registered_uuids = []
+    registered_token_uris = list_token_uris(w3, catalog_address)
+    for registered_token_uri in registered_token_uris:
+        registered_uuid = get_cti_uuid(
+            w3, catalog_address, registered_token_uri)
+        if registered_uuid:
+            registered_uuids.append(registered_uuid)
 
     print('')
     print('---PUBLISH START---')
@@ -436,17 +441,30 @@ if __name__ == '__main__':
             continue
 
         # register token with catalog
-        register_catalog(w3, catalog_address, token_address, cti_metadata)
+        print(cti_metadata)
+        try:
+            register_catalog(w3, catalog_address, token_address, cti_metadata)
+        except ValueError:
+            print('Error. Failed to register token to catallog.')
+            continue
 
         broker_address = workspace_config['broker']['address']
 
         # broker should be authorized as operator in advance.
         # authorize broker as operator
-        authorize_operator(w3, token_address, broker_address)
+        try:
+            authorize_operator(w3, token_address, broker_address)
+        except ValueError:
+            print('Error. Failed to execute authorizeOperator')
+            continue
 
         # consign token
-        consign_token(w3, broker_address, catalog_address,
-                      token_address, token_stock)
+        try:
+            consign_token(w3, broker_address, catalog_address,
+                        token_address, token_stock)
+        except ValueError:
+            print('Error. Failed to consign token to broker')
+            continue
 
         print('MISP EVENT: "' +
               cti_metadata['title'] + '"(' + misp_json_file + ')' + ' published.')
