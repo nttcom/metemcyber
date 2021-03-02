@@ -36,7 +36,7 @@ class Ether:
         cssrm = construct_sign_and_send_raw_middleware(private_key)
         account_id = Account.from_key(private_key)
 
-        # プライベート鍵を明示的にメモリから削除
+        # プライベート鍵の変数は今後使わないので明示的に削除
         del private_key
 
         # ミドルウェアに署名付きトランザクションを設定
