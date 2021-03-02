@@ -14,7 +14,7 @@
 #    limitations under the License.
 #
 
-from web3 import Account, Web3
+from web3 import Web3
 from web3.exceptions import ExtraDataLengthError
 from web3.middleware import (construct_sign_and_send_raw_middleware,
                              geth_poa_middleware)
@@ -34,7 +34,7 @@ class Ether:
 
         # 署名付きトランザクションの準備とcoinbaseアカウントの作成
         cssrm = construct_sign_and_send_raw_middleware(private_key)
-        account_id = Account.from_key(private_key)
+        account_id = self.web3.eth.account.from_key(private_key)
 
         # プライベート鍵の変数は今後使わないので明示的に削除
         del private_key
