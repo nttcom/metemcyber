@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Input, InputGroup, InputGroupAddon, List, Modal, ModalBody, ModalFooter } from 'reactstrap';
-import './default.css';
+import '..//default.css';
 
 
 
@@ -13,9 +13,7 @@ function BuyCti(props) {
     const [targetId, setTargetId] = useState('');
 
     useEffect(() => {
-        console.log(sessionStorage.getItem('searchText'));
-        const retValue = ipcRenderer.sendSync('select-menu', '10');
-        console.log(retValue)
+        const retValue = ipcRenderer.sendSync('select-menu', '11');
         setContent(retValue);
         setIsLoading(false);
         return () => console.log('unmounting...');
@@ -31,24 +29,25 @@ function BuyCti(props) {
 
     const handleSearch = () => {
         sessionStorage.setItem('searchText', searchText);
-        const retValue = ipcRenderer.sendSync('select-10', ['s', searchText]);
+        const retValue = ipcRenderer.sendSync('select-11', ['s', searchText]);
         console.log(retValue)
         setContent(retValue);
     }
 
     const handleRelease = () => {
         sessionStorage.setItem('searchText', '');
-        const retValue = ipcRenderer.sendSync('select-10', ['a']);
+        const retValue = ipcRenderer.sendSync('select-11', ['a']);
         console.log(retValue)
         setSearchText('');
         setContent(retValue);
     }
 
-    const handlePurchase = (e) => {
-        const retValue = ipcRenderer.sendSync('select-10', [targetId, '1']);
+    const handleExecution = (e) => {
+        const retValue = ipcRenderer.sendSync('select-11', [targetId]);
         console.log(retValue)
-        setContent(retValue);
+        sessionStorage.setItem('challange', true);
         setModalToggle(!modalToggle);
+        props.setChallangeInterval();
 
     }
 
@@ -78,7 +77,7 @@ function BuyCti(props) {
                                         <li>UUID：{val.uuid}</li>
                                         <li>Price：{val.price}</li>
                                         <li>Remaining Token：{val.left}</li>
-                                        <li><Button onClick={toggle} value={val.id}>購入</Button></li>
+                                        <li><Button onClick={toggle} value={val.id}>実行</Button></li>
                                     </ul>
                                 </li>
                             })}
@@ -89,10 +88,10 @@ function BuyCti(props) {
             }
             <Modal isOpen={modalToggle} toggle={toggle} >
                 <ModalBody>
-                    購入します。よろしいでしょうか？
+                   チャレンジを実行します。よろしいでしょうか？
                 </ModalBody>
                 <ModalFooter>
-                    <Button color="primary" onClick={handlePurchase}>Purchase</Button>{' '}
+                    <Button color="primary" onClick={handleExecution}>Execution</Button>{' '}
                     <Button color="secondary" onClick={toggle}>Cancel</Button>
                 </ModalFooter>
             </Modal>

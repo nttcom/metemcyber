@@ -11,6 +11,14 @@ let addr = "";
 
 let menu = 0;
 
+let challangeStatus = {
+  url: '',
+  token: '',
+  title: '',
+  addr: ''
+};
+let successGetChallange = false;
+
 async function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1600,
@@ -57,7 +65,7 @@ app.on('window-all-closed', function () {
 ipcMain.on('select-menu', async (event, arg) => {
   console.log('arg:' + arg)
   let returnVal = {};
-  if (menu == 10) {
+  if (menu !== 0) {
     await getOutput("b", 'コマンドを入力してください');
   }
 
@@ -66,12 +74,17 @@ ipcMain.on('select-menu', async (event, arg) => {
     case '1':
       output = await getOutput(arg, 'コマンドを入力してください', [[/--------------------/g, " "], [/■/g, ""], [/ID:/g, " ID:"]]);
       returnVal = extractOutput1(output);
-      menu = 1;
+      menu = 0;
       break;
     case '10':
       output = await getOutput(arg, '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
-      returnVal = extractOutput10(output);
+      returnVal = extractOutputToken(output);
       menu = 10;
+      break;
+    case '11':
+      output = await getOutput(arg, '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
+      returnVal = extractOutputToken(output);
+      menu = 11;
       break;
     default:
       break;
@@ -94,9 +107,45 @@ ipcMain.on('select-10', async (event, arg) => {
     proc.write(arg[0] + "\n");
     output = await getOutput('1', '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
   }
-  returnVal = extractOutput10(output);
+  returnVal = extractOutputToken(output);
 
   event.returnValue = returnVal;
+});
+
+ipcMain.on('select-11', async (event, arg) => {
+  console.log('arg:' + arg)
+  let returnVal = {};
+  let output = [];
+
+  if (arg[0] === 's') {
+    proc.write('s' + "\n");
+    output = await getOutput(arg[1], '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
+    returnVal = extractOutputToken(output);
+  } else if (arg[0] === 'a') {
+    output = await getOutput('a', '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
+    returnVal = extractOutputToken(output);
+  } else {
+    output = await getOutput(arg[0], '[0]:終了');
+    returnVal = output[1];
+    menu = 0;
+  }
+
+  event.returnValue = returnVal;
+});
+
+ipcMain.on('get-challange', async (event) => {
+  console.log('get challange...')
+  if (successGetChallange) {
+    event.reply('set-challange', challangeStatus);
+    successGetChallange = false;
+    challangeStatus = {
+      url: '',
+      token: '',
+      title: '',
+      dataDir: '',
+      challangeToken: ''
+    };
+  }
 });
 
 
@@ -141,7 +190,7 @@ function extractOutput1(output) {
   return returnVal;
 }
 
-function extractOutput10(output) {
+function extractOutputToken(output) {
   let returnVal = {
     item: [],
   };
@@ -195,18 +244,21 @@ async function getOutput(input, endStr, replaces = []) {
   await new Promise((resolve) => {
     proc.on('data', function (data) {
       data.split("\r\n").map((val) => {
-        switch (val) {
-          case endStr:
-            resolve();
-            break;
-          default:
-            returnVal += val;
-            break;
+        if (!setChallangeStatus(val)) {
+          switch (val) {
+            case endStr:
+              resolve();
+              break;
+            default:
+              returnVal += val;
+              break;
+          }
         }
       })
     });
     proc.write(input + "\n");
   })
+  proc.on('data', (data) => { callbackChallange(data) });
   console.log(returnVal);
   replaces.map((val) => {
     returnVal = returnVal.replace(val[0], val[1]);
@@ -218,7 +270,7 @@ async function getOutput(input, endStr, replaces = []) {
 
 ipcMain.on('select-logout', async (event, arg) => {
   proc.on('data', () => { });
-  if (menu == 10) {
+  if (menu !== 0) {
     proc.write('b' + "\n");
   }
   proc.write('0' + "\n");
@@ -259,7 +311,6 @@ ipcMain.on('login', async (event, arg) => {
             proc.write(arg + "\n");
             break;
           case 'コマンドを入力してください':
-            console.log("IN menu")
             resolve();
             break;
           default:
@@ -272,3 +323,31 @@ ipcMain.on('login', async (event, arg) => {
 
   event.reply('login', 'success');
 });
+
+function callbackChallange(data) {
+  data.split("\r\n").map((val) => {
+    setChallangeStatus(val);
+  });
+};
+
+function setChallangeStatus(val) {
+  let status = false;
+  if (val.indexOf('受信 URL: ') === 0) {
+    challangeStatus.url = val.slice(8);
+    status = true;
+  } else if (val.indexOf('トークン: ') === 0) {
+    challangeStatus.token = val.slice(6);
+    status = true;
+  } else if (val.indexOf('取得データタイトル: ') === 0) {
+    challangeStatus.title = val.slice(11);
+    status = true;
+  } else if (val.indexOf('取得データを保存しました: ') === 0) {
+    challangeStatus.dataDir = val.slice(14);
+    status = true;
+  } else if (val.indexOf('チャレンジトークンが返還されました: ') === 0) {
+    challangeStatus.challangeToken = val.slice(19);
+    status = true;
+    successGetChallange = true;
+  }
+  return status;
+}
