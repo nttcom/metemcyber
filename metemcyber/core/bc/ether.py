@@ -14,7 +14,6 @@
 #    limitations under the License.
 #
 
-import web3
 from web3 import Account, Web3
 from web3.exceptions import ExtraDataLengthError
 from web3.middleware import (construct_sign_and_send_raw_middleware,
