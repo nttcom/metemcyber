@@ -34,7 +34,7 @@ class Ether:
 
         # 署名付きトランザクションの準備とcoinbaseアカウントの作成
         cssrm = construct_sign_and_send_raw_middleware(private_key)
-        account_id = self.web3.eth.account.from_key(private_key)
+        acc = self.web3.eth.account.from_key(private_key)
 
         # プライベート鍵の変数は今後使わないので明示的に削除
         del private_key
@@ -47,7 +47,7 @@ class Ether:
             self.web3.middleware_onion.add(cssrm, 'sign_and_send_raw')
 
         # coinbaseとしてアカウントを設定
-        self.web3.eth.defaultAccount = account_id
+        self.web3.eth.defaultAccount = acc.address
 
     def web3_with_signature(self, private_key):
         self.signature(private_key)
