@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Input, InputGroup, InputGroupAddon, List, Modal, ModalBody, ModalFooter } from 'reactstrap';
-import '..//default.css';
+import '../default.css';
 
 
 
-function Execution(props) {
+function Cancel(props) {
     const { ipcRenderer } = window;
     const [content, setContent] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -13,7 +13,9 @@ function Execution(props) {
     const [targetId, setTargetId] = useState('');
 
     useEffect(() => {
-        const retValue = ipcRenderer.sendSync('select-menu', '11');
+        console.log(sessionStorage.getItem('searchText'));
+        const retValue = ipcRenderer.sendSync('select-menu', '12');
+        console.log(retValue)
         setContent(retValue);
         setIsLoading(false);
         return () => console.log('unmounting...');
@@ -29,27 +31,24 @@ function Execution(props) {
 
     const handleSearch = () => {
         sessionStorage.setItem('searchText', searchText);
-        const retValue = ipcRenderer.sendSync('select-11', ['s', searchText]);
+        const retValue = ipcRenderer.sendSync('select-12', ['s', searchText]);
         console.log(retValue)
         setContent(retValue);
     }
 
     const handleRelease = () => {
         sessionStorage.setItem('searchText', '');
-        const retValue = ipcRenderer.sendSync('select-11', ['a']);
+        const retValue = ipcRenderer.sendSync('select-12', ['a']);
         console.log(retValue)
         setSearchText('');
         setContent(retValue);
     }
 
     const handleExecution = () => {
-        const retValue = ipcRenderer.sendSync('select-11', [targetId]);
+        const retValue = ipcRenderer.sendSync('select-12', [targetId]);
         console.log(retValue)
-        sessionStorage.setItem('challange', true);
         setContent(retValue);
         setModalToggle(!modalToggle);
-        props.setChallangeInterval();
-
     }
 
     return (
@@ -75,10 +74,8 @@ function Execution(props) {
                                 return <li key={idx}>[{val.id}]{val.name}
                                     <ul>
                                         <li>Addr：{val.addr}</li>
-                                        <li>UUID：{val.uuid}</li>
-                                        <li>Price：{val.price}</li>
-                                        <li>Remaining Token：{val.left}</li>
-                                        <li><Button onClick={toggle} value={val.id}>実行</Button></li>
+                                        <li>State：{val.state}</li>
+                                        <li><Button onClick={toggle} value={val.id}>キャンセルを実行</Button></li>
                                     </ul>
                                 </li>
                             })}
@@ -89,10 +86,10 @@ function Execution(props) {
             }
             <Modal isOpen={modalToggle} toggle={toggle} >
                 <ModalBody>
-                   チャレンジを実行します。よろしいでしょうか？
+                    タスクのキャンセルをします。よろしいでしょうか？
                 </ModalBody>
                 <ModalFooter>
-                    <Button color="primary" onClick={handleExecution}>Execution</Button>{' '}
+                    <Button color="primary" onClick={handleExecution}>Execute</Button>{' '}
                     <Button color="secondary" onClick={toggle}>Cancel</Button>
                 </ModalFooter>
             </Modal>
@@ -100,4 +97,4 @@ function Execution(props) {
     );
 }
 
-export default Execution;
+export default Cancel;

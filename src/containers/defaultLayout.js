@@ -5,6 +5,7 @@ import './default.css';
 import Account from './account';
 import Buy from './buycti';
 import ChallangeExecution from './Challange/execution';
+import ChallangeCancel from './Challange/cancel';
 
 let intervalId = null;
 
@@ -67,7 +68,7 @@ function DefaultLayout(props) {
                     <NavLink href="/contents/challange/execution">チャレンジの実行</NavLink>
                 </NavItem>
                 <NavItem>
-                    <NavLink disabled href="#">タスク(チャレンジ)のキャンセル</NavLink>
+                    <NavLink href="/contents/challange/cancel">タスク(チャレンジ)のキャンセル</NavLink>
                 </NavItem>
                 <NavItem>
                     <NavLink disabled href="#">保有トークンの廃棄</NavLink>
@@ -93,6 +94,7 @@ function DefaultLayout(props) {
                     <Route path="/contents/account" name="account" render={props => <Account {...props} />} />
                     <Route path="/contents/buy" name="account" render={props => <Buy {...props} />} />
                     <Route path="/contents/challange/execution" name="challange-execution" render={props => <ChallangeExecution {...props} setChallangeInterval={setChallangeInterval} />} />
+                    <Route path="/contents/challange/cancel" name="challange-cancel" render={props => <ChallangeCancel {...props} />} />
                 </Switch>
             </div>
             <Toast

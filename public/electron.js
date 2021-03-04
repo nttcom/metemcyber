@@ -86,6 +86,16 @@ ipcMain.on('select-menu', async (event, arg) => {
       returnVal = extractOutputToken(output);
       menu = 11;
       break;
+    case '12':
+      output = await getOutput(arg, '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/\[ \]インデックスを入力して選択する/g, " [ ]インデックスを入力して選択する"]]);
+      if (output[0].indexOf('検索中') === -1) {
+        output.shift();
+      } else {
+        output.splice(0, 3);
+      }
+      returnVal = extractOutput12(output);
+      menu = 12;
+      break;
     default:
       break;
   }
@@ -125,9 +135,43 @@ ipcMain.on('select-11', async (event, arg) => {
     output = await getOutput('a', '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
     returnVal = extractOutputToken(output);
   } else {
-    output = await getOutput(arg[0], '[0]:終了');
-    returnVal = output[1];
-    menu = 0;
+    await getOutput(arg[0], '[0]:終了');
+    output = await getOutput('11', '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/left/g, "left "], [/^.* solver/, ""]]);
+    returnVal = extractOutputToken(output);
+    menu = 11;
+  }
+
+  event.returnValue = returnVal;
+});
+
+ipcMain.on('select-12', async (event, arg) => {
+  console.log('arg:' + arg)
+  let returnVal = {};
+  let output = [];
+
+  if (arg[0] === 's') {
+    proc.write('s' + "\n");
+    output = await getOutput(arg[1], '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/\[ \]インデックスを入力して選択する/g, " [ ]インデックスを入力して選択する"]]);
+    if (arg[1] === '') {
+      output.shift();
+    } else {
+      output.splice(0, output.indexOf(')') + 1);
+    }
+    returnVal = extractOutput12(output);
+  } else if (arg[0] === 'a') {
+    output = await getOutput(arg, '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/\[ \]インデックスを入力して選択する/g, " [ ]インデックスを入力して選択する"]]);
+    output.shift();
+    returnVal = extractOutput12(output);
+  } else {
+    await getOutput(arg[0], '[0]:終了');
+    output = await getOutput('12', '[s]アイテムを検索する', [[/├/g, " "], [/└/g, " "], [/\[ \]インデックスを入力して選択する/g, " [ ]インデックスを入力して選択する"]]);
+    if (output[0].indexOf('検索中') === -1) {
+      output.shift();
+    } else {
+      output.splice(0, 3);
+    }
+    returnVal = extractOutput12(output);
+    menu = 12;
   }
 
   event.returnValue = returnVal;
@@ -190,12 +234,62 @@ function extractOutput1(output) {
   return returnVal;
 }
 
+function extractOutput12(output) {
+  let returnVal = {
+    item: [],
+  };
+
+  let item = {
+    id: '',
+    name: '',
+    addr: '',
+    state: ''
+  };
+
+  if (output.length === 0) {
+    return returnVal;
+  }
+
+  while (output[0].indexOf(':') !== -1) {
+
+    //値チェック
+    if (output.indexOf('Addr') === -1 && output.indexOf('State:') === -1) {
+      break;
+    }
+    item.id = output[0].slice(0, -1);
+    item.name = output.slice(1, output.indexOf('Addr')).join(" ");
+
+    output.splice(0, output.indexOf('Addr'));
+
+    output.slice(output.indexOf('Addr') + 2, output.indexOf('State:')).map((val) => {
+      console.log(val);
+      item.addr += val;
+    })
+
+    item.state = output[output.indexOf('State:') + 1];
+
+    output.splice(0, 5);
+    returnVal.item.push(item);
+    item = {
+      id: '',
+      name: '',
+      addr: '',
+      state: ''
+    };
+  }
+
+  console.log(returnVal);
+  return returnVal;
+}
+
 function extractOutputToken(output) {
   let returnVal = {
     item: [],
   };
 
   let item = {
+    id: '',
+    name: '',
     addr: '',
     uuid: '',
     price: '',
@@ -228,6 +322,8 @@ function extractOutputToken(output) {
     output.splice(0, output.indexOf('left') + 1);
     returnVal.item.push(item);
     item = {
+      id: '',
+      name: '',
       addr: '',
       uuid: '',
       price: '',
