@@ -18,24 +18,25 @@ import os
 import pathlib
 import logging
 import logging.handlers
-from typing import Literal
+from typing import List
 
 import typer
 
-LOG_LEVEL = Literal['error', 'warning', 'info', 'debug']
 
 class MetemcyberLogger():
     """
     Class for logging metemcyber Clis
     """
+    created_loggers: List[str] = []
 
-    def __init__(self, name: str, log_file: str, log_level: LOG_LEVEL) -> None:
+    def __init__(self, name: str) -> None:
         """Initilizates a Logger for Metemcyber Clis.
 
         :param name: Strings of logger name.
         :param log_file: Strings of log file name.
         :param log_level: Strings of Log level.
         """
+
         # Application name
         APP_NAME: str = "metemcyber"
         # Max bytes of log file
@@ -43,30 +44,39 @@ class MetemcyberLogger():
         # The number of backup of log file 
         BACKUP_NUM: int = 3
 
-        # Get app directory
-        app_dir: str = typer.get_app_dir(APP_NAME)
-        log_path: pathlib.Path = pathlib.Path(app_dir) / "log"
-        log_path.mkdir(parents=True, exist_ok=True)
+        # If already registered, return logger
+        if name in MetemcyberLogger.created_loggers:
+            self.logger = logging.getLogger(name)
+        else:
+            # Get app directory
+            app_dir: str = typer.get_app_dir(APP_NAME)
+            log_path: pathlib.Path = pathlib.Path(app_dir) / "log"
+            log_path.mkdir(parents=True, exist_ok=True)
 
-        # Setup Logger
-        self.logger: logging.Logger = logging.getLogger(name)
+            # Setup Logger
+            self.logger: logging.Logger = logging.getLogger(name)
+            self.logger.setLevel(logging.DEBUG)
 
-        level_map: dict = {
-            'error': logging.ERROR,
-            'warning': logging.WARNING,
-            'info': logging.INFO,
-            'debug': logging.DEBUG
-        }
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        # Setup RatatingFileHandler
-        rth = logging.handlers.RotatingFileHandler(
-            filename = log_path / log_file,
-            maxBytes=MAX_BYTES,
-            backupCount=BACKUP_NUM,
-        )
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        rth.setFormatter(formatter)
-        self.logger.addHandler(rth)
+            # Setup error log file handler
+            rth_error = logging.handlers.RotatingFileHandler(
+                filename = log_path / 'error.log',
+                maxBytes=MAX_BYTES,
+                backupCount=BACKUP_NUM,
+            )
+            rth_error.setLevel(logging.WARNING)
+            rth_error.setFormatter(formatter)
+            self.logger.addHandler(rth_error)
 
-        # Set log level
-        self.logger.setLevel(level_map[log_level])
+            # Setup debug log file handler
+            rth_debug = logging.handlers.RotatingFileHandler(
+                filename = log_path / 'debug.log',
+                maxBytes=MAX_BYTES,
+                backupCount=BACKUP_NUM,
+            )
+            rth_debug.setLevel(logging.DEBUG)
+            rth_debug.setFormatter(formatter)
+            self.logger.addHandler(rth_debug)
+
+            MetemcyberLogger.created_loggers.append(name)
