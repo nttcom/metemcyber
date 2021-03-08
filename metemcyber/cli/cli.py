@@ -34,7 +34,7 @@ account_app = typer.Typer()
 app.add_typer(account_app, name="account")
 
 def get_logger():
-    return MetemcyberLogger('cli').logger
+    return MetemcyberLogger(name='cli', file_prefix='cli').logger
 
 def read_config():
     logger = get_logger()

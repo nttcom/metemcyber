@@ -29,7 +29,7 @@ class MetemcyberLogger():
     """
     created_loggers: List[str] = []
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, file_prefix: str = "") -> None:
         """Initilizates a Logger for Metemcyber Clis.
 
         :param name: Strings of logger name.
@@ -59,9 +59,18 @@ class MetemcyberLogger():
 
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+            # Set log file name
+            if file_prefix != "":
+                error_filename = f"{file_prefix}-error.log"
+                debug_filename = f"{file_prefix}-debug.log"
+            else:
+                error_filename = "error.log"
+                debug_filename = "debug.log"
+
+
             # Setup error log file handler
             rth_error = logging.handlers.RotatingFileHandler(
-                filename = log_path / 'error.log',
+                filename = log_path / error_filename,
                 maxBytes=MAX_BYTES,
                 backupCount=BACKUP_NUM,
             )
@@ -71,7 +80,7 @@ class MetemcyberLogger():
 
             # Setup debug log file handler
             rth_debug = logging.handlers.RotatingFileHandler(
-                filename = log_path / 'debug.log',
+                filename = log_path / debug_filename,
                 maxBytes=MAX_BYTES,
                 backupCount=BACKUP_NUM,
             )
