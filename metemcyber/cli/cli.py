@@ -21,6 +21,7 @@ import os
 import typer
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.ether import Ether
+from metemcyber.core.logger import MetemcyberLogger
 from web3 import Web3
 from web3.auto import w3
 
@@ -32,9 +33,13 @@ app.add_typer(misp_app, name="misp")
 account_app = typer.Typer()
 app.add_typer(account_app, name="account")
 
+def get_logger():
+    return MetemcyberLogger(name='cli', file_prefix='cli').logger
 
 def read_config():
+    logger = get_logger()
     filename = "metemctl.ini"
+    logger.info(f"Load config file from {os.getcwd()}/{filename}")
     config = configparser.ConfigParser()
     config.read(filename)
     return config
@@ -42,7 +47,9 @@ def read_config():
 
 def decode_keyfile(filename):
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
+    logger = get_logger()
     try:
+        logger.info(f"Decode ethereum key file: {filename}")
         with open(filename) as keyfile:
             enc_data = keyfile.read()
         address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
@@ -54,9 +61,10 @@ def decode_keyfile(filename):
         private_key = w3.eth.account.decrypt(enc_data, word).hex()
         return address, private_key
     except Exception as err:
-        typer.echo('ERROR:', err)
-        typer.echo('cannot decode keyfile:', os.path.basename(filename))
-        typer.Exit(code=1)
+        typer.echo(f'ERROR:{err}')
+        typer.echo(f'cannot decode keyfile:{os.path.basename(filename)}', err=True)
+        logger.error(f'Decode keyfile Error: {err}')
+        raise typer.Exit(code=1)
 
 
 @app.callback()
@@ -67,7 +75,7 @@ def app_callback(ctx: typer.Context):
     ether = Ether(config['general']['endpoint_url'])
     eoa, pkey = decode_keyfile(config['general']['keyfile'])
     ctx.meta['account'] = Account(ether.web3_with_signature(pkey), eoa)
-
+    
 
 @app.command()
 def new():
@@ -86,12 +94,15 @@ def misp():
 
 @misp_app.command("open")
 def misp_open(ctx: typer.Context):
+    logger = get_logger()
     try:
         misp_url = ctx.meta['config']['general']['misp_url']
+        logger.info(f"Open MISP: {misp_url}")
         typer.echo(misp_url)
         typer.launch(misp_url)
     except KeyError as e:
         typer.echo(e, err=True)
+        logger.error(e)
 
 
 @app.command()
