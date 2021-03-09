@@ -19,8 +19,13 @@ import pathlib
 import logging
 import logging.handlers
 from typing import List
+import copy
 
 import typer
+
+
+def get_logger(name: str, file_prefix: str):
+    return MetemcyberLogger(name=name, file_prefix=file_prefix).logger
 
 
 class MetemcyberLogger():
@@ -41,7 +46,7 @@ class MetemcyberLogger():
         APP_NAME: str = "metemcyber"
         # Max bytes of log file
         MAX_BYTES: int = 32768000
-        # The number of backup of log file 
+        # The number of backup of log file
         BACKUP_NUM: int = 3
 
         # If already registered, return logger
@@ -57,7 +62,10 @@ class MetemcyberLogger():
             self.logger: logging.Logger = logging.getLogger(name)
             self.logger.setLevel(logging.DEBUG)
 
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            user_formatter = UserFormatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
             # Set log file name
             if file_prefix != "":
@@ -67,20 +75,19 @@ class MetemcyberLogger():
                 error_filename = "error.log"
                 debug_filename = "debug.log"
 
-
             # Setup error log file handler
             rth_error = logging.handlers.RotatingFileHandler(
-                filename = log_path / error_filename,
+                filename=log_path / error_filename,
                 maxBytes=MAX_BYTES,
                 backupCount=BACKUP_NUM,
             )
             rth_error.setLevel(logging.WARNING)
-            rth_error.setFormatter(formatter)
+            rth_error.setFormatter(user_formatter)
             self.logger.addHandler(rth_error)
 
             # Setup debug log file handler
             rth_debug = logging.handlers.RotatingFileHandler(
-                filename = log_path / debug_filename,
+                filename=log_path / debug_filename,
                 maxBytes=MAX_BYTES,
                 backupCount=BACKUP_NUM,
             )
@@ -89,3 +96,9 @@ class MetemcyberLogger():
             self.logger.addHandler(rth_debug)
 
             MetemcyberLogger.created_loggers.append(name)
+
+
+class UserFormatter(logging.Formatter):
+    def formatException(self, exc_info):
+        # TODO: StackTrace発生時、ユーザーに通知したいコメントを書く
+        return None
