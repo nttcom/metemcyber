@@ -14,17 +14,17 @@
 #    limitations under the License.
 #
 
-import configparser
-import json
 import os
+import json
+import configparser
 
 import typer
-from metemcyber.core.bc.account import Account
-from metemcyber.core.bc.ether import Ether
-from metemcyber.core.logger import get_logger
-#from metemcyber.core.logger import MetemcyberLogger
 from web3 import Web3
 from web3.auto import w3
+
+from metemcyber.core.bc.ether import Ether
+from metemcyber.core.logger import get_logger
+from metemcyber.core.bc.account import Account
 
 app = typer.Typer()
 
@@ -33,6 +33,7 @@ app.add_typer(misp_app, name="misp")
 
 account_app = typer.Typer()
 app.add_typer(account_app, name="account")
+
 
 def getLogger(name='cli'):
     return get_logger(name=name, file_prefix='cli')
@@ -64,7 +65,8 @@ def decode_keyfile(filename):
         return address, private_key
     except Exception as err:
         typer.echo(f'ERROR:{err}')
-        typer.echo(f'cannot decode keyfile:{os.path.basename(filename)}', err=True)
+        typer.echo(
+            f'cannot decode keyfile:{os.path.basename(filename)}', err=True)
         logger.error(f'Decode keyfile Error: {err}')
         logger.exception(f'test: {err}')
         raise typer.Exit(code=1)
@@ -78,7 +80,7 @@ def app_callback(ctx: typer.Context):
     ether = Ether(config['general']['endpoint_url'])
     eoa, pkey = decode_keyfile(config['general']['keyfile'])
     ctx.meta['account'] = Account(ether.web3_with_signature(pkey), eoa)
-    
+
 
 @app.command()
 def new():

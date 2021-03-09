@@ -19,7 +19,6 @@ import pathlib
 import logging
 import logging.handlers
 from typing import List
-import copy
 
 import typer
 
