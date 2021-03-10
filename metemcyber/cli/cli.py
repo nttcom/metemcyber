@@ -25,6 +25,9 @@ from web3.auto import w3
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.logger import get_logger
 from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.catalog_manager import CatalogManager
+from metemcyber.core.bc.catalog import Catalog
+from metemcyber.core.bc.token import Token
 
 app = typer.Typer()
 
@@ -79,8 +82,18 @@ def app_callback(ctx: typer.Context):
 
     ether = Ether(config['general']['endpoint_url'])
     eoa, pkey = decode_keyfile(config['general']['keyfile'])
-    ctx.meta['account'] = Account(ether.web3_with_signature(pkey), eoa)
+    account = Account(ether.web3_with_signature(pkey), eoa)
+    ctx.meta['account'] = account
 
+    catalog_mgr = CatalogManager(account.web3)
+    if config.has_section('catalog'):
+        actives = config['catalog'].get('actives')
+        if actives:
+            catalog_mgr.add(actives.strip().split(','), activate=True)
+        reserves = config['catalog'].get('reserves')
+        if reserves:
+            catalog_mgr.add(reserves.strip().split(','), activate=False)
+    ctx.meta['catalog_manager'] = catalog_mgr
 
 @app.command()
 def new():
@@ -138,6 +151,20 @@ def account_info(ctx: typer.Context):
     typer.echo(f'  - EOA Address: {account.wallet.eoa}')
     typer.echo(f'  - Balance: {account.wallet.balance} Wei')
     typer.echo(f'--------------------')
+
+    catalog_mgr = ctx.meta['catalog_manager']
+    for caddr, cid in sorted(
+            catalog_mgr.active_catalogs.items(), key=lambda x:x[1]):
+        typer.echo(f'Catalog {cid}: {caddr}')
+        catalog = Catalog(account.web3).get(caddr)
+        if len(catalog.tokens) > 0:
+            typer.echo('  Tokens <id, balance, address>')
+            for taddr, tinfo in sorted(
+                    catalog.tokens.items(), key=lambda x:x[1].token_id):
+                token = Token(account.web3).get(taddr)
+                balance = token.balance_of(account.eoa)
+                if balance > 0:
+                    typer.echo(f'  {tinfo.token_id}: {balance}: {taddr}')
 
 
 @app.command()
