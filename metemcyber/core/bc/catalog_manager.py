@@ -64,3 +64,8 @@ class CatalogManager():
     @property
     def all_catalogs(self) -> Dict[ChecksumAddress, int]:
         return self._catalogs(active=None)
+
+    def get_catalog_by_id(self, catalog_id: int) -> ChecksumAddress:
+        tmp = [caddr for caddr, cid in self.catalogs.items()
+            if cid == catalog_id]
+        return tmp[0] if tmp else None
