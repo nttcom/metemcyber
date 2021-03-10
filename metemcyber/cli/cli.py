@@ -244,6 +244,7 @@ def external_links():
     ]
 
     for service in services:
+        # See https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
         hyperlink = f'\x1b]8;;{service["url"]}\x1b\\{service["name"]}\x1b]8;;\x1b\\'
         typer.echo(f"- {hyperlink}: {service['description']}")
 
