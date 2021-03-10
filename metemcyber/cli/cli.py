@@ -249,5 +249,9 @@ def external_links():
         typer.echo(f"- {hyperlink}: {service['description']}")
 
 
+def issues():
+    typer.launch('https://github.com/nttcom/metemcyber/issues')
+
+
 if __name__ == "__main__":
     app()
