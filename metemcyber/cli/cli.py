@@ -95,6 +95,7 @@ def app_callback(ctx: typer.Context):
             catalog_mgr.add(reserves.strip().split(','), activate=False)
     ctx.meta['catalog_manager'] = catalog_mgr
 
+
 @app.command()
 def new():
     typer.echo(f"new")
@@ -154,13 +155,13 @@ def account_info(ctx: typer.Context):
 
     catalog_mgr = ctx.meta['catalog_manager']
     for caddr, cid in sorted(
-            catalog_mgr.active_catalogs.items(), key=lambda x:x[1]):
+            catalog_mgr.active_catalogs.items(), key=lambda x: x[1]):
         typer.echo(f'Catalog {cid}: {caddr}')
         catalog = Catalog(account.web3).get(caddr)
         if len(catalog.tokens) > 0:
             typer.echo('  Tokens <id, balance, address>')
             for taddr, tinfo in sorted(
-                    catalog.tokens.items(), key=lambda x:x[1].token_id):
+                    catalog.tokens.items(), key=lambda x: x[1].token_id):
                 token = Token(account.web3).get(taddr)
                 balance = token.balance_of(account.eoa)
                 if balance > 0:
@@ -183,8 +184,74 @@ def console():
 
 
 @app.command()
+def external_links():
+    services = [
+        {
+            'name': 'CyberChef',
+            'url': 'https://gchq.github.io/CyberChef/',
+            'description': 'The Swiss Army Knife for cyber operations.'
+        },
+        {
+            'name': 'VirusTotal',
+            'url': 'https://www.virustotal.com/',
+            'description': 'Analyze suspicious files and URLs to detect types of malware.'
+        },
+        {
+            'name': 'UnpacMe',
+            'url': 'https://www.unpac.me/feed',
+            'description': 'An automated malware unpacking service.'
+        },
+        {
+            'name': 'ANY.RUN',
+            'url': 'https://app.any.run/submissions/',
+            'description': 'Interactive online malware analysis service.'
+        },
+        {
+            'name': 'ThreatFox',
+            'url': 'https://threatfox.abuse.ch/browse/',
+            'description': 'A platform of sharing IOCs associated with malware.'
+        },
+        {
+            'name': 'Hatching Triage',
+            'url': 'https://tria.ge/reports/public',
+            'description': 'A malware analysis sandbox designed for cross-platform support.'
+        },
+        {
+            'name': 'URLhaus',
+            'url': 'https://urlhaus.abuse.ch/browse/',
+            'description': 'A project of sharing malicious URLs that are being used for malware distribution.'
+        },
+        {
+            'name': 'Open Threat Exchange',
+            'url': 'https://otx.alienvault.com/browse/',
+            'description': 'The world’s first and largest truly open threat intelligence community.'
+        },
+        {
+            'name': 'ThreatMiner',
+            'url': 'https://www.threatminer.org/',
+            'description': 'A threat intelligence portal that provides information on IOCs.'
+        },
+        {
+            'name': 'Grey Noise',
+            'url': 'https://viz.greynoise.io/cheat-sheet/',
+            'description': 'A cybersecurity platform that collects and analyzes Internet-wide scan and attack traffic.'
+        },
+        {
+            'name': 'Bitcoin Abuse Database',
+            'url': 'https://www.bitcoinabuse.com/reports',
+            'description': 'Tracking bitcoin addresses used by ransomware, blackmailers, fraudsters, etc.'
+        },
+    ]
+
+    for service in services:
+        # See https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+        hyperlink = f'\x1b]8;;{service["url"]}\x1b\\{service["name"]}\x1b]8;;\x1b\\'
+        typer.echo(f"- {hyperlink}: {service['description']}")
+
+
 def issues():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
+
 
 if __name__ == "__main__":
     app()
