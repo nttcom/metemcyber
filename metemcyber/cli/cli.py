@@ -14,15 +14,20 @@
 #    limitations under the License.
 #
 
-import configparser
-import json
 import os
+import json
+import configparser
 
 import typer
-from metemcyber.core.bc.account import Account
-from metemcyber.core.bc.ether import Ether
 from web3 import Web3
 from web3.auto import w3
+
+from metemcyber.core.bc.ether import Ether
+from metemcyber.core.logger import get_logger
+from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.catalog_manager import CatalogManager
+from metemcyber.core.bc.catalog import Catalog
+from metemcyber.core.bc.token import Token
 
 app = typer.Typer()
 
@@ -33,8 +38,14 @@ account_app = typer.Typer()
 app.add_typer(account_app, name="account")
 
 
+def getLogger(name='cli'):
+    return get_logger(name=name, file_prefix='cli')
+
+
 def read_config():
+    logger = getLogger()
     filename = "metemctl.ini"
+    logger.info(f"Load config file from {os.getcwd()}/{filename}")
     config = configparser.ConfigParser()
     config.read(filename)
     return config
@@ -42,7 +53,9 @@ def read_config():
 
 def decode_keyfile(filename):
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
+    logger = getLogger()
     try:
+        logger.info(f"Decode ethereum key file: {filename}")
         with open(filename) as keyfile:
             enc_data = keyfile.read()
         address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
@@ -54,9 +67,12 @@ def decode_keyfile(filename):
         private_key = w3.eth.account.decrypt(enc_data, word).hex()
         return address, private_key
     except Exception as err:
-        typer.echo('ERROR:', err)
-        typer.echo('cannot decode keyfile:', os.path.basename(filename))
-        typer.Exit(code=1)
+        typer.echo(f'ERROR:{err}')
+        typer.echo(
+            f'cannot decode keyfile:{os.path.basename(filename)}', err=True)
+        logger.error(f'Decode keyfile Error: {err}')
+        logger.exception(f'test: {err}')
+        raise typer.Exit(code=1)
 
 
 @app.callback()
@@ -66,8 +82,18 @@ def app_callback(ctx: typer.Context):
 
     ether = Ether(config['general']['endpoint_url'])
     eoa, pkey = decode_keyfile(config['general']['keyfile'])
-    ctx.meta['account'] = Account(ether.web3_with_signature(pkey), eoa)
+    account = Account(ether.web3_with_signature(pkey), eoa)
+    ctx.meta['account'] = account
 
+    catalog_mgr = CatalogManager(account.web3)
+    if config.has_section('catalog'):
+        actives = config['catalog'].get('actives')
+        if actives:
+            catalog_mgr.add(actives.strip().split(','), activate=True)
+        reserves = config['catalog'].get('reserves')
+        if reserves:
+            catalog_mgr.add(reserves.strip().split(','), activate=False)
+    ctx.meta['catalog_manager'] = catalog_mgr
 
 @app.command()
 def new():
@@ -86,12 +112,15 @@ def misp():
 
 @misp_app.command("open")
 def misp_open(ctx: typer.Context):
+    logger = getLogger()
     try:
         misp_url = ctx.meta['config']['general']['misp_url']
+        logger.info(f"Open MISP: {misp_url}")
         typer.echo(misp_url)
         typer.launch(misp_url)
     except KeyError as e:
         typer.echo(e, err=True)
+        logger.error(e)
 
 
 @app.command()
@@ -122,6 +151,20 @@ def account_info(ctx: typer.Context):
     typer.echo(f'  - EOA Address: {account.wallet.eoa}')
     typer.echo(f'  - Balance: {account.wallet.balance} Wei')
     typer.echo(f'--------------------')
+
+    catalog_mgr = ctx.meta['catalog_manager']
+    for caddr, cid in sorted(
+            catalog_mgr.active_catalogs.items(), key=lambda x:x[1]):
+        typer.echo(f'Catalog {cid}: {caddr}')
+        catalog = Catalog(account.web3).get(caddr)
+        if len(catalog.tokens) > 0:
+            typer.echo('  Tokens <id, balance, address>')
+            for taddr, tinfo in sorted(
+                    catalog.tokens.items(), key=lambda x:x[1].token_id):
+                token = Token(account.web3).get(taddr)
+                balance = token.balance_of(account.eoa)
+                if balance > 0:
+                    typer.echo(f'  {tinfo.token_id}: {balance}: {taddr}')
 
 
 @app.command()
