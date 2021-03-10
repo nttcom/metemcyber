@@ -182,5 +182,9 @@ def console():
     typer.echo(f"console")
 
 
+@app.command()
+def issues():
+    typer.launch('https://github.com/nttcom/metemcyber/issues')
+
 if __name__ == "__main__":
     app()
