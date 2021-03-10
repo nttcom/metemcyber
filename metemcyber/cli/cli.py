@@ -95,6 +95,7 @@ def app_callback(ctx: typer.Context):
             catalog_mgr.add(reserves.strip().split(','), activate=False)
     ctx.meta['catalog_manager'] = catalog_mgr
 
+
 @app.command()
 def new():
     typer.echo(f"new")
@@ -154,13 +155,13 @@ def account_info(ctx: typer.Context):
 
     catalog_mgr = ctx.meta['catalog_manager']
     for caddr, cid in sorted(
-            catalog_mgr.active_catalogs.items(), key=lambda x:x[1]):
+            catalog_mgr.active_catalogs.items(), key=lambda x: x[1]):
         typer.echo(f'Catalog {cid}: {caddr}')
         catalog = Catalog(account.web3).get(caddr)
         if len(catalog.tokens) > 0:
             typer.echo('  Tokens <id, balance, address>')
             for taddr, tinfo in sorted(
-                    catalog.tokens.items(), key=lambda x:x[1].token_id):
+                    catalog.tokens.items(), key=lambda x: x[1].token_id):
                 token = Token(account.web3).get(taddr)
                 balance = token.balance_of(account.eoa)
                 if balance > 0:
