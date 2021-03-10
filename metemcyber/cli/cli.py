@@ -29,6 +29,8 @@ from metemcyber.core.bc.catalog_manager import CatalogManager
 from metemcyber.core.bc.catalog import Catalog
 from metemcyber.core.bc.token import Token
 
+CONFIGFILEPATH = f'{os.getcwd()}/metemctl.ini'
+
 app = typer.Typer()
 
 misp_app = typer.Typer()
@@ -37,6 +39,9 @@ app.add_typer(misp_app, name="misp")
 account_app = typer.Typer()
 app.add_typer(account_app, name="account")
 
+catalog_app = typer.Typer()
+app.add_typer(catalog_app, name="catalog")
+
 
 def getLogger(name='cli'):
     return get_logger(name=name, file_prefix='cli')
@@ -44,12 +49,16 @@ def getLogger(name='cli'):
 
 def read_config():
     logger = getLogger()
-    filename = "metemctl.ini"
-    logger.info(f"Load config file from {os.getcwd()}/{filename}")
+    logger.info(f"Load config file from {CONFIGFILEPATH}")
     config = configparser.ConfigParser()
-    config.read(filename)
+    config.read(CONFIGFILEPATH)
     return config
 
+def write_config(config: configparser.ConfigParser):
+    logger = getLogger()
+    with open(CONFIGFILEPATH, 'w') as fout:
+        config.write(fout)
+    logger.debug(f'update config file: {CONFIGFILEPATH}')
 
 def decode_keyfile(filename):
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
@@ -104,6 +113,76 @@ def new():
 @app.command()
 def catalog():
     typer.echo(f"catallog")
+
+def config_update_catalog(ctx: typer.Context):
+    catalog_mgr = ctx.meta.get('catalog_manager')
+    config = ctx.meta.get('config')
+    assert config
+    if catalog_mgr is None:
+        config.remove_section('catalog')
+    else:
+        if not config.has_section('catalog'):
+            config.add_section('catalog')
+        config.set('catalog', 'actives',
+            ','.join(catalog_mgr.active_catalogs.keys()))
+        config.set('catalog', 'reserves',
+            ','.join(catalog_mgr.reserved_catalogs.keys()))
+    write_config(config)
+
+@catalog_app.command('list')
+def catalog_list(ctx: typer.Context):
+    catalog_mgr = ctx.meta['catalog_manager']
+    typer.echo('Catalogs *:active')
+    for caddr, cid in sorted(
+            catalog_mgr.all_catalogs.items(), key=lambda x:x[1]):
+        typer.echo(
+            f'  {"*" if caddr in catalog_mgr.actives else " "}{cid} {caddr}')
+
+@catalog_app.command('add')
+def catalog_add(ctx: typer.Context, catalog_address: str):
+    logger = getLogger()
+    try:
+        catalog_mgr = ctx.meta['catalog_manager']
+        catalog_mgr.add([catalog_address], activate=True)
+        config_update_catalog(ctx)
+        catalog_list(ctx)
+    except Exception as err:
+        typer.echo(f'failed operation: {err}')
+
+def _catalog_ctrl(
+        act: str, ctx: typer.Context, catalog_address: str, by_id: bool):
+    logger = getLogger()
+    try:
+        catalog_mgr = ctx.meta['catalog_manager']
+        if by_id:
+            catalog_address = catalog_mgr.get_catalog_by_id(
+                int(catalog_address))
+        func = {
+            'remove': catalog_mgr.remove,
+            'activate': catalog_mgr.activate,
+            'deactivate': catalog_mgr.deactivate,
+            }.get(act)
+        func([catalog_address])
+        config_update_catalog(ctx)
+        catalog_list(ctx)
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+@catalog_app.command('remove')
+def catalog_remove(ctx: typer.Context, catalog_address: str,
+        by_id: bool = typer.Option(False, help='select by catalog id')):
+    _catalog_ctrl('remove', ctx, catalog_address, by_id)
+
+@catalog_app.command('activate')
+def catalog_activate(ctx: typer.Context, catalog_address: str,
+        by_id: bool = typer.Option(False, help='select by catalog id')):
+    _catalog_ctrl('activate', ctx, catalog_address, by_id)
+
+@catalog_app.command('deactivate')
+def catalog_deactivate(ctx: typer.Context, catalog_address: str,
+        by_id: bool = typer.Option(False, help='select by catalog id')):
+    _catalog_ctrl('deactivate', ctx, catalog_address, by_id)
 
 
 @app.command()
