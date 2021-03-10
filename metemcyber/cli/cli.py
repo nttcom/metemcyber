@@ -25,6 +25,9 @@ from web3.auto import w3
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.logger import get_logger
 from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.catalog_manager import CatalogManager
+from metemcyber.core.bc.catalog import Catalog
+from metemcyber.core.bc.token import Token
 
 app = typer.Typer()
 
