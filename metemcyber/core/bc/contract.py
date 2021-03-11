@@ -14,13 +14,12 @@
 #    limitations under the License.
 #
 
-import logging
 import json
 import os
 from web3 import Web3
+from ..logger import get_logger
 
-LOGGER = logging.getLogger('common')
-GASLOG = logging.getLogger('gaslog')
+LOGGER = get_logger(name='core.bc', app_dir='', file_prefix='core.bc')
 
 
 class Contract():
@@ -123,6 +122,9 @@ class Contract():
         if not web3:
             raise Exception('missing web3')
 
+        LOGGER.debug('deploying %s with args=%s, kwargs=%s',
+            cls.__name__, args, kwargs)
+
         # constructorに引数が必要な場合は指定
         if args or kwargs:
             func = web3.eth.contract(
@@ -142,6 +144,8 @@ class Contract():
             raise ValueError(
                 'Contract deploy failed: {}'.format(cls.contract_id))
 
+        LOGGER.info('deployed %s on address: %s',
+            cls.__name__, tx_receipt['contractAddress'])
         return tx_receipt['contractAddress']
 
     def event_filter(self, event_name, **kwargs):
@@ -150,5 +154,5 @@ class Contract():
 
     @classmethod
     def gaslog(cls, func, tx_receipt):
-        GASLOG.info(
+        LOGGER.debug(
             '%s.%s: gasUsed=%d', cls.__name__, func, tx_receipt['gasUsed'])
