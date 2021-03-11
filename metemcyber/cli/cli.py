@@ -20,6 +20,7 @@ import configparser
 from pathlib import Path
 
 import typer
+from typing import List, Callable
 from web3 import Web3
 from web3.auto import w3
 
@@ -181,6 +182,7 @@ def catalog_add(ctx: typer.Context, catalog_address: str):
         config_update_catalog(ctx)
         catalog_list(ctx)
     except Exception as err:
+        logger.exception(err)
         typer.echo(f'failed operation: {err}')
 
 
@@ -190,13 +192,11 @@ def _catalog_ctrl(
     try:
         catalog_mgr = ctx.meta['catalog_manager']
         if by_id:
-            catalog_address = catalog_mgr.get_catalog_by_id(
-                int(catalog_address))
-        func = {
-            'remove': catalog_mgr.remove,
-            'activate': catalog_mgr.activate,
-            'deactivate': catalog_mgr.deactivate,
-        }.get(act)
+            catalog_address = catalog_mgr.id2address(int(catalog_address))
+        if act not in ('remove', 'activate', 'deactivate'):
+            raise Exception('Invalid act: ' + act)
+        # typer does not support eth_typing.ChecksumAddress
+        func: Callable[[List[str]], None] = getattr(catalog_mgr, act)
         func([catalog_address])
         config_update_catalog(ctx)
         catalog_list(ctx)
