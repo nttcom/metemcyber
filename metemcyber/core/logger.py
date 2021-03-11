@@ -18,6 +18,7 @@ import logging
 import logging.handlers
 from pathlib import Path
 from typing import List
+from typer import get_app_dir
 
 
 def get_logger(name: str, app_dir: str, file_prefix: str):
@@ -30,7 +31,7 @@ class MetemcyberLogger():
     """
     created_loggers: List[str] = []
 
-    def __init__(self, name: str, app_dir: str, file_prefix: str = "") -> None:
+    def __init__(self, name: str, app_dir: str = "", file_prefix: str = "") -> None:
         """Initilizates a Logger for Metemcyber Clis.
 
         :param name: Strings of logger name.
@@ -38,6 +39,9 @@ class MetemcyberLogger():
         :param log_level: Strings of Log level.
         """
 
+        # The default location
+        APP_NAME = "metemcyber"
+        APP_DIR = get_app_dir(APP_NAME)
         # Max bytes of log file
         MAX_BYTES: int = 32768000
         # The number of backup of log file
@@ -48,6 +52,8 @@ class MetemcyberLogger():
             self.logger = logging.getLogger(name)
         else:
             # Use a directory of this app
+            if not app_dir:
+                app_dir = APP_DIR
             log_path: Path = Path(app_dir) / "logs"
             log_path.mkdir(parents=True, exist_ok=True)
 
