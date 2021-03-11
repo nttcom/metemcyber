@@ -22,7 +22,8 @@ from typer import get_app_dir
 
 
 def get_logger(name: str, app_dir: str = "", file_prefix: str = ""):
-    return MetemcyberLogger(name=name, app_dir=app_dir, file_prefix=file_prefix).logger
+    return MetemcyberLogger(name=name, app_dir=app_dir,
+                            file_prefix=file_prefix).logger
 
 
 class MetemcyberLogger():
@@ -31,7 +32,8 @@ class MetemcyberLogger():
     """
     created_loggers: List[str] = []
 
-    def __init__(self, name: str, app_dir: str = "", file_prefix: str = "") -> None:
+    def __init__(self, name: str, app_dir: str = "",
+                 file_prefix: str = "") -> None:
         """Initilizates a Logger for Metemcyber Clis.
 
         :param name: Strings of logger name.

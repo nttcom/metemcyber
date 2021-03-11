@@ -88,7 +88,7 @@ class Contract():
         if cls.contract_id in Contract.deployed_libs.keys():
             raise Exception('already registered')
         if not placeholder:
-            keccak = Web3.keccak(text=cls.contract_id).hex()[2:] # cut 0x
+            keccak = Web3.keccak(text=cls.contract_id).hex()[2:]  # cut 0x
             placeholder = '__$' + keccak[:34] + '$__'
         Contract.deployed_libs[cls.contract_id] = {
             'address': address, 'placeholder': placeholder}
@@ -127,8 +127,8 @@ class Contract():
             # バイナリデータの追加
             bytecode = combined_json['bin']
             for lib in Contract.deployed_libs.values():
-                ## Oops, link_code@solcx does not work well...
-                ## WORKAROUND: replace placeholder with address manually.
+                # Oops, link_code@solcx does not work well...
+                # WORKAROUND: replace placeholder with address manually.
                 bytecode = bytecode.replace(
                     lib['placeholder'], lib['address'][2:])  # cut 0x
             contract_interface['bin'] = bytecode
@@ -148,19 +148,19 @@ class Contract():
             raise Exception('missing web3')
 
         LOGGER.debug('deploying %s with args=%s, kwargs=%s',
-            cls.__name__, args, kwargs)
+                     cls.__name__, args, kwargs)
 
         # constructorに引数が必要な場合は指定
         if args or kwargs:
             func = web3.eth.contract(
                 abi=cls.contract_interface['abi'],
                 bytecode=cls.contract_interface['bin']).\
-                    constructor(*args, **kwargs)
+                constructor(*args, **kwargs)
         else:
             func = web3.eth.contract(
                 abi=cls.contract_interface['abi'],
                 bytecode=cls.contract_interface['bin']).\
-                    constructor()
+                constructor()
 
         tx_hash = func.transact()
         tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
@@ -170,7 +170,7 @@ class Contract():
                 'Contract deploy failed: {}'.format(cls.contract_id))
 
         LOGGER.info('deployed %s on address: %s',
-            cls.__name__, tx_receipt['contractAddress'])
+                    cls.__name__, tx_receipt['contractAddress'])
         return tx_receipt['contractAddress']
 
     def event_filter(self, event_name, **kwargs):
