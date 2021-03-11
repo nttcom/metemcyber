@@ -49,7 +49,7 @@ class MetemcyberLogger():
 
         # If already registered, return logger
         if name in MetemcyberLogger.created_loggers:
-            self.logger = logging.getLogger(name)
+            self.logger: logging.Logger = logging.getLogger(name)
         else:
             # Use a directory of this app
             if not app_dir:
@@ -58,7 +58,7 @@ class MetemcyberLogger():
             log_path.mkdir(parents=True, exist_ok=True)
 
             # Setup Logger
-            self.logger: logging.Logger = logging.getLogger(name)
+            self.logger = logging.getLogger(name)
             self.logger.setLevel(logging.DEBUG)
 
             user_formatter = UserFormatter(
