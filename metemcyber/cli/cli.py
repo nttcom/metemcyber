@@ -39,7 +39,7 @@ APP_NAME = "metemcyber"
 APP_DIR = typer.get_app_dir(APP_NAME)
 CONFIG_FILE_NAME = "metemctl.ini"
 CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
-WORKGFLOW_FILE_NAME = "workflow.yml"
+WORKFLOW_FILE_NAME = "workflow.yml"
 
 app = typer.Typer()
 
@@ -251,13 +251,13 @@ def new(
     if answer:
         logger.info(f"Create the workflow: {event_id}")
         # find current directory
-        yml_filepath = Path(os.getcwd()) / WORKGFLOW_FILE_NAME
+        yml_filepath = Path(os.getcwd()) / WORKFLOW_FILE_NAME
         if not os.path.isfile(yml_filepath):
             # find app directory
-            yml_filepath = Path(APP_DIR) / WORKGFLOW_FILE_NAME
+            yml_filepath = Path(APP_DIR) / WORKFLOW_FILE_NAME
             if not os.path.isfile(yml_filepath):
                 # use template
-                yml_filepath = Path(__file__).with_name(WORKGFLOW_FILE_NAME)
+                yml_filepath = Path(__file__).with_name(WORKFLOW_FILE_NAME)
         logger.info(f"Load the workflow config from: {yml_filepath}")
 
         with open(yml_filepath) as fin:
@@ -271,7 +271,7 @@ def new(
         config['intelligece_category'] = formal_category[category]
         config['intelligece_contents'] = display_contents
 
-        dist_yml_filepath = Path(os.getcwd()) / f'{event_id}-{WORKGFLOW_FILE_NAME}'
+        dist_yml_filepath = Path(os.getcwd()) / f'{event_id}-{WORKFLOW_FILE_NAME}'
         logger.info(f"Write the workflow config to: {dist_yml_filepath}")
         with open(dist_yml_filepath, 'w') as fout:
             yaml.dump(config, fout)
