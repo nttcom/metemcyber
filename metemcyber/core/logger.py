@@ -21,7 +21,7 @@ from typing import List
 from typer import get_app_dir
 
 
-def get_logger(name: str, app_dir: str, file_prefix: str):
+def get_logger(name: str, app_dir: str = "", file_prefix: str = ""):
     return MetemcyberLogger(name=name, app_dir=app_dir, file_prefix=file_prefix).logger
 
 
