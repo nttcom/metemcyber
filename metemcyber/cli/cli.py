@@ -193,7 +193,7 @@ def catalog_list(ctx: typer.Context):
 
 @catalog_app.command('add')
 def catalog_add(ctx: typer.Context, catalog_address: str,
-        activate: bool = typer.Option(True, help='activate added catalog')):
+                activate: bool = typer.Option(True, help='activate added catalog')):
     logger = getLogger()
     try:
         catalog_mgr = ctx.meta['catalog_manager']
@@ -207,15 +207,16 @@ def catalog_add(ctx: typer.Context, catalog_address: str,
 
 @catalog_app.command('new')
 def catalog_new(ctx: typer.Context,
-        private: bool = typer.Option(False, help='create a private catalog'),
-        activate: bool = typer.Option(False, help='activate created catalog')):
+                private: bool = typer.Option(
+                    False, help='create a private catalog'),
+                activate: bool = typer.Option(False, help='activate created catalog')):
     logger = getLogger()
     try:
         account = ctx.meta['account']
         catalog: Catalog = Catalog(account.web3).new(private)
         typer.echo('deployed a new '
-            f'{"private" if private else "public"} catalog. '
-            f'address is {catalog.address}.')
+                   f'{"private" if private else "public"} catalog. '
+                   f'address is {catalog.address}.')
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
@@ -393,7 +394,8 @@ def external_links():
     ]
 
     for service in services:
-        # See https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+        # See
+        # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
         hyperlink = f'\x1b]8;;{service["url"]}\x1b\\{service["name"]}\x1b]8;;\x1b\\'
         typer.echo(f"- {hyperlink}: {service['description']}")
 

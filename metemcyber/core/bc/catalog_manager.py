@@ -51,7 +51,7 @@ class CatalogManager():
 
     def _catalogs(self, active: Optional[bool]) -> Dict[ChecksumAddress, int]:
         return {addr: cid for addr, cid in self.catalogs.items()
-            if active in (None, addr in self.actives)}
+                if active in (None, addr in self.actives)}
 
     @property
     def active_catalogs(self) -> Dict[ChecksumAddress, int]:
@@ -67,7 +67,7 @@ class CatalogManager():
 
     def id2address(self, catalog_id: int) -> ChecksumAddress:
         tmp = [caddr for caddr, cid in self.catalogs.items()
-            if cid == catalog_id]
+               if cid == catalog_id]
         if not tmp:
             raise Exception('No such catalog id: ' + str(catalog_id))
         assert len(tmp) == 1

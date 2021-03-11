@@ -46,7 +46,7 @@ class CatalogInfo():
 
     def tokeninfo_by_id(self, token_id: int) -> Optional[TokenInfo]:
         tmp = [info for info in self.tokens.values()
-                if info.token_id == token_id]
+               if info.token_id == token_id]
         return tmp[0] if tmp else None
 
 
@@ -60,7 +60,7 @@ class Catalog():
     @property
     def _catalogs_by_id(self):
         return {info['catalog_id']: info
-            for info in Catalog.__addressed_catalogs.values()}
+                for info in Catalog.__addressed_catalogs.values()}
 
     def __init__(self, web3: Web3) -> None:
         self.web3: Web3 = web3
@@ -96,8 +96,8 @@ class Catalog():
     @staticmethod
     def _gen_catalog_id() -> int:
         return max([val.catalog_id for val
-                in Catalog.__addressed_catalogs.values()] + [0]
-            ) + 1
+                    in Catalog.__addressed_catalogs.values()] + [0]
+                   ) + 1
 
     def _sync_catalog(self) -> None:
         assert self.web3
