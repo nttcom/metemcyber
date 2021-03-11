@@ -16,6 +16,9 @@
 
 import json
 import os
+import inspect
+from typing import Optional, Dict
+from eth_typing import ChecksumAddress
 from web3 import Web3
 from ..logger import get_logger
 
@@ -23,12 +26,34 @@ LOGGER = get_logger(name='core.bc', app_dir='', file_prefix='core.bc')
 
 
 class Contract():
+    #                   library_address  placeholder
+    deployed_libs: Dict[ChecksumAddress, str] = {}
+    #                    abi|bin  loaded data from combined json
+    contract_interface: Dict[str, str] = {}  # overridden by sub class
+    contract_id: Optional[str] = None  # overridden by subclass
 
-    deployed_libs = dict() # {name: {address:x, placeholder:x}}
-    contract_interface = dict()  # shold be overridden by sub class
-    contract_id = None  # should be overridden by subclass
+    def log_trace(self):
+        try:
+            cname = self.__class__.__name__
+            frame = inspect.stack()[1][0]
+            func = inspect.getframeinfo(frame).function
+            args = {key: val for key, val
+                    in inspect.getargvalues(frame).locals.items()
+                    if key != 'self'}
+            LOGGER.debug('%s(%s).%s%s', cname, self.address, func, args)
+        finally:
+            pass
 
-    def __init__(self, web3):
+    def log_success(self):
+        try:
+            cname = self.__class__.__name__
+            frame = inspect.stack()[1][0]
+            func = inspect.getframeinfo(frame).function
+            LOGGER.debug('%s(%s).%s: succeeded', cname, self.address, func)
+        finally:
+            pass
+
+    def __init__(self, web3: Web3):
         assert web3
         self.web3 = web3  # should be initialized with EOA & private key
         self.contract = None  # initialized by get()
@@ -84,7 +109,7 @@ class Contract():
         try:
             # contractsのcombined.jsonが配置されているパス
             work_dir = os.path.dirname(os.path.abspath(__file__))
-            contractsdata_dir = os.path.join(work_dir, 'contracts_data')  # FIXME
+            contractsdata_dir = os.path.join(work_dir, 'contracts_data')
 
             # combined.json should be generated with
             #   % solc --combined-json bin,metadata xxx.sol \
