@@ -14,22 +14,46 @@
 #    limitations under the License.
 #
 
-import logging
 import json
 import os
+import inspect
+from typing import Optional, Dict
+from eth_typing import ChecksumAddress
 from web3 import Web3
+from ..logger import get_logger
 
-LOGGER = logging.getLogger('common')
-GASLOG = logging.getLogger('gaslog')
+LOGGER = get_logger(name='core.bc', app_dir='', file_prefix='core.bc')
 
 
 class Contract():
+    #                   library_address  placeholder
+    deployed_libs: Dict[ChecksumAddress, str] = {}
+    #                    abi|bin  loaded data from combined json
+    contract_interface: Dict[str, str] = {}  # overridden by sub class
+    contract_id: Optional[str] = None  # overridden by subclass
 
-    deployed_libs = dict() # {name: {address:x, placeholder:x}}
-    contract_interface = dict()  # shold be overridden by sub class
-    contract_id = None  # should be overridden by subclass
+    def log_trace(self):
+        try:
+            cname = self.__class__.__name__
+            frame = inspect.stack()[1][0]
+            func = inspect.getframeinfo(frame).function
+            args = {key: val for key, val
+                    in inspect.getargvalues(frame).locals.items()
+                    if key != 'self'}
+            LOGGER.debug('%s(%s).%s%s', cname, self.address, func, args)
+        finally:
+            pass
 
-    def __init__(self, web3):
+    def log_success(self):
+        try:
+            cname = self.__class__.__name__
+            frame = inspect.stack()[1][0]
+            func = inspect.getframeinfo(frame).function
+            LOGGER.debug('%s(%s).%s: succeeded', cname, self.address, func)
+        finally:
+            pass
+
+    def __init__(self, web3: Web3):
         assert web3
         self.web3 = web3  # should be initialized with EOA & private key
         self.contract = None  # initialized by get()
@@ -64,7 +88,7 @@ class Contract():
         if cls.contract_id in Contract.deployed_libs.keys():
             raise Exception('already registered')
         if not placeholder:
-            keccak = Web3.keccak(text=cls.contract_id).hex()[2:] # cut 0x
+            keccak = Web3.keccak(text=cls.contract_id).hex()[2:]  # cut 0x
             placeholder = '__$' + keccak[:34] + '$__'
         Contract.deployed_libs[cls.contract_id] = {
             'address': address, 'placeholder': placeholder}
@@ -85,7 +109,7 @@ class Contract():
         try:
             # contractsのcombined.jsonが配置されているパス
             work_dir = os.path.dirname(os.path.abspath(__file__))
-            contractsdata_dir = os.path.join(work_dir, 'contracts_data')  # FIXME
+            contractsdata_dir = os.path.join(work_dir, 'contracts_data')
 
             # combined.json should be generated with
             #   % solc --combined-json bin,metadata xxx.sol \
@@ -103,8 +127,8 @@ class Contract():
             # バイナリデータの追加
             bytecode = combined_json['bin']
             for lib in Contract.deployed_libs.values():
-                ## Oops, link_code@solcx does not work well...
-                ## WORKAROUND: replace placeholder with address manually.
+                # Oops, link_code@solcx does not work well...
+                # WORKAROUND: replace placeholder with address manually.
                 bytecode = bytecode.replace(
                     lib['placeholder'], lib['address'][2:])  # cut 0x
             contract_interface['bin'] = bytecode
@@ -123,17 +147,20 @@ class Contract():
         if not web3:
             raise Exception('missing web3')
 
+        LOGGER.debug('deploying %s with args=%s, kwargs=%s',
+                     cls.__name__, args, kwargs)
+
         # constructorに引数が必要な場合は指定
         if args or kwargs:
             func = web3.eth.contract(
                 abi=cls.contract_interface['abi'],
                 bytecode=cls.contract_interface['bin']).\
-                    constructor(*args, **kwargs)
+                constructor(*args, **kwargs)
         else:
             func = web3.eth.contract(
                 abi=cls.contract_interface['abi'],
                 bytecode=cls.contract_interface['bin']).\
-                    constructor()
+                constructor()
 
         tx_hash = func.transact()
         tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
@@ -142,6 +169,8 @@ class Contract():
             raise ValueError(
                 'Contract deploy failed: {}'.format(cls.contract_id))
 
+        LOGGER.info('deployed %s on address: %s',
+                    cls.__name__, tx_receipt['contractAddress'])
         return tx_receipt['contractAddress']
 
     def event_filter(self, event_name, **kwargs):
@@ -150,5 +179,5 @@ class Contract():
 
     @classmethod
     def gaslog(cls, func, tx_receipt):
-        GASLOG.info(
+        LOGGER.debug(
             '%s.%s: gasUsed=%d', cls.__name__, func, tx_receipt['gasUsed'])

@@ -40,7 +40,8 @@ class Ether:
         del private_key
 
         # ミドルウェアに署名付きトランザクションを設定
-        # See https://github.com/ethereum/web3.py/blob/master/web3/datastructures.py
+        # See
+        # https://github.com/ethereum/web3.py/blob/master/web3/datastructures.py
         if 'sign_and_send_raw' in self.web3.middleware_onion._queue:
             self.web3.middleware_onion.replace('sign_and_send_raw', cssrm)
         else:
