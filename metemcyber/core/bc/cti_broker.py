@@ -14,40 +14,45 @@
 #    limitations under the License.
 #
 
-import logging
+from typing import Dict
 from .contract import Contract
-
-LOGGER = logging.getLogger('common')
 
 
 class CTIBroker(Contract):
-    contract_interface = dict()
+    contract_interface: Dict[str, str] = {}
     contract_id = 'CTIBroker.sol:CTIBroker'
 
     def consign_token(self, catalog, token, amount):
+        self.log_trace()
         func = self.contract.functions.consignToken(catalog, token, amount)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('consignToken', tx_receipt)
         if tx_receipt['status'] != 1:
             raise ValueError('consignToken: transaction failed')
+        self.log_success()
 
     def takeback_token(self, catalog, token, amount):
+        self.log_trace()
         func = self.contract.functions.takebackToken(catalog, token, amount)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('takebackToken', tx_receipt)
         if tx_receipt['status'] != 1:
             raise ValueError('takebackToken: transaction failed')
+        self.log_success()
 
     def buy_token(self, catalog, token, wei, allow_cheaper=False):
+        self.log_trace()
         func = self.contract.functions.buyToken(catalog, token, allow_cheaper)
         tx_hash = func.transact({'value': wei})
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('buyToken', tx_receipt)
         if tx_receipt['status'] != 1:
             raise ValueError('buyToken: transaction failed')
+        self.log_success()
 
     def get_amounts(self, catalog, tokens):
+        self.log_trace()
         func = self.contract.functions.getAmounts(catalog, tokens)
         return func.call()

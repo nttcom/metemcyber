@@ -14,9 +14,10 @@
 #    limitations under the License.
 #
 
+from typing import Dict
 from .contract import Contract
 
 
 class MetemcyberUtil(Contract):
-    contract_interface = dict()
+    contract_interface: Dict[str, str] = {}
     contract_id = 'MetemcyberUtil.sol:MetemcyberUtil'

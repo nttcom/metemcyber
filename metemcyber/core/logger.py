@@ -22,7 +22,8 @@ from typer import get_app_dir
 
 
 def get_logger(name: str, app_dir: str = "", file_prefix: str = ""):
-    return MetemcyberLogger(name=name, app_dir=app_dir, file_prefix=file_prefix).logger
+    return MetemcyberLogger(name=name, app_dir=app_dir,
+                            file_prefix=file_prefix).logger
 
 
 class MetemcyberLogger():
@@ -31,7 +32,8 @@ class MetemcyberLogger():
     """
     created_loggers: List[str] = []
 
-    def __init__(self, name: str, app_dir: str = "", file_prefix: str = "") -> None:
+    def __init__(self, name: str, app_dir: str = "",
+                 file_prefix: str = "") -> None:
         """Initilizates a Logger for Metemcyber Clis.
 
         :param name: Strings of logger name.
@@ -49,7 +51,7 @@ class MetemcyberLogger():
 
         # If already registered, return logger
         if name in MetemcyberLogger.created_loggers:
-            self.logger = logging.getLogger(name)
+            self.logger: logging.Logger = logging.getLogger(name)
         else:
             # Use a directory of this app
             if not app_dir:
@@ -58,7 +60,7 @@ class MetemcyberLogger():
             log_path.mkdir(parents=True, exist_ok=True)
 
             # Setup Logger
-            self.logger: logging.Logger = logging.getLogger(name)
+            self.logger = logging.getLogger(name)
             self.logger.setLevel(logging.DEBUG)
 
             user_formatter = UserFormatter(

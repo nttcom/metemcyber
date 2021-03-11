@@ -17,22 +17,23 @@
 import configparser
 import json
 import os
+import uuid
+from enum import Enum
 from pathlib import Path
 from subprocess import call
-import uuid
-import yaml
+from typing import Callable, List, Optional
 
 import typer
+import yaml
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.catalog import Catalog
 from metemcyber.core.bc.catalog_manager import CatalogManager
 from metemcyber.core.bc.ether import Ether
+from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.token import Token
 from metemcyber.core.logger import get_logger
 from web3 import Web3
 from web3.auto import w3
-from enum import Enum
-from typing import List, Optional
 
 APP_NAME = "metemcyber"
 APP_DIR = typer.get_app_dir(APP_NAME)
@@ -116,6 +117,26 @@ def decode_keyfile(filepath: Path):
         raise typer.Exit(code=1)
 
 
+def _load_metemcyber_util(ctx: typer.Context):
+    account = ctx.meta['account']
+    config = ctx.meta['config']
+    if config.has_section('metemcyber_util'):
+        util_addr = config['metemcyber_util'].get('address')
+        util_ph = config['metemcyber_util'].get('placeholder')
+    else:
+        util_addr = util_ph = None
+        config.add_section('metemcyber_util')
+    if util_addr and util_ph:
+        _ph = MetemcyberUtil.register_library(util_addr)
+        assert _ph == util_ph
+    else:
+        util = MetemcyberUtil(account.web3).new()
+        util_ph = util.register_library(util.address)
+        config.set('metemcyber_util', 'address', util.address)
+        config.set('metemcyber_util', 'placeholder', util_ph)
+        write_config(config, CONFIG_FILE_PATH)
+
+
 @app.callback()
 def app_callback(ctx: typer.Context):
     if not os.path.exists(CONFIG_FILE_PATH):
@@ -129,6 +150,8 @@ def app_callback(ctx: typer.Context):
     eoa, pkey = decode_keyfile(config['general']['keyfile'])
     account = Account(ether.web3_with_signature(pkey), eoa)
     ctx.meta['account'] = account
+
+    _load_metemcyber_util(ctx)
 
     catalog_mgr = CatalogManager(account.web3)
     if config.has_section('catalog'):
@@ -258,11 +281,6 @@ def new(
         call(['kedro', 'new', '--config', dist_yml_filepath])
 
 
-@app.command()
-def catalog():
-    typer.echo(f"catallog")
-
-
 def config_update_catalog(ctx: typer.Context):
     catalog_mgr = ctx.meta.get('catalog_manager')
     config = ctx.meta.get('config')
@@ -290,15 +308,36 @@ def catalog_list(ctx: typer.Context):
 
 
 @catalog_app.command('add')
-def catalog_add(ctx: typer.Context, catalog_address: str):
+def catalog_add(ctx: typer.Context, catalog_address: str,
+                activate: bool = typer.Option(True, help='activate added catalog')):
     logger = getLogger()
     try:
         catalog_mgr = ctx.meta['catalog_manager']
-        catalog_mgr.add([catalog_address], activate=True)
+        catalog_mgr.add([catalog_address], activate=activate)
         config_update_catalog(ctx)
         catalog_list(ctx)
     except Exception as err:
+        logger.exception(err)
         typer.echo(f'failed operation: {err}')
+
+
+@catalog_app.command('new')
+def catalog_new(ctx: typer.Context,
+                private: bool = typer.Option(
+                    False, help='create a private catalog'),
+                activate: bool = typer.Option(False, help='activate created catalog')):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        catalog: Catalog = Catalog(account.web3).new(private)
+        typer.echo('deployed a new '
+                   f'{"private" if private else "public"} catalog. '
+                   f'address is {catalog.address}.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+        return
+    catalog_add(ctx, str(catalog.address), activate)
 
 
 def _catalog_ctrl(
@@ -307,13 +346,11 @@ def _catalog_ctrl(
     try:
         catalog_mgr = ctx.meta['catalog_manager']
         if by_id:
-            catalog_address = catalog_mgr.get_catalog_by_id(
-                int(catalog_address))
-        func = {
-            'remove': catalog_mgr.remove,
-            'activate': catalog_mgr.activate,
-            'deactivate': catalog_mgr.deactivate,
-        }.get(act)
+            catalog_address = catalog_mgr.id2address(int(catalog_address))
+        if act not in ('remove', 'activate', 'deactivate'):
+            raise Exception('Invalid act: ' + act)
+        # typer does not support eth_typing.ChecksumAddress
+        func: Callable[[List[str]], None] = getattr(catalog_mgr, act)
         func([catalog_address])
         config_update_catalog(ctx)
         catalog_list(ctx)
@@ -373,11 +410,6 @@ def publish():
     typer.echo(f"publish")
 
 
-@app.command()
-def account():
-    typer.echo(f"account")
-
-
 @account_app.command("info")
 def account_info(ctx: typer.Context):
     account = ctx.meta['account']
@@ -402,8 +434,8 @@ def account_info(ctx: typer.Context):
                     typer.echo(f'  {tinfo.token_id}: {balance}: {taddr}')
 
 
-@app.command()
-def config():
+@app.command('config')
+def _config():
     typer.echo(f"config")
 
 
@@ -478,7 +510,8 @@ def external_links():
     ]
 
     for service in services:
-        # See https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+        # See
+        # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
         hyperlink = f'\x1b]8;;{service["url"]}\x1b\\{service["name"]}\x1b]8;;\x1b\\'
         typer.echo(f"- {hyperlink}: {service['description']}")
 
