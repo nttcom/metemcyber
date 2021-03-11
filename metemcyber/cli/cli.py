@@ -17,6 +17,7 @@
 import os
 import json
 import configparser
+from pathlib import Path
 
 import typer
 from web3 import Web3
@@ -29,7 +30,10 @@ from metemcyber.core.bc.catalog_manager import CatalogManager
 from metemcyber.core.bc.catalog import Catalog
 from metemcyber.core.bc.token import Token
 
-CONFIGFILEPATH = f'{os.getcwd()}/metemctl.ini'
+APP_NAME = "metemcyber"
+APP_DIR = typer.get_app_dir(APP_NAME)
+CONFIG_FILE_NAME = "metemctl.ini"
+CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
 
 app = typer.Typer()
 
@@ -44,28 +48,51 @@ app.add_typer(catalog_app, name="catalog")
 
 
 def getLogger(name='cli'):
-    return get_logger(name=name, file_prefix='cli')
+    return get_logger(name=name, app_dir=APP_DIR, file_prefix='cli')
 
 
-def read_config():
+def create_config(filepath: Path):
     logger = getLogger()
-    logger.info(f"Load config file from {CONFIGFILEPATH}")
+    logger.info(f"Create new config to {filepath}")
+
+    typer.echo('You need the keyfile to connect the ethereum network.')
+    path_text = typer.prompt('Input the path of your keyfile')
+
+    # Allow the path that contain '~'
+    keyfile_path = str(Path(path_text).expanduser())
+
+    template = Path(__file__).with_name(f'{CONFIG_FILE_NAME}.template')
+    config = read_config(template)
+    if config.has_option('general', 'keyfile'):
+        config.set('general', 'keyfile', keyfile_path)
+
+    write_config(config, filepath)
+
+
+def read_config(filepath: Path):
+    logger = getLogger()
+    logger.info(f"Load config file from {filepath}")
     config = configparser.ConfigParser()
-    config.read(CONFIGFILEPATH)
+    config.read(filepath)
     return config
 
-def write_config(config: configparser.ConfigParser):
-    logger = getLogger()
-    with open(CONFIGFILEPATH, 'w') as fout:
-        config.write(fout)
-    logger.debug(f'update config file: {CONFIGFILEPATH}')
 
-def decode_keyfile(filename):
+def write_config(config: configparser.ConfigParser, filepath: Path):
+    logger = getLogger()
+    with open(filepath, 'w') as fout:
+        try:
+            config.write(fout)
+        except OSError as err:
+            logger.exception('Cannot write to file: %s', err)
+    logger.debug(f'update config file: {filepath}')
+
+
+def decode_keyfile(filepath: Path):
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
     logger = getLogger()
     try:
-        logger.info(f"Decode ethereum key file: {filename}")
-        with open(filename) as keyfile:
+        logger.info(f"Decode ethereum key file: {filepath}")
+        with open(filepath) as keyfile:
             enc_data = keyfile.read()
         address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
         word = os.getenv('METEMCTL_KEYFILE_PASSWORD', "")
@@ -78,7 +105,7 @@ def decode_keyfile(filename):
     except Exception as err:
         typer.echo(f'ERROR:{err}')
         typer.echo(
-            f'cannot decode keyfile:{os.path.basename(filename)}', err=True)
+            f'cannot decode keyfile:{os.path.basename(filepath)}', err=True)
         logger.error(f'Decode keyfile Error: {err}')
         logger.exception(f'test: {err}')
         raise typer.Exit(code=1)
@@ -86,7 +113,11 @@ def decode_keyfile(filename):
 
 @app.callback()
 def app_callback(ctx: typer.Context):
-    config = read_config()
+    if not os.path.exists(CONFIG_FILE_PATH):
+        typer.echo(
+            f'The {CONFIG_FILE_NAME} is missing. Try to create a new config file...')
+        create_config(CONFIG_FILE_PATH)
+    config = read_config(CONFIG_FILE_PATH)
     ctx.meta['config'] = config
 
     ether = Ether(config['general']['endpoint_url'])
@@ -114,6 +145,7 @@ def new():
 def catalog():
     typer.echo(f"catallog")
 
+
 def config_update_catalog(ctx: typer.Context):
     catalog_mgr = ctx.meta.get('catalog_manager')
     config = ctx.meta.get('config')
@@ -124,19 +156,21 @@ def config_update_catalog(ctx: typer.Context):
         if not config.has_section('catalog'):
             config.add_section('catalog')
         config.set('catalog', 'actives',
-            ','.join(catalog_mgr.active_catalogs.keys()))
+                   ','.join(catalog_mgr.active_catalogs.keys()))
         config.set('catalog', 'reserves',
-            ','.join(catalog_mgr.reserved_catalogs.keys()))
-    write_config(config)
+                   ','.join(catalog_mgr.reserved_catalogs.keys()))
+    write_config(config, CONFIG_FILE_PATH)
+
 
 @catalog_app.command('list')
 def catalog_list(ctx: typer.Context):
     catalog_mgr = ctx.meta['catalog_manager']
     typer.echo('Catalogs *:active')
     for caddr, cid in sorted(
-            catalog_mgr.all_catalogs.items(), key=lambda x:x[1]):
+            catalog_mgr.all_catalogs.items(), key=lambda x: x[1]):
         typer.echo(
             f'  {"*" if caddr in catalog_mgr.actives else " "}{cid} {caddr}')
+
 
 @catalog_app.command('add')
 def catalog_add(ctx: typer.Context, catalog_address: str):
@@ -148,6 +182,7 @@ def catalog_add(ctx: typer.Context, catalog_address: str):
         catalog_list(ctx)
     except Exception as err:
         typer.echo(f'failed operation: {err}')
+
 
 def _catalog_ctrl(
         act: str, ctx: typer.Context, catalog_address: str, by_id: bool):
@@ -161,7 +196,7 @@ def _catalog_ctrl(
             'remove': catalog_mgr.remove,
             'activate': catalog_mgr.activate,
             'deactivate': catalog_mgr.deactivate,
-            }.get(act)
+        }.get(act)
         func([catalog_address])
         config_update_catalog(ctx)
         catalog_list(ctx)
@@ -169,19 +204,22 @@ def _catalog_ctrl(
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
 
+
 @catalog_app.command('remove')
 def catalog_remove(ctx: typer.Context, catalog_address: str,
-        by_id: bool = typer.Option(False, help='select by catalog id')):
+                   by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('remove', ctx, catalog_address, by_id)
+
 
 @catalog_app.command('activate')
 def catalog_activate(ctx: typer.Context, catalog_address: str,
-        by_id: bool = typer.Option(False, help='select by catalog id')):
+                     by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('activate', ctx, catalog_address, by_id)
+
 
 @catalog_app.command('deactivate')
 def catalog_deactivate(ctx: typer.Context, catalog_address: str,
-        by_id: bool = typer.Option(False, help='select by catalog id')):
+                       by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('deactivate', ctx, catalog_address, by_id)
 
 
