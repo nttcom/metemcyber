@@ -130,7 +130,7 @@ def _load_metemcyber_util(ctx: typer.Context):
         util_ph = util.register_library(util.address)
         config.set('metemcyber_util', 'address', util.address)
         config.set('metemcyber_util', 'placeholder', util_ph)
-        write_config(config)
+        write_config(config, CONFIG_FILE_PATH)
 
 
 @app.callback()
