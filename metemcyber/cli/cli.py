@@ -21,19 +21,22 @@ import uuid
 from enum import Enum
 from pathlib import Path
 from subprocess import call
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple, cast
 
 import typer
 import yaml
+from eth_typing import ChecksumAddress
+from web3 import Web3
+from web3.auto import w3
+
 from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.broker import Broker
 from metemcyber.core.bc.catalog import Catalog
 from metemcyber.core.bc.catalog_manager import CatalogManager
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.token import Token
 from metemcyber.core.logger import get_logger
-from web3 import Web3
-from web3.auto import w3
 
 APP_NAME = "metemcyber"
 APP_DIR = typer.get_app_dir(APP_NAME)
@@ -48,6 +51,9 @@ app.add_typer(misp_app, name="misp")
 
 account_app = typer.Typer()
 app.add_typer(account_app, name="account")
+
+ix_app = typer.Typer()
+app.add_typer(ix_app, name="ix")
 
 catalog_app = typer.Typer()
 app.add_typer(catalog_app, name="catalog")
@@ -137,6 +143,23 @@ def _load_metemcyber_util(ctx: typer.Context):
         write_config(config, CONFIG_FILE_PATH)
 
 
+def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
+    if 'catalog_manager' in ctx.meta.keys():
+        return ctx.meta['catalog_manager']
+    account = ctx.meta['account']
+    catalog_mgr = CatalogManager(account.web3)
+    config = ctx.meta['config']
+    if config.has_section('catalog'):
+        actives = config['catalog'].get('actives')
+        if actives:
+            catalog_mgr.add(actives.strip().split(','), activate=True)
+        reserves = config['catalog'].get('reserves')
+        if reserves:
+            catalog_mgr.add(reserves.strip().split(','), activate=False)
+    ctx.meta['catalog_manager'] = catalog_mgr
+    return catalog_mgr
+
+
 @app.callback()
 def app_callback(ctx: typer.Context):
     if not os.path.exists(CONFIG_FILE_PATH):
@@ -152,16 +175,6 @@ def app_callback(ctx: typer.Context):
     ctx.meta['account'] = account
 
     _load_metemcyber_util(ctx)
-
-    catalog_mgr = CatalogManager(account.web3)
-    if config.has_section('catalog'):
-        actives = config['catalog'].get('actives')
-        if actives:
-            catalog_mgr.add(actives.strip().split(','), activate=True)
-        reserves = config['catalog'].get('reserves')
-        if reserves:
-            catalog_mgr.add(reserves.strip().split(','), activate=False)
-    ctx.meta['catalog_manager'] = catalog_mgr
 
 
 class IntelligenceCategory(str, Enum):
@@ -282,7 +295,7 @@ def new(
 
 
 def config_update_catalog(ctx: typer.Context):
-    catalog_mgr = ctx.meta.get('catalog_manager')
+    catalog_mgr = _load_catalog_manager(ctx)
     config = ctx.meta.get('config')
     assert config
     if catalog_mgr is None:
@@ -297,9 +310,83 @@ def config_update_catalog(ctx: typer.Context):
     write_config(config, CONFIG_FILE_PATH)
 
 
+def _load_broker(ctx: typer.Context) -> Broker:
+    if 'broker' in ctx.meta.keys():
+        return ctx.meta['broker']
+    account = ctx.meta['account']
+    config = ctx.meta['config']
+    try:
+        broker_address = cast(ChecksumAddress, config['broker']['address'])
+    except KeyError as err:
+        raise Exception('Broker is not yet configured') from err
+    broker = Broker(account.web3).get(broker_address)
+    ctx.meta['broker'] = broker
+    return broker
+
+
+def _ix_list_tokens(ctx: typer.Context):
+    account = ctx.meta['account']
+    broker = _load_broker(ctx)
+    catalog_mgr = _load_catalog_manager(ctx)
+    for caddr, cid in sorted(
+            catalog_mgr.active_catalogs.items(), key=lambda x: x[1], reverse=True):
+        typer.echo(f'Catalog {cid}: {caddr}')
+        catalog = Catalog(account.web3).get(caddr)
+        if not catalog.tokens:
+            continue
+        token_infos = sorted(catalog.tokens.values(), key=lambda x: x.token_id, reverse=True)
+        amounts = broker.get_amounts(caddr, [token.address for token in token_infos])
+        for idx, tinfo in enumerate(token_infos):
+            if amounts[idx] > 0:
+                typer.echo(f'  {cid}-{tinfo.token_id}: {tinfo.title}')
+                typer.echo(f'    ├ UUID : {tinfo.uuid}')
+                typer.echo(f'    ├ Addr : {tinfo.address}')
+                typer.echo(f'    └ Price: {tinfo.price} pts  /  {amounts[idx]} tokens left')
+
+
+def _ix_parse_tokenid(ctx: typer.Context, token_id: str
+                      ) -> Tuple[ChecksumAddress, ChecksumAddress]:
+    try:
+        catalog_part, token_part = token_id.split('-', 1)
+        catalog_idx = int(catalog_part)
+        token_idx = int(token_part)
+    except Exception as err:
+        raise Exception(f'Invalid ID: {token_id}') from err
+    account = ctx.meta['account']
+    catalog_mgr = _load_catalog_manager(ctx)
+    catalog_address = catalog_mgr.id2address(catalog_idx)
+    token_address = Catalog(account.web3).get(catalog_address).id2address(token_idx)
+    return catalog_address, token_address
+
+
+@ix_app.command('list')
+def ix_list(ctx: typer.Context):
+    logger = getLogger()
+    try:
+        _ix_list_tokens(ctx)
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_app.command('buy')
+def ix_buy(ctx: typer.Context, token_id: str, amount: int = 1):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        broker = _load_broker(ctx)
+        catalog, token = _ix_parse_tokenid(ctx, token_id)
+        price = Catalog(account.web3).get(catalog).get_tokeninfo(token).price
+        broker.buy(catalog, token, price, allow_cheaper=False)
+        typer.echo(f'bought token {token_id} for {price} pts.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
 @catalog_app.command('list')
 def catalog_list(ctx: typer.Context):
-    catalog_mgr = ctx.meta['catalog_manager']
+    catalog_mgr = _load_catalog_manager(ctx)
     typer.echo('Catalogs *:active')
     for caddr, cid in sorted(
             catalog_mgr.all_catalogs.items(), key=lambda x: x[1]):
@@ -312,8 +399,8 @@ def catalog_add(ctx: typer.Context, catalog_address: str,
                 activate: bool = typer.Option(True, help='activate added catalog')):
     logger = getLogger()
     try:
-        catalog_mgr = ctx.meta['catalog_manager']
-        catalog_mgr.add([catalog_address], activate=activate)
+        catalog_mgr = _load_catalog_manager(ctx)
+        catalog_mgr.add([cast(ChecksumAddress, catalog_address)], activate=activate)
         config_update_catalog(ctx)
         catalog_list(ctx)
     except Exception as err:
@@ -341,16 +428,15 @@ def catalog_new(ctx: typer.Context,
 
 
 def _catalog_ctrl(
-        act: str, ctx: typer.Context, catalog_address: str, by_id: bool):
+        act: str, ctx: typer.Context, catalog_address: ChecksumAddress, by_id: bool):
     logger = getLogger()
     try:
-        catalog_mgr = ctx.meta['catalog_manager']
+        catalog_mgr = _load_catalog_manager(ctx)
         if by_id:
             catalog_address = catalog_mgr.id2address(int(catalog_address))
         if act not in ('remove', 'activate', 'deactivate'):
             raise Exception('Invalid act: ' + act)
-        # typer does not support eth_typing.ChecksumAddress
-        func: Callable[[List[str]], None] = getattr(catalog_mgr, act)
+        func: Callable[[List[ChecksumAddress]], None] = getattr(catalog_mgr, act)
         func([catalog_address])
         config_update_catalog(ctx)
         catalog_list(ctx)
@@ -362,19 +448,19 @@ def _catalog_ctrl(
 @catalog_app.command('remove')
 def catalog_remove(ctx: typer.Context, catalog_address: str,
                    by_id: bool = typer.Option(False, help='select by catalog id')):
-    _catalog_ctrl('remove', ctx, catalog_address, by_id)
+    _catalog_ctrl('remove', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
 @catalog_app.command('activate')
 def catalog_activate(ctx: typer.Context, catalog_address: str,
                      by_id: bool = typer.Option(False, help='select by catalog id')):
-    _catalog_ctrl('activate', ctx, catalog_address, by_id)
+    _catalog_ctrl('activate', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
 @catalog_app.command('deactivate')
 def catalog_deactivate(ctx: typer.Context, catalog_address: str,
                        by_id: bool = typer.Option(False, help='select by catalog id')):
-    _catalog_ctrl('deactivate', ctx, catalog_address, by_id)
+    _catalog_ctrl('deactivate', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
 @app.command()
@@ -419,7 +505,7 @@ def account_info(ctx: typer.Context):
     typer.echo(f'  - Balance: {account.wallet.balance} Wei')
     typer.echo(f'--------------------')
 
-    catalog_mgr = ctx.meta['catalog_manager']
+    catalog_mgr = _load_catalog_manager(ctx)
     for caddr, cid in sorted(
             catalog_mgr.active_catalogs.items(), key=lambda x: x[1]):
         typer.echo(f'Catalog {cid}: {caddr}')

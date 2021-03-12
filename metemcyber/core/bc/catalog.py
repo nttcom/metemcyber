@@ -14,9 +14,11 @@
 #    limitations under the License.
 #
 
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 from eth_typing import ChecksumAddress
 from web3 import Web3
+
 from .cti_catalog import CTICatalog
 
 
@@ -129,9 +131,18 @@ class Catalog():
         self.private = cinfo.private
         self.tokens = cinfo.tokens
 
-    def get_tokeninfo(self, address: ChecksumAddress) -> Optional[TokenInfo]:
-        return self.tokens.get(address)
+    def get_tokeninfo(self, address: ChecksumAddress) -> TokenInfo:
+        if address not in self.tokens.keys():
+            raise Exception(f'No such token({address}) on catalog({self.address})')
+        return self.tokens[address]
 
-    def get_tokeninfo_by_id(self, token_id: int) -> Optional[TokenInfo]:
+    def get_tokeninfo_by_id(self, token_id: int) -> TokenInfo:
+        return self.get_tokeninfo(self.id2address(token_id))
+
+    def id2address(self, token_id: int) -> ChecksumAddress:
         cinfo = self._catalogs_by_address.get(self.address)
-        return cinfo.tokeninfo_by_id(token_id)
+        tmp = [tinfo.address for tinfo in cinfo.tokens.values() if tinfo.token_id == token_id]
+        if not tmp:
+            raise Exception(f'No such token id({token_id}) on catalog({self.address})')
+        assert len(tmp) == 1
+        return tmp[0]
