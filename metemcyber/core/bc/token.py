@@ -14,9 +14,11 @@
 #    limitations under the License.
 #
 
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
+
 from eth_typing import ChecksumAddress
 from web3 import Web3
+
 from .cti_token import CTIToken
 
 
@@ -62,9 +64,11 @@ class Token():
         assert self.address
         cti_token = CTIToken(self.web3).get(self.address)
         cti_token.send_token(dest, amount, data)
+        self.uncache()
 
     def burn(self, amount: int, data: str = '') -> None:
         assert self.web3
         assert self.address
         cti_token = CTIToken(self.web3).get(self.address)
         cti_token.burn_token(amount, data)
+        self.uncache()
