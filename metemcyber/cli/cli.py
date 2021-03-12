@@ -14,28 +14,32 @@
 #    limitations under the License.
 #
 
-import os
-import json
 import configparser
+import json
+import os
+import uuid
+from enum import Enum
 from pathlib import Path
+from subprocess import call
+from typing import Callable, List, Optional
 
-from typing import List, Callable
 import typer
+import yaml
+from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.catalog import Catalog
+from metemcyber.core.bc.catalog_manager import CatalogManager
+from metemcyber.core.bc.ether import Ether
+from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
+from metemcyber.core.bc.token import Token
+from metemcyber.core.logger import get_logger
 from web3 import Web3
 from web3.auto import w3
-
-from metemcyber.core.bc.ether import Ether
-from metemcyber.core.logger import get_logger
-from metemcyber.core.bc.account import Account
-from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
-from metemcyber.core.bc.catalog_manager import CatalogManager
-from metemcyber.core.bc.catalog import Catalog
-from metemcyber.core.bc.token import Token
 
 APP_NAME = "metemcyber"
 APP_DIR = typer.get_app_dir(APP_NAME)
 CONFIG_FILE_NAME = "metemctl.ini"
 CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
+WORKFLOW_FILE_NAME = "workflow.yml"
 
 app = typer.Typer()
 
@@ -160,9 +164,121 @@ def app_callback(ctx: typer.Context):
     ctx.meta['catalog_manager'] = catalog_mgr
 
 
+class IntelligenceCategory(str, Enum):
+    fraud = 'Fraud',
+    ir = 'IR',
+    ra = 'RA',
+    secops = 'SecOps',
+    seclead = 'SecLead',
+    vuln = 'Vuln'
+
+
+class IntelligenceContents(str, Enum):
+    iocs = 'IOC',
+    ttps = 'TTP',
+    workflow = 'Workflow'
+
+
 @app.command()
-def new():
-    typer.echo(f"new")
+def new(
+    event_id: uuid.UUID = typer.Option(
+        None,
+        help='Recommend to be the same as the UUID of the misp object'),
+    category: IntelligenceCategory = typer.Option(
+        IntelligenceCategory.ir,
+        prompt='Select Intelligence Category',
+        case_sensitive=False,
+        help='Fraud, Incident Response, Risk Analysis, Security Operations, \
+            Security Leadership, Vulnerability Management'),
+    contents: Optional[List[IntelligenceContents]] = typer.Option(
+        None,
+        case_sensitive=False,
+        help='Pick up all workflow products (Indicator of Compomise, etc.)',)
+):
+    logger = getLogger()
+    # TODO: Use Enum names
+    # See https://github.com/tiangolo/typer/pull/224/files
+    formal_category = {
+        'Fraud': 'Fraud',
+        'IR': 'Incident Response',
+        'RA': 'Risk Analysis',
+        'SecOps': 'Security Operations',
+        'SecLead': 'Security Leadership',
+        'Vuln': 'Vulnerability Management',
+    }
+    logger.info(f"Intelligence Category: {formal_category[category]}")
+
+    formal_contents = {
+        'IOC': 'IOCs',
+        'TTP': 'TTPs',
+        'Workflow': 'Workflow',
+    }
+
+    # convert uuid(event_id) to string
+    if event_id:
+        event_id = str(event_id)
+    else:
+        # create new uuid if not exist
+        event_id = typer.prompt(
+            'Input a new event_id(UUID)', str(uuid.uuid4()))
+
+    logger.info(f"EventID: {event_id}")
+
+    if len(contents) == 0:
+        # allow index selector
+        contents_list = [c for c in IntelligenceContents]
+        for i, content_type in enumerate(contents_list):
+            typer.echo(f'{i}: {content_type}')
+        items = typer.prompt('Choose contents to be include (e.g. 0,1)')
+        indices = [int(i) for i in items.split(',') if i.isdecimal()]
+        for i in indices:
+            if i <= len(contents_list):
+                contents.append(IntelligenceContents(contents_list[i]))
+
+    # deduplication
+    contents = set(contents)
+    display_contents = [formal_contents[x.value] for x in contents]
+    logger.info(f"Contents: {display_contents}")
+
+    typer.echo(f'{"":=<32}')
+    typer.echo(f'Event ID: {event_id}')
+    typer.echo(f'Category: {formal_category[category]}')
+    typer.echo(f'Contents: {display_contents}')
+    typer.echo(f'{"":=<32}')
+
+    answer = typer.confirm('Are you sure you want to create it?', abort=True)
+    # run "kedro new --config workflow.yml"
+    if answer:
+        logger.info(f"Create the workflow: {event_id}")
+        # find current directory
+        yml_filepath = Path(os.getcwd()) / WORKFLOW_FILE_NAME
+        if not os.path.isfile(yml_filepath):
+            # find app directory
+            yml_filepath = Path(APP_DIR) / WORKFLOW_FILE_NAME
+            if not os.path.isfile(yml_filepath):
+                # use template
+                yml_filepath = Path(__file__).with_name(WORKFLOW_FILE_NAME)
+        logger.info(f"Load the workflow config from: {yml_filepath}")
+
+        with open(yml_filepath) as fin:
+            config = yaml.safe_load(fin)
+
+        logger.info(f"Loaded the workflow config.")
+
+        config['project_name'] = event_id
+        config['repo_name'] = event_id
+        config['python_package'] = "metemcyber_" + event_id.replace('-', '_')
+        config['intelligece_category'] = formal_category[category]
+        config['intelligece_contents'] = display_contents
+
+        dist_yml_filepath = Path(os.getcwd()) / f'{event_id}-{WORKFLOW_FILE_NAME}'
+        logger.info(f"Write the workflow config to: {dist_yml_filepath}")
+        with open(dist_yml_filepath, 'w') as fout:
+            yaml.dump(config, fout)
+            logger.info(f"Write successful.")
+
+        logger.info(f"Run command: kedro new --config {dist_yml_filepath}")
+        call(['kedro', 'new', '--config', dist_yml_filepath])
 
 
 def config_update_catalog(ctx: typer.Context):
