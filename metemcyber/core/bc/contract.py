@@ -14,12 +14,14 @@
 #    limitations under the License.
 #
 
+import inspect
 import json
 import os
-import inspect
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 from eth_typing import ChecksumAddress
 from web3 import Web3
+
 from ..logger import get_logger
 
 LOGGER = get_logger(name='core.bc', app_dir='', file_prefix='core.bc')
@@ -135,8 +137,7 @@ class Contract():
 
         except (FileNotFoundError, KeyError) as err:
             raise Exception(
-                'Contract data load failed: {}'.format(cls.contract_id)) \
-                from err
+                'Contract data load failed: {}'.format(cls.contract_id)) from err
         cls.contract_interface = contract_interface
 
     @classmethod

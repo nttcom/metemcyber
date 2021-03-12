@@ -15,7 +15,9 @@
 #
 
 from typing import Dict
+
 from web3 import Web3
+
 from .contract import Contract
 
 

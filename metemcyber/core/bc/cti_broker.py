@@ -15,6 +15,7 @@
 #
 
 from typing import Dict
+
 from .contract import Contract
 
 
