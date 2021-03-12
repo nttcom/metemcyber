@@ -67,7 +67,7 @@ def create_config(filepath: Path):
     # Allow the path that contain '~'
     keyfile_path = str(Path(path_text).expanduser())
 
-    template = Path(__file__).with_name(f'{CONFIG_FILE_NAME}.template')
+    template = Path(__file__).with_name(f'{CONFIG_FILE_NAME}')
     config = read_config(template)
     if config.has_option('general', 'keyfile'):
         config.set('general', 'keyfile', keyfile_path)
