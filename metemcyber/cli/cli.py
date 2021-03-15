@@ -59,6 +59,7 @@ catalog_app = typer.Typer()
 app.add_typer(catalog_app, name="catalog")
 
 
+# pylint: disable=invalid-name
 def getLogger(name='cli'):
     return get_logger(name=name, app_dir=APP_DIR, file_prefix='cli')
 
@@ -178,18 +179,67 @@ def app_callback(ctx: typer.Context):
 
 
 class IntelligenceCategory(str, Enum):
-    fraud = 'Fraud',
-    ir = 'IR',
-    ra = 'RA',
-    secops = 'SecOps',
-    seclead = 'SecLead',
+    fraud = 'Fraud'
+    ir = 'IR'
+    ra = 'RA'
+    secops = 'SecOps'
+    seclead = 'SecLead'
     vuln = 'Vuln'
 
 
 class IntelligenceContents(str, Enum):
-    iocs = 'IOC',
-    ttps = 'TTP',
+    iocs = 'IOC'
+    ttps = 'TTP'
     workflow = 'Workflow'
+
+
+def create_workflow_config(
+        config: yaml.YAMLObject,
+        dst: Path,
+        event_id: str,
+        category: str,
+        contents: List[str]):
+    logger = getLogger()
+
+    config['project_name'] = event_id
+    config['repo_name'] = event_id
+    config['python_package'] = "metemcyber_" + event_id.replace('-', '_')
+    config['intelligece_category'] = category
+    config['intelligece_contents'] = contents
+
+    logger.info(f"Write the workflow config to: {dst}")
+    with open(dst, 'w') as fout:
+        yaml.dump(config, fout)
+        logger.info(f"Write successful.")
+
+
+def create_workflow(event_id, category, contents):
+    logger = getLogger()
+    logger.info(f"Create the workflow: {event_id}")
+    # find current directory
+    yml_filepath = Path(os.getcwd()) / WORKFLOW_FILE_NAME
+    if not os.path.isfile(yml_filepath):
+        # find app directory
+        yml_filepath = Path(APP_DIR) / WORKFLOW_FILE_NAME
+        if not os.path.isfile(yml_filepath):
+            # use template
+            yml_filepath = Path(__file__).with_name(WORKFLOW_FILE_NAME)
+    logger.info(f"Load the workflow config from: {yml_filepath}")
+
+    dist_yml_filepath = Path(os.getcwd()) / f'{event_id}-{WORKFLOW_FILE_NAME}'
+    with open(yml_filepath) as fin:
+        config = yaml.safe_load(fin)
+        logger.info(f"Loaded the workflow config.")
+        create_workflow_config(
+            config,
+            dist_yml_filepath,
+            event_id,
+            category,
+            contents)
+
+    if os.path.isfile(dist_yml_filepath):
+        logger.info(f"Run command: kedro new --config {dist_yml_filepath}")
+        call(['kedro', 'new', '--config', dist_yml_filepath])
 
 
 @app.command()
@@ -239,10 +289,10 @@ def new(
 
     if len(contents) == 0:
         # allow index selector
-        contents_list = [c for c in IntelligenceContents]
+        contents_list = list(IntelligenceContents)
         for i, content_type in enumerate(contents_list):
             typer.echo(f'{i}: {content_type}')
-        items = typer.prompt('Choose contents to be include (e.g. 0,1)')
+        items = typer.prompt('Choose contents to be include', "0,1")
         indices = [int(i) for i in items.split(',') if i.isdecimal()]
         for i in indices:
             if i <= len(contents_list):
@@ -262,36 +312,7 @@ def new(
     answer = typer.confirm('Are you sure you want to create it?', abort=True)
     # run "kedro new --config workflow.yml"
     if answer:
-        logger.info(f"Create the workflow: {event_id}")
-        # find current directory
-        yml_filepath = Path(os.getcwd()) / WORKFLOW_FILE_NAME
-        if not os.path.isfile(yml_filepath):
-            # find app directory
-            yml_filepath = Path(APP_DIR) / WORKFLOW_FILE_NAME
-            if not os.path.isfile(yml_filepath):
-                # use template
-                yml_filepath = Path(__file__).with_name(WORKFLOW_FILE_NAME)
-        logger.info(f"Load the workflow config from: {yml_filepath}")
-
-        with open(yml_filepath) as fin:
-            config = yaml.safe_load(fin)
-
-        logger.info(f"Loaded the workflow config.")
-
-        config['project_name'] = event_id
-        config['repo_name'] = event_id
-        config['python_package'] = "metemcyber_" + event_id.replace('-', '_')
-        config['intelligece_category'] = formal_category[category]
-        config['intelligece_contents'] = display_contents
-
-        dist_yml_filepath = Path(os.getcwd()) / f'{event_id}-{WORKFLOW_FILE_NAME}'
-        logger.info(f"Write the workflow config to: {dist_yml_filepath}")
-        with open(dist_yml_filepath, 'w') as fout:
-            yaml.dump(config, fout)
-            logger.info(f"Write successful.")
-
-        logger.info(f"Run command: kedro new --config {dist_yml_filepath}")
-        call(['kedro', 'new', '--config', dist_yml_filepath])
+        create_workflow(event_id, formal_category[category], display_contents)
 
 
 def config_update_catalog(ctx: typer.Context):
@@ -370,7 +391,7 @@ def ix_list(ctx: typer.Context):
 
 
 @ix_app.command('buy')
-def ix_buy(ctx: typer.Context, token_id: str, amount: int = 1):
+def ix_buy(ctx: typer.Context, token_id: str):
     logger = getLogger()
     try:
         account = ctx.meta['account']
@@ -395,8 +416,12 @@ def catalog_list(ctx: typer.Context):
 
 
 @catalog_app.command('add')
-def catalog_add(ctx: typer.Context, catalog_address: str,
-                activate: bool = typer.Option(True, help='activate added catalog')):
+def catalog_add(
+    ctx: typer.Context,
+    catalog_address: str,
+    activate: bool = typer.Option(
+        True,
+        help='activate added catalog')):
     logger = getLogger()
     try:
         catalog_mgr = _load_catalog_manager(ctx)
@@ -409,10 +434,14 @@ def catalog_add(ctx: typer.Context, catalog_address: str,
 
 
 @catalog_app.command('new')
-def catalog_new(ctx: typer.Context,
-                private: bool = typer.Option(
-                    False, help='create a private catalog'),
-                activate: bool = typer.Option(False, help='activate created catalog')):
+def catalog_new(
+    ctx: typer.Context,
+    private: bool = typer.Option(
+        False,
+        help='create a private catalog'),
+        activate: bool = typer.Option(
+            False,
+        help='activate created catalog')):
     logger = getLogger()
     try:
         account = ctx.meta['account']
@@ -476,9 +505,9 @@ def misp_open(ctx: typer.Context):
         logger.info(f"Open MISP: {misp_url}")
         typer.echo(misp_url)
         typer.launch(misp_url)
-    except KeyError as e:
-        typer.echo(e, err=True)
-        logger.error(e)
+    except KeyError as err:
+        typer.echo(err, err=True)
+        logger.error(err)
 
 
 @app.command()
@@ -537,69 +566,13 @@ def console():
 
 @app.command()
 def external_links():
-    services = [
-        {
-            'name': 'CyberChef',
-            'url': 'https://gchq.github.io/CyberChef/',
-            'description': 'The Swiss Army Knife for cyber operations.'
-        },
-        {
-            'name': 'VirusTotal',
-            'url': 'https://www.virustotal.com/',
-            'description': 'Analyze suspicious files and URLs to detect types of malware.'
-        },
-        {
-            'name': 'UnpacMe',
-            'url': 'https://www.unpac.me/feed',
-            'description': 'An automated malware unpacking service.'
-        },
-        {
-            'name': 'ANY.RUN',
-            'url': 'https://app.any.run/submissions/',
-            'description': 'Interactive online malware analysis service.'
-        },
-        {
-            'name': 'ThreatFox',
-            'url': 'https://threatfox.abuse.ch/browse/',
-            'description': 'A platform of sharing IOCs associated with malware.'
-        },
-        {
-            'name': 'Hatching Triage',
-            'url': 'https://tria.ge/reports/public',
-            'description': 'A malware analysis sandbox designed for cross-platform support.'
-        },
-        {
-            'name': 'URLhaus',
-            'url': 'https://urlhaus.abuse.ch/browse/',
-            'description': 'A project of sharing malicious URLs that are being used for malware distribution.'
-        },
-        {
-            'name': 'Open Threat Exchange',
-            'url': 'https://otx.alienvault.com/browse/',
-            'description': 'The world’s first and largest truly open threat intelligence community.'
-        },
-        {
-            'name': 'ThreatMiner',
-            'url': 'https://www.threatminer.org/',
-            'description': 'A threat intelligence portal that provides information on IOCs.'
-        },
-        {
-            'name': 'Grey Noise',
-            'url': 'https://viz.greynoise.io/cheat-sheet/',
-            'description': 'A cybersecurity platform that collects and analyzes Internet-wide scan and attack traffic.'
-        },
-        {
-            'name': 'Bitcoin Abuse Database',
-            'url': 'https://www.bitcoinabuse.com/reports',
-            'description': 'Tracking bitcoin addresses used by ransomware, blackmailers, fraudsters, etc.'
-        },
-    ]
-
-    for service in services:
-        # See
-        # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
-        hyperlink = f'\x1b]8;;{service["url"]}\x1b\\{service["name"]}\x1b]8;;\x1b\\'
-        typer.echo(f"- {hyperlink}: {service['description']}")
+    json_path = Path(__file__).with_name('external-links.json')
+    with open(json_path) as fin:
+        services = json.load(fin)
+        for service in services:
+            # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+            hyperlink = f'\x1b]8;;{service["url"]}\x1b\\{service["name"]}\x1b]8;;\x1b\\'
+            typer.echo(f"- {hyperlink}: {service['description']}")
 
 
 def issues():
