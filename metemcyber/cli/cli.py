@@ -21,7 +21,7 @@ import uuid
 from enum import Enum
 from pathlib import Path
 from subprocess import call
-from typing import Callable, List, Optional, Tuple, cast
+from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 
 import typer
 import yaml
@@ -194,7 +194,7 @@ class IntelligenceContents(str, Enum):
 
 
 def create_workflow_config(
-        config: yaml.YAMLObject,
+        config: Dict[str, Union[str, List[str]]],
         dst: Path,
         event_id: str,
         category: str,
@@ -244,7 +244,7 @@ def create_workflow(event_id, category, contents):
 
 @app.command()
 def new(
-    event_id: uuid.UUID = typer.Option(
+    event_uuid: uuid.UUID = typer.Option(
         None,
         help='Recommend to be the same as the UUID of the misp object'),
     category: IntelligenceCategory = typer.Option(
@@ -278,8 +278,8 @@ def new(
     }
 
     # convert uuid(event_id) to string
-    if event_id:
-        event_id = str(event_id)
+    if event_uuid:
+        event_id = str(event_uuid)
     else:
         # create new uuid if not exist
         event_id = typer.prompt(
@@ -287,7 +287,7 @@ def new(
 
     logger.info(f"EventID: {event_id}")
 
-    if len(contents) == 0:
+    if contents:
         # allow index selector
         contents_list = list(IntelligenceContents)
         for i, content_type in enumerate(contents_list):
@@ -297,10 +297,12 @@ def new(
         for i in indices:
             if i <= len(contents_list):
                 contents.append(IntelligenceContents(contents_list[i]))
+        # deduplication
+        contents_set = set(contents)
+        display_contents = [formal_contents[x.value] for x in contents_set]
+    else:
+        display_contents = []
 
-    # deduplication
-    contents = set(contents)
-    display_contents = [formal_contents[x.value] for x in contents]
     logger.info(f"Contents: {display_contents}")
 
     typer.echo(f'{"":=<32}')
