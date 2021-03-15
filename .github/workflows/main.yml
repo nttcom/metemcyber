@@ -67,5 +67,5 @@ jobs:
         run: |
           . venv/bin/activate
           pylint ${{ env.PYTHON_ROOT_DIRS }} --max-line-length=100 --disable=${{ env.PYLINT_DISABLE }}
-          mypy ${{ env.PYTHON_ROOT_DIRS }}
+          mypy ${{ env.PYTHON_ROOT_DIRS }} --ignore-missing-imports --show-error-codes
         
