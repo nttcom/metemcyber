@@ -58,11 +58,16 @@ class Contract():
     def __init__(self, web3: Web3):
         assert web3
         self.web3 = web3  # should be initialized with EOA & private key
-        self.contract = None  # initialized by get()
+        self._contract = None  # initialized by get()
+
+    @property
+    def contract(self):
+        assert self._contract
+        return self._contract
 
     @property
     def address(self):
-        return self.contract.address if self.contract else None
+        return self._contract.address if self._contract else None
 
     def new(self, *args, **kwargs):
         assert self.web3
@@ -77,7 +82,7 @@ class Contract():
             raise Exception('Invalid address: {}'.format(address))
         # pylint: disable=protected-access
         self.__class__.__load()
-        self.contract = self.web3.eth.contract(
+        self._contract = self.web3.eth.contract(
             address=address, abi=self.__class__.contract_interface['abi'])
         return self
 
