@@ -17,6 +17,7 @@ on:
 env:
   CACHE_VERSION: 1
   DEFAULT_PYTHON: 3.8
+  PYLINT_DISABLE: CC0114,C0115,C0116,R0903,R0902,R0913,W1309,W1203,W1309,R0801,W0703,W0511,C0111,E0401
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -40,7 +41,8 @@ jobs:
         id: generate-python-key
         run: >-
           echo "::set-output name=key::base-venv-${{ env.CACHE_VERSION }}-${{
-            hashFiles(requirements/test.txt')}}"
+            hashFiles(requirements/test.txt')
+          }}"
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@v2
@@ -48,7 +50,8 @@ jobs:
           path: venv
           key: >-
             ${{ runner.os }}-${{ steps.python.outputs.python-version }}-${{
-            steps.generate-python-key.outputs.key }}
+              steps.generate-python-key.outputs.key
+            }}
           restore-keys: |
             ${{ runner.os }}-${{ steps.python.outputs.python-version }}-base-venv-${{ env.CACHE_VERSION }}-
       - name: Create Python virtual environment
@@ -61,5 +64,5 @@ jobs:
       - name: Run formatting check
         run: |
           . venv/bin/activate
-          pylint metemcyber --max-line-length=100 --disable=CC0114,C0115,C0116,R0903,R0902,R0913,W1309,W1203,W1309,R0801 --disable=W0703,W0511,C0111,E0401
+          pylint metemcyber --max-line-length=100 --disable=${{ env.PYLINT_DISABLE }}
         
