@@ -51,13 +51,13 @@ jobs:
             steps.generate-python-key.outputs.key }}
           restore-keys: |
             ${{ runner.os }}-${{ steps.python.outputs.python-version }}-base-venv-${{ env.CACHE_VERSION }}-
-      # Runs a linter for python
       - name: Create Python virtual environment
         run: |
           python3 -m venv venv
           . venv/bin/activate
           python -m pip install -U pip setuptools wheel
           pip install -U -r requirements/test.txt
+      # Runs a linter for python
       - name: Run formatting check
         run: |
           . venv/bin/activate
