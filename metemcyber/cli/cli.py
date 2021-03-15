@@ -35,6 +35,7 @@ from metemcyber.core.bc.catalog import Catalog
 from metemcyber.core.bc.catalog_manager import CatalogManager
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
+from metemcyber.core.bc.operator import Operator
 from metemcyber.core.bc.token import Token
 from metemcyber.core.logger import get_logger
 
@@ -54,6 +55,12 @@ app.add_typer(account_app, name="account")
 
 ix_app = typer.Typer()
 app.add_typer(ix_app, name="ix")
+ix_token_app = typer.Typer()
+ix_app.add_typer(ix_token_app, name='token')
+ix_broker_app = typer.Typer()
+ix_app.add_typer(ix_broker_app, name='broker')
+ix_operator_app = typer.Typer()
+ix_app.add_typer(ix_operator_app, name='operator')
 
 catalog_app = typer.Typer()
 app.add_typer(catalog_app, name="catalog")
@@ -159,6 +166,34 @@ def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
             catalog_mgr.add(reserves.strip().split(','), activate=False)
     ctx.meta['catalog_manager'] = catalog_mgr
     return catalog_mgr
+
+
+def _load_broker(ctx: typer.Context) -> Broker:
+    if 'broker' in ctx.meta.keys():
+        return ctx.meta['broker']
+    account = ctx.meta['account']
+    config = ctx.meta['config']
+    try:
+        broker_address = cast(ChecksumAddress, config['broker']['address'])
+    except KeyError as err:
+        raise Exception('Broker is not yet configured') from err
+    broker = Broker(account.web3).get(broker_address)
+    ctx.meta['broker'] = broker
+    return broker
+
+
+def _load_operator(ctx: typer.Context) -> Operator:
+    if 'operator' in ctx.meta.keys():
+        return ctx.meta['operator']
+    account = ctx.meta['account']
+    config = ctx.meta['config']
+    try:
+        operator_address = cast(ChecksumAddress, config['operator']['address'])
+    except KeyError as err:
+        raise Exception('Operator is not yet configured') from err
+    operator = Operator(account.web3).get(operator_address)
+    ctx.meta['operator'] = operator
+    return operator
 
 
 @app.callback()
@@ -319,8 +354,7 @@ def new(
 
 def config_update_catalog(ctx: typer.Context):
     catalog_mgr = _load_catalog_manager(ctx)
-    config = ctx.meta.get('config')
-    assert config
+    config = ctx.meta['config']
     if catalog_mgr is None:
         config.remove_section('catalog')
     else:
@@ -333,18 +367,28 @@ def config_update_catalog(ctx: typer.Context):
     write_config(config, CONFIG_FILE_PATH)
 
 
-def _load_broker(ctx: typer.Context) -> Broker:
-    if 'broker' in ctx.meta.keys():
-        return ctx.meta['broker']
-    account = ctx.meta['account']
+def config_update_broker(ctx: typer.Context):
     config = ctx.meta['config']
     try:
-        broker_address = cast(ChecksumAddress, config['broker']['address'])
-    except KeyError as err:
-        raise Exception('Broker is not yet configured') from err
-    broker = Broker(account.web3).get(broker_address)
-    ctx.meta['broker'] = broker
-    return broker
+        broker = _load_broker(ctx)
+        if not config.has_section('broker'):
+            config.add_section('broker')
+        config.set('broker', 'address', broker.address)
+    except Exception:
+        config.remove_section('broker')
+    write_config(config, CONFIG_FILE_PATH)
+
+
+def config_update_operator(ctx: typer.Context):
+    config = ctx.meta['config']
+    try:
+        operator = _load_operator(ctx)
+        if not config.has_section('operator'):
+            config.add_section('operator')
+        config.set('operator', 'address', operator.address)
+    except Exception:
+        config.remove_section('operator')
+    write_config(config, CONFIG_FILE_PATH)
 
 
 def _ix_list_tokens(ctx: typer.Context):
@@ -402,6 +446,79 @@ def ix_buy(ctx: typer.Context, token_id: str):
         price = Catalog(account.web3).get(catalog).get_tokeninfo(token).price
         broker.buy(catalog, token, price, allow_cheaper=False)
         typer.echo(f'bought token {token_id} for {price} pts.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_token_app.command('create')
+def ix_token_create(ctx: typer.Context, initial_supply: int):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        if initial_supply <= 0:
+            raise Exception(f'Invalid initial-supply: {initial_supply}')
+        token = Token(account.web3).new(initial_supply, [])
+        typer.echo(f'created a new token. address is {token.address}.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_broker_app.command('show')
+def ix_broker_show(ctx: typer.Context):
+    logger = getLogger()
+    try:
+        broker = _load_broker(ctx)
+        if broker is None:
+            typer.echo(f'Broker is not yet configured.')
+        else:
+            typer.echo(f'Broker address is {broker.address}.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_broker_app.command('new')
+def ix_broker_new(ctx: typer.Context,
+                  switch: bool = typer.Option(True, help='switch to deployed broker')):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        broker = Broker(account.web3).new()
+        typer.echo(f'deployed a new broker. address is {broker.address}.')
+        if switch:
+            ctx.meta['broker'] = broker
+            config_update_broker(ctx)
+            typer.echo('configured to use the broker above.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_broker_app.command('set')
+def ix_broker_set(ctx: typer.Context, broker_address: str):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        broker = Broker(account.web3).get(cast(ChecksumAddress, broker_address))
+        ctx.meta['broker'] = broker
+        config_update_broker(ctx)
+        typer.echo(f'configured to use broker({broker_address}).')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_operator_app.command('show')
+def ix_operator_show(ctx: typer.Context):
+    logger = getLogger()
+    try:
+        operator = _load_operator(ctx)
+        if operator is None:
+            typer.echo(f'Operator is not yet configured.')
+        else:
+            typer.echo(f'Operator address is {operator.address}.')
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
@@ -492,6 +609,46 @@ def catalog_activate(ctx: typer.Context, catalog_address: str,
 def catalog_deactivate(ctx: typer.Context, catalog_address: str,
                        by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('deactivate', ctx, cast(ChecksumAddress, catalog_address), by_id)
+
+
+@catalog_app.command('register')
+def catalog_register(ctx: typer.Context, catalog_address: str, token_address: str,
+                     uuid_: uuid.UUID, title: str, price: int,
+                     by_id: bool = typer.Option(False, help='select catalog by id')):
+    logger = getLogger()
+    try:
+        if len(title) == 0:
+            raise Exception(f'Invalid(empty) title')
+        if price < 0:
+            raise Exception(f'Invalid price: {price}')
+        account = ctx.meta['account']
+        catalog_mgr = _load_catalog_manager(ctx)
+        if by_id:
+            catalog_address = catalog_mgr.id2address(int(catalog_address))
+        catalog = Catalog(account.web3).get(cast(ChecksumAddress, catalog_address))
+        catalog.register_cti(cast(ChecksumAddress, token_address), uuid_, title, price)
+        typer.echo(f'registered token({token_address}) onto catalog({catalog_address}).')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@catalog_app.command('publish')
+def catalog_publish(ctx: typer.Context, catalog_address: str, token_address: str,
+                    by_id: bool = typer.Option(False, help='select catalog by id')):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        producer = account.eoa
+        catalog_mgr = _load_catalog_manager(ctx)
+        if by_id:
+            catalog_address = catalog_mgr.id2address(int(catalog_address))
+        catalog = Catalog(account.web3).get(cast(ChecksumAddress, catalog_address))
+        catalog.publish_cti(producer, cast(ChecksumAddress, token_address))
+        typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
 
 
 @app.command()

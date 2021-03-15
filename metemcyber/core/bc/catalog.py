@@ -15,6 +15,7 @@
 #
 
 from typing import Dict, Optional
+from uuid import UUID
 
 from eth_typing import ChecksumAddress
 from web3 import Web3
@@ -146,3 +147,26 @@ class Catalog():
             raise Exception(f'No such token id({token_id}) on catalog({self.address})')
         assert len(tmp) == 1
         return tmp[0]
+
+    def register_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int) -> None:
+        if price < 0:
+            raise Exception(f'Invalid price: {price}')
+        cti_catalog = CTICatalog(self.web3).get(self.address)
+        cti_catalog.register_cti(token, uuid, title, price, '')
+
+    def publish_cti(self, producer: ChecksumAddress, token: ChecksumAddress) -> None:
+        assert self.address
+        cti_catalog = CTICatalog(self.web3).get(self.address)
+        cti_catalog.publish_cti(producer, token)
+
+    def modify_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int) -> None:
+        if price < 0:
+            raise Exception(f'Invalid price: {price}')
+        assert self.address
+        cti_catalog = CTICatalog(self.web3).get(self.address)
+        cti_catalog.modify_cti(token, uuid, title, price, '')
+
+    def unregister_cti(self, token: ChecksumAddress) -> None:
+        assert self.address
+        cti_catalog = CTICatalog(self.web3).get(self.address)
+        cti_catalog.unregister_cti(token)
