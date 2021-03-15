@@ -18,6 +18,7 @@ env:
   CACHE_VERSION: 1
   DEFAULT_PYTHON: 3.8
   PYLINT_DISABLE: CC0114,C0115,C0116,R0903,R0902,R0913,W1309,W1203,W1309,R0801,W0703,W0511,C0111,E0401
+  PYTHON_ROOT_DIRS: metemcyber
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -65,5 +66,6 @@ jobs:
       - name: Run formatting check
         run: |
           . venv/bin/activate
-          pylint metemcyber --max-line-length=100 --disable=${{ env.PYLINT_DISABLE }}
+          pylint ${{ env.PYTHON_ROOT_DIRS }} --max-line-length=100 --disable=${{ env.PYLINT_DISABLE }}
+          mypy ${{ env.PYTHON_ROOT_DIRS }}
         
