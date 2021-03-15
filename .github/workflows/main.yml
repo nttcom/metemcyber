@@ -41,8 +41,7 @@ jobs:
         id: generate-python-key
         run: >-
           echo "::set-output name=key::base-venv-${{ env.CACHE_VERSION }}-${{
-            hashFiles(requirements/test.txt')
-          }}"
+            hashFiles(requirements/test.txt') }}"
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@v2
@@ -50,8 +49,7 @@ jobs:
           path: venv
           key: >-
             ${{ runner.os }}-${{ steps.python.outputs.python-version }}-${{
-              steps.generate-python-key.outputs.key
-            }}
+              steps.generate-python-key.outputs.key }}
           restore-keys: |
             ${{ runner.os }}-${{ steps.python.outputs.python-version }}-base-venv-${{ env.CACHE_VERSION }}-
       - name: Create Python virtual environment
