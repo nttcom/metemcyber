@@ -297,10 +297,12 @@ def new(
         for i in indices:
             if i <= len(contents_list):
                 contents.append(IntelligenceContents(contents_list[i]))
+        # deduplication
+        contents_set = set(contents)
+        display_contents = [formal_contents[x.value] for x in contents_set]
+    else:
+        display_contents = []
 
-    # deduplication
-    contents_set = set(contents)
-    display_contents = [formal_contents[x.value] for x in contents_set]
     logger.info(f"Contents: {display_contents}")
 
     typer.echo(f'{"":=<32}')
