@@ -18,6 +18,7 @@ import logging
 import logging.handlers
 from pathlib import Path
 from typing import List
+
 from typer import get_app_dir
 
 
@@ -42,12 +43,11 @@ class MetemcyberLogger():
         """
 
         # The default location
-        APP_NAME = "metemcyber"
-        APP_DIR = get_app_dir(APP_NAME)
+        app_default_dir = get_app_dir("metemcyber")
         # Max bytes of log file
-        MAX_BYTES: int = 32768000
+        max_bytes: int = 32768000
         # The number of backup of log file
-        BACKUP_NUM: int = 3
+        backup_num: int = 3
 
         # If already registered, return logger
         if name in MetemcyberLogger.created_loggers:
@@ -55,7 +55,7 @@ class MetemcyberLogger():
         else:
             # Use a directory of this app
             if not app_dir:
-                app_dir = APP_DIR
+                app_dir = app_default_dir
             log_path: Path = Path(app_dir) / "logs"
             log_path.mkdir(parents=True, exist_ok=True)
 
@@ -79,8 +79,8 @@ class MetemcyberLogger():
             # Setup error log file handler
             rth_error = logging.handlers.RotatingFileHandler(
                 filename=log_path / error_filename,
-                maxBytes=MAX_BYTES,
-                backupCount=BACKUP_NUM,
+                maxBytes=max_bytes,
+                backupCount=backup_num,
             )
             rth_error.setLevel(logging.WARNING)
             rth_error.setFormatter(user_formatter)
@@ -89,8 +89,8 @@ class MetemcyberLogger():
             # Setup debug log file handler
             rth_debug = logging.handlers.RotatingFileHandler(
                 filename=log_path / debug_filename,
-                maxBytes=MAX_BYTES,
-                backupCount=BACKUP_NUM,
+                maxBytes=max_bytes,
+                backupCount=backup_num,
             )
             rth_debug.setLevel(logging.DEBUG)
             rth_debug.setFormatter(formatter)
@@ -100,6 +100,6 @@ class MetemcyberLogger():
 
 
 class UserFormatter(logging.Formatter):
-    def formatException(self, exc_info):
+    def formatException(self, _):
         # TODO: StackTrace発生時、ユーザーに通知したいコメントを書く
         return None
