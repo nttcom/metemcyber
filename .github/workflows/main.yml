@@ -41,7 +41,7 @@ jobs:
         id: generate-python-key
         run: >-
           echo "::set-output name=key::base-venv-${{ env.CACHE_VERSION }}-${{
-            hashFiles(requirements/test.txt')
+            hashFiles('requirements/test.txt')
           }}"
       - name: Restore Python virtual environment
         id: cache-venv
