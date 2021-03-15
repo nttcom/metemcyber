@@ -55,6 +55,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ steps.python.outputs.python-version }}-base-venv-${{ env.CACHE_VERSION }}-
       - name: Create Python virtual environment
+        if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           python3 -m venv venv
           . venv/bin/activate
