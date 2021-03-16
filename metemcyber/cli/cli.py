@@ -51,7 +51,7 @@ misp_app = typer.Typer()
 app.add_typer(misp_app, name="misp")
 
 account_app = typer.Typer()
-app.add_typer(account_app, name="account", help="Show the account information.")
+app.add_typer(account_app, name="account", help="Manage your accounts.")
 
 ix_app = typer.Typer()
 app.add_typer(ix_app, name="ix", help="Get the CTI tokens for CTI collection.")
@@ -809,7 +809,7 @@ def publish():
     typer.echo(f"publish")
 
 
-@account_app.command("info")
+@account_app.command("info", help="Show the current account information.")
 def account_info(ctx: typer.Context):
     account = ctx.meta['account']
     typer.echo(f'--------------------')
