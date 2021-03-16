@@ -441,10 +441,10 @@ def _ix_parse_token_index(ctx: typer.Context, token_index: str
 
 @ix_app.command('list')
 def ix_list(ctx: typer.Context,
-            mine: bool = typer.Option(True, help='show tokens published by me'),
+            mine: bool = typer.Option(True, help='show tokens published by you'),
             mine_only: bool = typer.Option(False),
             soldout: bool = typer.Option(False, help='show soldout tokens'),
-            own: bool = typer.Option(True, help='show tokens I own'),
+            own: bool = typer.Option(True, help='show tokens you own'),
             own_only: bool = typer.Option(False)):
     logger = getLogger()
     try:
