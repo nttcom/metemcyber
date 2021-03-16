@@ -53,7 +53,7 @@ account_app = typer.Typer()
 app.add_typer(account_app, name="account", help="Show the account information.")
 
 ix_app = typer.Typer()
-app.add_typer(ix_app, name="ix")
+app.add_typer(ix_app, name="ix", help="Get the CTI tokens for CTI collection.")
 
 catalog_app = typer.Typer()
 app.add_typer(catalog_app, name="catalog")
