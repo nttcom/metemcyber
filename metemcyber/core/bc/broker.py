@@ -102,10 +102,12 @@ class Broker():
         cti_token = CTIToken(self.web3).get(token)
         cti_broker = CTIBroker(self.web3).get(self.address)
         cti_token.authorize_operator(self.address)
-        cti_broker.consign_token(catalog, token, amount)
-        cti_token.revoke_operator(self.address)
-        self.uncache(catalog, token)
-        Token(self.web3).get(token).uncache()  # FIXME: should I?
+        try:
+            cti_broker.consign_token(catalog, token, amount)
+            self.uncache(catalog, token)
+            Token(self.web3).get(token).uncache()  # FIXME: should I?
+        finally:
+            cti_token.revoke_operator(self.address)
 
     def takeback(self, catalog: ChecksumAddress, token: ChecksumAddress,
                  amount: int) -> None:

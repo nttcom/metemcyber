@@ -43,15 +43,6 @@ class CatalogInfo():
         self.private = None
         self.tokens: Dict[ChecksumAddress, TokenInfo] = {}
 
-    def tokeninfo_by_address(
-            self, address: ChecksumAddress) -> Optional[TokenInfo]:
-        return self.tokens.get(address)
-
-    def tokeninfo_by_id(self, token_id: int) -> Optional[TokenInfo]:
-        tmp = [info for info in self.tokens.values()
-               if info.token_id == token_id]
-        return tmp[0] if tmp else None
-
 
 class Catalog():
     __addressed_catalogs: Dict[ChecksumAddress, CatalogInfo] = {}

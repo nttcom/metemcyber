@@ -24,8 +24,8 @@ from .catalog import Catalog
 
 class CatalogManager():
     def __init__(self, web3: Web3) -> None:
-        #                   catalog_address  catalog_id
         self.web3: Web3 = web3
+        #                   catalog_address  catalog_id
         self.catalogs: Dict[ChecksumAddress, int] = {}
         self.actives: Set[ChecksumAddress] = set()
 

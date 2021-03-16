@@ -424,14 +424,14 @@ def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only)
                 ('' if balance == 0 else f' (you have {balance})'))
 
 
-def _ix_parse_tokenid(ctx: typer.Context, token_id: str
-                      ) -> Tuple[ChecksumAddress, ChecksumAddress]:
+def _ix_parse_token_index(ctx: typer.Context, token_index: str
+                          ) -> Tuple[ChecksumAddress, ChecksumAddress]:
     try:
-        catalog_part, token_part = token_id.split('-', 1)
+        catalog_part, token_part = token_index.split('-', 1)
         catalog_idx = int(catalog_part)
         token_idx = int(token_part)
     except Exception as err:
-        raise Exception(f'Invalid ID: {token_id}') from err
+        raise Exception(f'Invalid index: {token_index}') from err
     account = ctx.meta['account']
     catalog_mgr = _load_catalog_manager(ctx)
     catalog_address = catalog_mgr.id2address(catalog_idx)
@@ -458,15 +458,37 @@ def ix_list(ctx: typer.Context,
 
 
 @ix_app.command('buy')
-def ix_buy(ctx: typer.Context, token_id: str):
+def ix_buy(ctx: typer.Context, token_index: str):
     logger = getLogger()
     try:
         account = ctx.meta['account']
         broker = _load_broker(ctx)
-        catalog, token = _ix_parse_tokenid(ctx, token_id)
+        catalog, token = _ix_parse_token_index(ctx, token_index)
         price = Catalog(account.web3).get(catalog).get_tokeninfo(token).price
         broker.buy(catalog, token, price, allow_cheaper=False)
-        typer.echo(f'bought token {token_id} for {price} pts.')
+        typer.echo(f'bought token {token_index} for {price} pts.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_app.command('consign')
+def ix_consign(ctx: typer.Context, token_index: str, amount: int):
+    logger = getLogger()
+    try:
+        if amount <= 0:
+            raise Exception(f'Invalid amount: {amount}')
+        account = ctx.meta['account']
+        catalog_address, token_address = _ix_parse_token_index(ctx, token_index)
+        tinfo = Catalog(account.web3).get(catalog_address).get_tokeninfo(token_address)
+        if tinfo.owner != account.eoa:
+            raise Exception(f'Not a token published by you')
+        balance = Token(account.web3).get(token_address).balance_of(account.eoa)
+        if balance < amount:
+            raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
+        broker = _load_broker(ctx)
+        broker.consign(catalog_address, token_address, amount)
+        typer.echo(f'consigned {amount} of token({token_address}) to broker({broker.address}).')
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
