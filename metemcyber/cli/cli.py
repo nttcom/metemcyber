@@ -50,7 +50,7 @@ misp_app = typer.Typer()
 app.add_typer(misp_app, name="misp")
 
 account_app = typer.Typer()
-app.add_typer(account_app, name="account")
+app.add_typer(account_app, name="account", help="Show the account information.")
 
 ix_app = typer.Typer()
 app.add_typer(ix_app, name="ix")
