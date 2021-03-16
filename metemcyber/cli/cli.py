@@ -391,24 +391,37 @@ def config_update_operator(ctx: typer.Context):
     write_config(config, CONFIG_FILE_PATH)
 
 
-def _ix_list_tokens(ctx: typer.Context):
+def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only):
     account = ctx.meta['account']
-    broker = _load_broker(ctx)
-    catalog_mgr = _load_catalog_manager(ctx)
     for caddr, cid in sorted(
-            catalog_mgr.active_catalogs.items(), key=lambda x: x[1], reverse=True):
+            _load_catalog_manager(ctx).active_catalogs.items(), key=lambda x: x[1], reverse=True):
         typer.echo(f'Catalog {cid}: {caddr}')
-        catalog = Catalog(account.web3).get(caddr)
-        if not catalog.tokens:
-            continue
-        token_infos = sorted(catalog.tokens.values(), key=lambda x: x.token_id, reverse=True)
-        amounts = broker.get_amounts(caddr, [token.address for token in token_infos])
+        token_infos = sorted(
+            Catalog(account.web3).get(caddr).tokens.values(),
+            key=lambda x: x.token_id,
+            reverse=True)
+        amounts = _load_broker(ctx).get_amounts(caddr, [token.address for token in token_infos])
         for idx, tinfo in enumerate(token_infos):
-            if amounts[idx] > 0:
-                typer.echo(f'  {cid}-{tinfo.token_id}: {tinfo.title}')
-                typer.echo(f'    ├ UUID : {tinfo.uuid}')
-                typer.echo(f'    ├ Addr : {tinfo.address}')
-                typer.echo(f'    └ Price: {tinfo.price} pts  /  {amounts[idx]} tokens left')
+            if account.eoa == tinfo.owner:
+                if not mine:
+                    continue
+            elif mine_only:
+                continue
+            if not soldout and amounts[idx] == 0:
+                continue
+            balance = Token(account.web3).get(tinfo.address).balance_of(account.eoa)
+            if balance == 0:
+                if own_only:
+                    continue
+            elif not own:
+                continue
+
+            typer.echo(
+                f'  {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
+                f'     ├ UUID : {tinfo.uuid}' + '\n'
+                f'     ├ Addr : {tinfo.address}' + '\n'
+                f'     └ Price: {tinfo.price} pts / {amounts[idx]} tokens left' +
+                ('' if balance == 0 else f' (you have {balance})'))
 
 
 def _ix_parse_tokenid(ctx: typer.Context, token_id: str
@@ -427,10 +440,18 @@ def _ix_parse_tokenid(ctx: typer.Context, token_id: str
 
 
 @ix_app.command('list')
-def ix_list(ctx: typer.Context):
+def ix_list(ctx: typer.Context,
+            mine: bool = typer.Option(True, help='show tokens published by me'),
+            mine_only: bool = typer.Option(False),
+            soldout: bool = typer.Option(False, help='show soldout tokens'),
+            own: bool = typer.Option(True, help='show tokens I own'),
+            own_only: bool = typer.Option(False)):
     logger = getLogger()
     try:
-        _ix_list_tokens(ctx)
+        if (mine_only and not mine) or (own_only and not own):
+            typer.echo('contradictory options')
+            return
+        _ix_list_tokens(ctx, mine, mine_only, soldout, own, own_only)
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
