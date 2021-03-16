@@ -14,7 +14,10 @@
 #    limitations under the License.
 #
 
-from typing import Dict
+from typing import Dict, List, Tuple, cast
+from uuid import UUID
+
+from eth_typing import ChecksumAddress
 
 from .contract import Contract
 
@@ -27,7 +30,8 @@ class CTICatalog(Contract):
         func = self.contract.functions.getOwner()
         return func.call()
 
-    def publish_cti(self, producer_address, token_address):
+    def publish_cti(self, producer_address: ChecksumAddress,
+                    token_address: ChecksumAddress) -> None:
         self.log_trace()
         func = self.contract.functions.publishCti(
             producer_address, token_address)
@@ -38,10 +42,11 @@ class CTICatalog(Contract):
             raise ValueError('Transaction failed: publishCti')
         self.log_success()
 
-    def register_cti(self, token_address, uuid, title, price, operator):
+    def register_cti(self, token_address: ChecksumAddress, uuid: UUID, title: str, price: int,
+                     operator: str) -> None:
         self.log_trace()
         func = self.contract.functions.registerCti(
-            token_address, uuid, title, price, operator)
+            token_address, str(uuid), title, price, operator)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('registerCti', tx_receipt)
@@ -49,10 +54,11 @@ class CTICatalog(Contract):
             raise ValueError('Transaction failed: registerCti')
         self.log_success()
 
-    def modify_cti(self, token_address, uuid, title, price, operator):
+    def modify_cti(self, token_address: ChecksumAddress, uuid: UUID, title: str, price: int,
+                   operator: str) -> None:
         self.log_trace()
         func = self.contract.functions.modifyCti(
-            token_address, uuid, title, price, operator)
+            token_address, str(uuid), title, price, operator)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('modifyCti', tx_receipt)
@@ -60,7 +66,7 @@ class CTICatalog(Contract):
             raise ValueError('Transaction failed: modifyCti')
         self.log_success()
 
-    def unregister_cti(self, token_address):
+    def unregister_cti(self, token_address: ChecksumAddress):
         self.log_trace()
         func = self.contract.functions.unregisterCti(token_address)
         tx_hash = func.transact()
@@ -76,13 +82,14 @@ class CTICatalog(Contract):
         tokens = func.call()
         return [t for t in tokens if t != '']
 
-    def get_cti_info(self, token_address):
+    def get_cti_info(self, token_address: ChecksumAddress) -> Tuple[
+            int, ChecksumAddress, UUID, str, int, str, dict]:
         self.log_trace()
         func = self.contract.functions.getCtiInfo(token_address)
         token_id, owner, uuid, title, price, operator, likecount = func.call()
-        return token_id, owner, uuid, title, price, operator, likecount
+        return token_id, cast(ChecksumAddress, owner), UUID(uuid), title, price, operator, likecount
 
-    def like_cti(self, token_address):
+    def like_cti(self, token_address: ChecksumAddress) -> None:
         self.log_trace()
         func = self.contract.functions.likeCti(token_address)
         tx_hash = func.transact()
@@ -92,7 +99,7 @@ class CTICatalog(Contract):
             raise ValueError('Transaction failed: likeCti')
         self.log_success()
 
-    def get_like_event(self, search_blocks=1000):
+    def get_like_event(self, search_blocks: int = 1000) -> list:
         self.log_trace()
         # 最大search_blocks数だけ、CtiLiked eventを取得して返す
         from_block = max(
@@ -103,12 +110,12 @@ class CTICatalog(Contract):
         event_logs = event_filter.get_all_entries()
         return event_logs
 
-    def is_private(self):
+    def is_private(self) -> None:
         self.log_trace()
         func = self.contract.functions.isPrivate()
         return func.call()
 
-    def set_private(self):
+    def set_private(self) -> None:
         self.log_trace()
         func = self.contract.functions.setPrivate()
         tx_hash = func.transact()
@@ -118,7 +125,7 @@ class CTICatalog(Contract):
             raise ValueError('Transaction failed: setPrivate')
         self.log_success()
 
-    def set_public(self):
+    def set_public(self) -> None:
         self.log_trace()
         func = self.contract.functions.setPublic()
         tx_hash = func.transact()
@@ -128,7 +135,7 @@ class CTICatalog(Contract):
             raise ValueError('Transaction failed: setPublic')
         self.log_success()
 
-    def authorize_user(self, eoa_address):
+    def authorize_user(self, eoa_address: ChecksumAddress) -> None:
         self.log_trace()
         func = self.contract.functions.authorizeUser(eoa_address)
         tx_hash = func.transact()
@@ -138,7 +145,7 @@ class CTICatalog(Contract):
             raise ValueError('Transaction failed: authorizeUser')
         self.log_success()
 
-    def revoke_user(self, eoa_address):
+    def revoke_user(self, eoa_address: ChecksumAddress) -> None:
         self.log_trace()
         func = self.contract.functions.revokeUser(eoa_address)
         tx_hash = func.transact()
@@ -148,7 +155,7 @@ class CTICatalog(Contract):
             raise ValueError('Transaction failed: revokeUser')
         self.log_success()
 
-    def show_authorized_users(self):
+    def show_authorized_users(self) -> List[ChecksumAddress]:
         self.log_trace()
         func = self.contract.functions.showAuthorizedUsers()
         return func.call()

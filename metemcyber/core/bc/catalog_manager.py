@@ -24,8 +24,8 @@ from .catalog import Catalog
 
 class CatalogManager():
     def __init__(self, web3: Web3) -> None:
-        #                   catalog_address  catalog_id
         self.web3: Web3 = web3
+        #                   catalog_address  catalog_id
         self.catalogs: Dict[ChecksumAddress, int] = {}
         self.actives: Set[ChecksumAddress] = set()
 
@@ -38,17 +38,21 @@ class CatalogManager():
 
     def remove(self, addresses: List[ChecksumAddress]) -> None:
         for address in addresses:
+            if address not in self.catalogs.keys():
+                raise Exception(f'No such catalog: {address}')
             del self.catalogs[address]
             self.actives.discard(address)
 
     def activate(self, addresses: List[ChecksumAddress]) -> None:
         for address in addresses:
-            assert address in self.catalogs.keys()
+            if address not in self.catalogs.keys():
+                raise Exception(f'No such catalog: {address}')
             self.actives.add(address)
 
     def deactivate(self, addresses: List[ChecksumAddress]) -> None:
         for address in addresses:
-            assert address in self.catalogs.keys()
+            if address not in self.catalogs.keys():
+                raise Exception(f'No such catalog: {address}')
             self.actives.discard(address)
 
     def _catalogs(self, active: Optional[bool]) -> Dict[ChecksumAddress, int]:
