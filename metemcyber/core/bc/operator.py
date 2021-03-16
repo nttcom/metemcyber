@@ -14,12 +14,14 @@
 #    limitations under the License.
 #
 
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from eth_typing import ChecksumAddress
 from web3 import Web3
 
 from .cti_operator import CTIOperator
+
+TASK_STATES = ['Pending', 'Accepted', 'Finished', 'Cancelled']
 
 
 class Operator():
@@ -35,3 +37,14 @@ class Operator():
         assert self.web3
         cti_operator = CTIOperator(self.web3).new()
         return self.get(cti_operator.address)
+
+    def history(self, token: ChecksumAddress, limit: int, offset: int
+                ) -> List[Tuple[int, ChecksumAddress, ChecksumAddress, ChecksumAddress, int]]:
+        assert self.web3
+        assert self.address
+        return CTIOperator(self.web3).get(self.address).history(token, limit, offset)
+
+    def cancel_challenge(self, task_id: int) -> None:
+        assert self.web3
+        assert self.address
+        CTIOperator(self.web3).get(self.address).cancel_challenge(task_id)
