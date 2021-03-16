@@ -31,11 +31,11 @@ from web3.auto import w3
 
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
-from metemcyber.core.bc.catalog import Catalog
+from metemcyber.core.bc.catalog import Catalog, TokenInfo
 from metemcyber.core.bc.catalog_manager import CatalogManager
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
-from metemcyber.core.bc.operator import Operator
+from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
 from metemcyber.core.logger import get_logger
 
@@ -61,6 +61,8 @@ ix_broker_app = typer.Typer()
 ix_app.add_typer(ix_broker_app, name='broker')
 ix_operator_app = typer.Typer()
 ix_app.add_typer(ix_operator_app, name='operator')
+ix_challenge_app = typer.Typer()
+ix_app.add_typer(ix_challenge_app, name='challenge')
 
 catalog_app = typer.Typer()
 app.add_typer(catalog_app, name="catalog")
@@ -503,6 +505,86 @@ def ix_token_create(ctx: typer.Context, initial_supply: int):
             raise Exception(f'Invalid initial-supply: {initial_supply}')
         token = Token(account.web3).new(initial_supply, [])
         typer.echo(f'created a new token. address is {token.address}.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_challenge_app.command('token')
+def ix_challenge_token(ctx: typer.Context, token_address: str, data: str = ''):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        operator = _load_operator(ctx)
+        assert operator.address
+        Token(account.web3).get(cast(ChecksumAddress, token_address)
+                                ).send(operator.address, amount=1, data=data)
+        typer.echo(f'Started challenge with token({token_address}).')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> TokenInfo:
+    account = ctx.meta['account']
+    catalog_mgr = _load_catalog_manager(ctx)
+    for catalog_address in catalog_mgr.all_catalogs.keys():
+        try:
+            return Catalog(account.web3).get(catalog_address).get_tokeninfo(token_address)
+        except Exception:
+            pass
+    raise Exception('No info found for token({token_address}) on registered catalogs')
+
+
+def _get_challenges(ctx: typer.Context
+                    ) -> List[Tuple[int, ChecksumAddress, ChecksumAddress, ChecksumAddress, int]]:
+    operator = _load_operator(ctx)
+    raw_tasks = []
+    limit_atonce = 16
+    offset = 0
+    address0 = cast(ChecksumAddress, '0x{:040x}'.format(0))  # address(0): wildcard in history()
+    while True:
+        tmp = operator.history(address0, limit_atonce, offset)
+        raw_tasks.extend(tmp)
+        if len(tmp) < limit_atonce:
+            break
+        offset += limit_atonce
+    return raw_tasks
+
+
+@ix_challenge_app.command('list')
+def ix_challenge_list(ctx: typer.Context,
+                      done: bool = typer.Option(False, help='show finished and cancelled'),
+                      mine_only: bool = typer.Option(True, help='show yours only')):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        raw_tasks = _get_challenges(ctx)
+        for (task_id, token, _, seeker, state) in reversed(raw_tasks):
+            if mine_only and seeker != account.eoa:
+                continue
+            if not done and state in (2, 3):  # ('Finished', 'Cancelled')
+                continue
+            try:
+                title = _find_token_info(ctx, token).title
+            except Exception:
+                title = '(no information found on current catalogs)'
+            typer.echo(
+                f'  {task_id}: {title}' + '\n'
+                f'    ├ Token: {token}' + '\n'
+                f'    └ State: {TASK_STATES[state]}')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_challenge_app.command('cancel')
+def ix_challenge_cancel(ctx: typer.Context, challenge_id: int):
+    logger = getLogger()
+    try:
+        operator = _load_operator(ctx)
+        operator.cancel_challenge(challenge_id)
+        typer.echo(f'cancelled challenge: {challenge_id}.')
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
