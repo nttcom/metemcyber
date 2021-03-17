@@ -650,7 +650,7 @@ def ix_operator_show(ctx: typer.Context):
         typer.echo(f'failed operation: {err}')
 
 
-@catalog_app.command('list')
+@catalog_app.command('list', help="Show the list of CTI catalogs")
 def catalog_list(ctx: typer.Context):
     catalog_mgr = _load_catalog_manager(ctx)
     typer.echo('Catalogs *:active')
@@ -660,7 +660,7 @@ def catalog_list(ctx: typer.Context):
             f'  {"*" if caddr in catalog_mgr.actives else " "}{cid} {caddr}')
 
 
-@catalog_app.command('add')
+@catalog_app.command('add', help="Add the CTI catalog to the list.")
 def catalog_add(
     ctx: typer.Context,
     catalog_address: str,
@@ -678,7 +678,7 @@ def catalog_add(
         typer.echo(f'failed operation: {err}')
 
 
-@catalog_app.command('new')
+@catalog_app.command('new', help="Create a new CTI catalog.")
 def catalog_new(
     ctx: typer.Context,
     private: bool = typer.Option(
@@ -719,25 +719,25 @@ def _catalog_ctrl(
         typer.echo(f'failed operation: {err}')
 
 
-@catalog_app.command('remove')
+@catalog_app.command('remove', help="Remove the CTI catalog from the list.")
 def catalog_remove(ctx: typer.Context, catalog_address: str,
                    by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('remove', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
-@catalog_app.command('activate')
+@catalog_app.command('activate', help="Activate the CTI catalog on the list.")
 def catalog_activate(ctx: typer.Context, catalog_address: str,
                      by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('activate', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
-@catalog_app.command('deactivate')
+@catalog_app.command('deactivate', help="Deactivate the CTI catalog on the list.")
 def catalog_deactivate(ctx: typer.Context, catalog_address: str,
                        by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('deactivate', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
-@catalog_app.command('register')
+@catalog_app.command('register', help="Register the CTI token on the CTI catalog.")
 def catalog_register(ctx: typer.Context, catalog_address: str, token_address: str,
                      uuid_: uuid.UUID, title: str, price: int,
                      by_id: bool = typer.Option(False, help='select catalog by id')):
@@ -759,7 +759,7 @@ def catalog_register(ctx: typer.Context, catalog_address: str, token_address: st
         typer.echo(f'failed operation: {err}')
 
 
-@catalog_app.command('publish')
+@catalog_app.command('publish', help="Let the CTI catalog deal in registered CTI token.")
 def catalog_publish(ctx: typer.Context, catalog_address: str, token_address: str,
                     by_id: bool = typer.Option(False, help='select catalog by id')):
     logger = getLogger()
