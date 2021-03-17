@@ -839,7 +839,7 @@ def _config():
     typer.echo(f"config")
 
 
-@app.command()
+@app.command(help="Manage your smart contracts.")
 def contract():
     typer.echo(f"contract")
 
