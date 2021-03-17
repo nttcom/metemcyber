@@ -54,7 +54,7 @@ account_app = typer.Typer()
 app.add_typer(account_app, name="account", help="Manage your accounts.")
 
 ix_app = typer.Typer()
-app.add_typer(ix_app, name="ix", help="Manage the CTI tokens for CTI collection.")
+app.add_typer(ix_app, name="ix", help="Manage CTI tokens to collect CTIs.")
 ix_token_app = typer.Typer()
 ix_app.add_typer(ix_token_app, name='token', help="Manage the CTI token contract.")
 ix_broker_app = typer.Typer()
@@ -441,7 +441,7 @@ def _ix_parse_token_index(ctx: typer.Context, token_index: str
     return catalog_address, token_address
 
 
-@ix_app.command('list', help="Show CTI tokens on the activated catalog list.")
+@ix_app.command('list', help="Show CTI tokens on the active list of CTI catalogs.")
 def ix_list(ctx: typer.Context,
             mine: bool = typer.Option(True, help='show tokens published by you'),
             mine_only: bool = typer.Option(False),
@@ -650,7 +650,7 @@ def ix_operator_show(ctx: typer.Context):
         typer.echo(f'failed operation: {err}')
 
 
-@catalog_app.command('list')
+@catalog_app.command('list', help="Show the list of CTI catalogs")
 def catalog_list(ctx: typer.Context):
     catalog_mgr = _load_catalog_manager(ctx)
     typer.echo('Catalogs *:active')
@@ -660,7 +660,7 @@ def catalog_list(ctx: typer.Context):
             f'  {"*" if caddr in catalog_mgr.actives else " "}{cid} {caddr}')
 
 
-@catalog_app.command('add')
+@catalog_app.command('add', help="Add the CTI catalog to the list.")
 def catalog_add(
     ctx: typer.Context,
     catalog_address: str,
@@ -678,7 +678,7 @@ def catalog_add(
         typer.echo(f'failed operation: {err}')
 
 
-@catalog_app.command('new')
+@catalog_app.command('new', help="Create a new CTI catalog.")
 def catalog_new(
     ctx: typer.Context,
     private: bool = typer.Option(
@@ -719,25 +719,25 @@ def _catalog_ctrl(
         typer.echo(f'failed operation: {err}')
 
 
-@catalog_app.command('remove')
+@catalog_app.command('remove', help="Remove the CTI catalog from the list.")
 def catalog_remove(ctx: typer.Context, catalog_address: str,
                    by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('remove', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
-@catalog_app.command('activate')
+@catalog_app.command('activate', help="Activate the CTI catalog on the list.")
 def catalog_activate(ctx: typer.Context, catalog_address: str,
                      by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('activate', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
-@catalog_app.command('deactivate')
+@catalog_app.command('deactivate', help="Deactivate the CTI catalog on the list.")
 def catalog_deactivate(ctx: typer.Context, catalog_address: str,
                        by_id: bool = typer.Option(False, help='select by catalog id')):
     _catalog_ctrl('deactivate', ctx, cast(ChecksumAddress, catalog_address), by_id)
 
 
-@catalog_app.command('register')
+@catalog_app.command('register', help="Register the CTI token on the CTI catalog.")
 def catalog_register(ctx: typer.Context, catalog_address: str, token_address: str,
                      uuid_: uuid.UUID, title: str, price: int,
                      by_id: bool = typer.Option(False, help='select catalog by id')):
@@ -759,7 +759,7 @@ def catalog_register(ctx: typer.Context, catalog_address: str, token_address: st
         typer.echo(f'failed operation: {err}')
 
 
-@catalog_app.command('publish')
+@catalog_app.command('publish', help="Let the CTI catalog deal in registered CTI token.")
 def catalog_publish(ctx: typer.Context, catalog_address: str, token_address: str,
                     by_id: bool = typer.Option(False, help='select catalog by id')):
     logger = getLogger()
@@ -800,12 +800,12 @@ def run():
     typer.echo(f"run")
 
 
-@app.command()
+@app.command(help="Validate the use of your CTIs")
 def check():
     typer.echo(f"check")
 
 
-@app.command()
+@app.command(help="Deploy the CTI token to disseminate CTI.")
 def publish():
     typer.echo(f"publish")
 
@@ -834,17 +834,17 @@ def account_info(ctx: typer.Context):
                     typer.echo(f'  {tinfo.token_id}: {balance}: {taddr}')
 
 
-@app.command('config')
+@app.command('config', help="Manage your config file of metemctl")
 def _config():
     typer.echo(f"config")
 
 
-@app.command()
+@app.command(help="Manage your smart contracts.")
 def contract():
     typer.echo(f"contract")
 
 
-@app.command()
+@app.command(help="Start an interactive intelligence cycle.")
 def console():
     typer.echo(f"console")
 
