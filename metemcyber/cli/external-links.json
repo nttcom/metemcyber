@@ -20,19 +20,14 @@
         "description": "Interactive online malware analysis service."
     },
     {
-        "name": "ThreatFox",
-        "url": "https://threatfox.abuse.ch/browse/",
-        "description": "A platform of sharing IOCs associated with malware."
-    },
-    {
-        "name": "Hatching Triage",
-        "url": "https://tria.ge/reports/public",
-        "description": "A malware analysis sandbox designed for cross-platform support."
-    },
-    {
         "name": "URLhaus",
         "url": "https://urlhaus.abuse.ch/browse/",
         "description": "A project of sharing malicious URLs that are being used for malware distribution."
+    },
+    {
+        "name": "ThreatFox",
+        "url": "https://threatfox.abuse.ch/browse/",
+        "description": "A platform of sharing IOCs associated with malware."
     },
     {
         "name": "Open Threat Exchange",
@@ -48,6 +43,11 @@
         "name": "Grey Noise",
         "url": "https://viz.greynoise.io/cheat-sheet/",
         "description": "A cybersecurity platform that collects and analyzes Internet-wide scan and attack traffic."
+    },
+    {
+        "name": "Hatching Triage",
+        "url": "https://tria.ge/reports/public",
+        "description": "A malware analysis sandbox designed for cross-platform support."
     },
     {
         "name": "Bitcoin Abuse Database",
