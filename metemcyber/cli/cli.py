@@ -441,7 +441,7 @@ def _ix_parse_token_index(ctx: typer.Context, token_index: str
     return catalog_address, token_address
 
 
-@ix_app.command('list', help="Show CTI tokens on the activated catalog list.")
+@ix_app.command('list', help="Show CTI tokens on the active list of CTI catalogs.")
 def ix_list(ctx: typer.Context,
             mine: bool = typer.Option(True, help='show tokens published by you'),
             mine_only: bool = typer.Option(False),
