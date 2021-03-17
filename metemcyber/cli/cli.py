@@ -800,7 +800,7 @@ def run():
     typer.echo(f"run")
 
 
-@app.command()
+@app.command(help="Validate the use of your CTIs")
 def check():
     typer.echo(f"check")
 
