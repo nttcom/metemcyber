@@ -54,7 +54,7 @@ account_app = typer.Typer()
 app.add_typer(account_app, name="account", help="Manage your accounts.")
 
 ix_app = typer.Typer()
-app.add_typer(ix_app, name="ix", help="Manage the CTI tokens for CTI collection.")
+app.add_typer(ix_app, name="ix", help="Manage CTI tokens to collect CTIs.")
 ix_token_app = typer.Typer()
 ix_app.add_typer(ix_token_app, name='token', help="Manage the CTI token contract.")
 ix_broker_app = typer.Typer()
@@ -805,7 +805,7 @@ def check():
     typer.echo(f"check")
 
 
-@app.command(help="Deplpy the CTI tokens for CTI dissemination.")
+@app.command(help="Deploy the CTI token to disseminate CTI.")
 def publish():
     typer.echo(f"publish")
 
