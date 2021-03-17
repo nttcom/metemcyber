@@ -849,7 +849,7 @@ def console():
     typer.echo(f"console")
 
 
-@app.command()
+@app.command(help="Show practical security services.")
 def external_links():
     json_path = Path(__file__).with_name('external-links.json')
     with open(json_path) as fin:
