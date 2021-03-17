@@ -510,7 +510,8 @@ def ix_token_create(ctx: typer.Context, initial_supply: int):
         typer.echo(f'failed operation: {err}')
 
 
-@ix_challenge_app.command('token', help="Use the token to challenge the task. (Get the MISP object, etc.")
+@ix_challenge_app.command('token',
+                          help="Use the token to challenge the task. (Get the MISP object, etc.")
 def ix_challenge_token(ctx: typer.Context, token_address: str, data: str = ''):
     logger = getLogger()
     try:
