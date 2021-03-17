@@ -279,7 +279,7 @@ def create_workflow(event_id, category, contents):
         call(['kedro', 'new', '--config', dist_yml_filepath])
 
 
-@app.command()
+@app.command(help="Create a new intelligence workflow.")
 def new(
     event_uuid: uuid.UUID = typer.Option(
         None,
