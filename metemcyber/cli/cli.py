@@ -48,7 +48,7 @@ WORKFLOW_FILE_NAME = "workflow.yml"
 app = typer.Typer()
 
 misp_app = typer.Typer()
-app.add_typer(misp_app, name="misp")
+app.add_typer(misp_app, name="misp", help="Manage your MISP instance.")
 
 account_app = typer.Typer()
 app.add_typer(account_app, name="account", help="Manage your accounts.")
