@@ -54,15 +54,15 @@ account_app = typer.Typer()
 app.add_typer(account_app, name="account", help="Manage your accounts.")
 
 ix_app = typer.Typer()
-app.add_typer(ix_app, name="ix", help="Get the CTI tokens for CTI collection.")
+app.add_typer(ix_app, name="ix", help="Manage the CTI tokens for CTI collection.")
 ix_token_app = typer.Typer()
-ix_app.add_typer(ix_token_app, name='token')
+ix_app.add_typer(ix_token_app, name='token', help="Manage the CTI token contract.")
 ix_broker_app = typer.Typer()
-ix_app.add_typer(ix_broker_app, name='broker')
+ix_app.add_typer(ix_broker_app, name='broker', help="Manage the CTI broker contract.")
 ix_operator_app = typer.Typer()
-ix_app.add_typer(ix_operator_app, name='operator')
+ix_app.add_typer(ix_operator_app, name='operator', help="Manage the CTI operator contract.")
 ix_challenge_app = typer.Typer()
-ix_app.add_typer(ix_challenge_app, name='challenge')
+ix_app.add_typer(ix_challenge_app, name='challenge', help="Execute tasks using the CTI token.")
 
 catalog_app = typer.Typer()
 app.add_typer(catalog_app, name="catalog")
@@ -441,7 +441,7 @@ def _ix_parse_token_index(ctx: typer.Context, token_index: str
     return catalog_address, token_address
 
 
-@ix_app.command('list')
+@ix_app.command('list', help="Show CTI tokens on the activated catalog list.")
 def ix_list(ctx: typer.Context,
             mine: bool = typer.Option(True, help='show tokens published by you'),
             mine_only: bool = typer.Option(False),
@@ -459,7 +459,7 @@ def ix_list(ctx: typer.Context,
         typer.echo(f'failed operation: {err}')
 
 
-@ix_app.command('buy')
+@ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
 def ix_buy(ctx: typer.Context, token_index: str):
     logger = getLogger()
     try:
@@ -474,7 +474,7 @@ def ix_buy(ctx: typer.Context, token_index: str):
         typer.echo(f'failed operation: {err}')
 
 
-@ix_app.command('consign')
+@ix_app.command('consign', help="Pass your tokens to the broker for disseminate.")
 def ix_consign(ctx: typer.Context, token_index: str, amount: int):
     logger = getLogger()
     try:
@@ -510,7 +510,7 @@ def ix_token_create(ctx: typer.Context, initial_supply: int):
         typer.echo(f'failed operation: {err}')
 
 
-@ix_challenge_app.command('token')
+@ix_challenge_app.command('token', help="Use the token to challenge the task. (Get the MISP object, etc.")
 def ix_challenge_token(ctx: typer.Context, token_address: str, data: str = ''):
     logger = getLogger()
     try:
@@ -552,7 +552,7 @@ def _get_challenges(ctx: typer.Context
     return raw_tasks
 
 
-@ix_challenge_app.command('list')
+@ix_challenge_app.command('list', help="Show CTI tokens available.")
 def ix_challenge_list(ctx: typer.Context,
                       done: bool = typer.Option(False, help='show finished and cancelled'),
                       mine_only: bool = typer.Option(True, help='show yours only')):
@@ -578,7 +578,7 @@ def ix_challenge_list(ctx: typer.Context,
         typer.echo(f'failed operation: {err}')
 
 
-@ix_challenge_app.command('cancel')
+@ix_challenge_app.command('cancel', help="Abort the task in progress.")
 def ix_challenge_cancel(ctx: typer.Context, challenge_id: int):
     logger = getLogger()
     try:
@@ -635,7 +635,7 @@ def ix_broker_set(ctx: typer.Context, broker_address: str):
         typer.echo(f'failed operation: {err}')
 
 
-@ix_operator_app.command('show')
+@ix_operator_app.command('show', help="Show the contract address of the operator.")
 def ix_operator_show(ctx: typer.Context):
     logger = getLogger()
     try:
