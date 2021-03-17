@@ -65,7 +65,7 @@ ix_challenge_app = typer.Typer()
 ix_app.add_typer(ix_challenge_app, name='challenge', help="Execute tasks using the CTI token.")
 
 catalog_app = typer.Typer()
-app.add_typer(catalog_app, name="catalog")
+app.add_typer(catalog_app, name="catalog", help="Manage the CTI catalog contract.")
 
 
 # pylint: disable=invalid-name
