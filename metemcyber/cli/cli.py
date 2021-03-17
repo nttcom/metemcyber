@@ -834,7 +834,7 @@ def account_info(ctx: typer.Context):
                     typer.echo(f'  {tinfo.token_id}: {balance}: {taddr}')
 
 
-@app.command('config')
+@app.command('config', help="Manage your config file of metemctl")
 def _config():
     typer.echo(f"config")
 
