@@ -795,7 +795,7 @@ def misp_open(ctx: typer.Context):
         logger.error(err)
 
 
-@app.command()
+@app.command(help="Run the current intelligence workflow.")
 def run():
     typer.echo(f"run")
 
