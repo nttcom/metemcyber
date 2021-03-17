@@ -805,7 +805,7 @@ def check():
     typer.echo(f"check")
 
 
-@app.command()
+@app.command(help="Deplpy the CTI tokens for CTI dissemination.")
 def publish():
     typer.echo(f"publish")
 
