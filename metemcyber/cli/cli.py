@@ -844,7 +844,7 @@ def contract():
     typer.echo(f"contract")
 
 
-@app.command()
+@app.command(help="Start an interactive intelligence cycle.")
 def console():
     typer.echo(f"console")
 
