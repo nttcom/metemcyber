@@ -6,18 +6,17 @@ import { BrowserRouter, Route, Switch } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.css';
 
 
-//const Login = React.lazy(() => import('./containers/login.js'));
-
 class App extends Component {
 
   render() {
     return (
-    <BrowserRouter>
-      <Switch>
-        <Route path="/contents" name="Overview" render={props => <DefaultLayout {...props} />} />
-        <Route path="/login" name="Home" render={props => <Login {...props} />} />
-      </Switch>
-    </BrowserRouter>
+      <BrowserRouter>
+        <Switch>
+          <Route path="/contents" name="Overview" render={props => <DefaultLayout {...props} />} />
+          <Route path="/login" name="Home" render={props => <Login {...props} />} />
+          <Route name="Home" render={props => <Login {...props} />} />
+        </Switch>
+      </BrowserRouter>
     );
   }
 

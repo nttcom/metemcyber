@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Input, InputGroup, InputGroupAddon, List, Modal, ModalBody, ModalFooter } from 'reactstrap';
+import styled from 'styled-components';
+import { Badge, Button, Card, CardHeader, CardBody, Input, InputGroup, InputGroupAddon, List, ListInlineItem, Modal, ModalBody, ModalFooter } from 'reactstrap';
 import '../default.css';
 
 
@@ -58,7 +59,7 @@ function Cancel(props) {
                     Loading...
                 </div>
                 :
-                <div>
+                <MainContent>
                     <div className="search">
                         <InputGroup>
                             <Input value={searchText} onChange={handleChange} />
@@ -69,20 +70,26 @@ function Cancel(props) {
                         </InputGroup>
                     </div>
                     <div className="content">
-                        <List type="unstyled">
-                            {content.item.map((val, idx) => {
-                                return <li key={idx}>[{val.id}]{val.name}
-                                    <ul>
-                                        <li>Addr：{val.addr}</li>
-                                        <li>State：{val.state}</li>
-                                        <li><Button onClick={toggle} value={val.id}>キャンセルを実行</Button></li>
-                                    </ul>
-                                </li>
-                            })}
+                        {content.item.map((val, idx) => {
+                            return <div key={idx}>
+                                <ChallengeCard>
+                                   <ChallengeCardHeader><strong>{val.name}</strong></ChallengeCardHeader>
+                                   <ChallengeCardBody>
+                                        <TopList type="inline">
+                                            <ListInlineLabel>Addr</ListInlineLabel>
+                                            <ListInlineItem>{val.addr}</ListInlineItem>
+                                        </TopList>
+                                        <List type="inline">
+                                            <ListInlineLabel>State</ListInlineLabel>
+                                            <ListInlineItem><Badge color="warning">{val.state}</Badge></ListInlineItem>
+                                        </List>
+                                        <Button color="danger" onClick={toggle} value={val.id}>キャンセルを実行</Button>
+                                   </ChallengeCardBody>
+                                </ChallengeCard>
+                            </div>})}
                             {content.item.length === 0 && "アイテムは存在しません"}
-                        </List>
-                    </div>
-                </div>
+                        </div>
+                </MainContent>
             }
             <Modal isOpen={modalToggle} toggle={toggle} >
                 <ModalBody>
@@ -98,3 +105,28 @@ function Cancel(props) {
 }
 
 export default Cancel;
+
+export const MainContent = styled.div`
+    overflow-y: auto;
+    margin-top: 30px;
+`;
+
+export const ChallengeCard = styled(Card)`
+    margin-top: 15px;
+`;
+
+export const ChallengeCardBody = styled(CardBody)`
+    padding-right: 0;
+`;
+
+export const ChallengeCardHeader = styled(CardHeader)`
+    background-color: #e6bfb2;;
+`;
+
+export const ListInlineLabel = styled(ListInlineItem)`
+    font-weight: bold;
+`;
+
+export const TopList = styled(List)`
+    margin-bottom: 0;
+`;

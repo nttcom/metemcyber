@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Input, InputGroup, InputGroupAddon, List, Modal, ModalBody, ModalFooter } from 'reactstrap';
+import styled from 'styled-components';
+import { Button, Card, CardHeader, CardBody, Input, InputGroup, InputGroupAddon, List, ListInlineItem, Modal, ModalBody, ModalFooter } from 'reactstrap';
 import '..//default.css';
-
 
 
 function Execution(props) {
@@ -59,7 +59,7 @@ function Execution(props) {
                     Loading...
                 </div>
                 :
-                <div>
+                <MainContent>
                     <div className="search">
                         <InputGroup>
                             <Input value={searchText} onChange={handleChange} />
@@ -70,22 +70,35 @@ function Execution(props) {
                         </InputGroup>
                     </div>
                     <div className="content">
-                        <List type="unstyled">
-                            {content.item.map((val, idx) => {
-                                return <li key={idx}>[{val.id}]{val.name}
-                                    <ul>
-                                        <li>Addr：{val.addr}</li>
-                                        <li>UUID：{val.uuid}</li>
-                                        <li>Price：{val.price}</li>
-                                        <li>Remaining Token：{val.left}</li>
-                                        <li><Button onClick={toggle} value={val.id}>実行</Button></li>
-                                    </ul>
-                                </li>
-                            })}
+                        {content.item.map((val, idx) => {
+                            return <div key={idx}>
+                                <ChallengeCard>
+                                    <ChallengeCardHeader><strong>{val.name}</strong></ChallengeCardHeader>
+                                    <ChallengeCardBody>
+                                        <TopList type="inline">
+                                            <ListInlineLabel>Price</ListInlineLabel>
+                                            <ListInlineItem style={{fontSize: "36px"}}>{val.price}</ListInlineItem>
+                                            <ListInlineLabel>pts</ListInlineLabel>
+                                        </TopList>
+                                        <List type="inline">
+                                            <ListInlineLabel>Remaining Token</ListInlineLabel>
+                                            <ListInlineItem>{val.left}</ListInlineItem>
+                                        </List>
+                                        <TopList type="inline">
+                                            <ListInlineLabel>Addr</ListInlineLabel>
+                                            <ListInlineItem>{val.addr}</ListInlineItem>
+                                        </TopList>
+                                        <List type="inline">
+                                            <ListInlineLabel>UUID</ListInlineLabel>
+                                            <ListInlineItem>{val.uuid}</ListInlineItem>
+                                        </List>
+                                        <Button color="success" onClick={toggle} value={val.id}>実行</Button>
+                                    </ChallengeCardBody>
+                                </ChallengeCard>
+                            </div>})}
                             {content.item.length === 0 && "アイテムは存在しません"}
-                        </List>
-                    </div>
-                </div>
+                        </div>
+                </MainContent>
             }
             <Modal isOpen={modalToggle} toggle={toggle} >
                 <ModalBody>
@@ -101,3 +114,39 @@ function Execution(props) {
 }
 
 export default Execution;
+
+export const MainContent = styled.div`
+    overflow-y: auto;
+    margin-top: 30px;
+`;
+
+export const ChallengeCard = styled(Card)`
+    margin-top: 15px;
+`;
+
+export const ChallengeCardBody = styled(CardBody)`
+    padding-right: 0;
+`;
+
+export const TopList = styled(List)`
+    margin-bottom: 0;
+`;
+
+export const ListInlineLabel = styled(ListInlineItem)`
+    font-weight: bold;
+`;
+
+export const ChallengeListInlineLabel = styled(ListInlineLabel)`
+    color: crimson;
+`;
+
+export const ChallengeListInlineItem = styled(ListInlineItem)`
+    color: crimson;
+    font-size: 32px;
+    font-weight: bold;
+`;
+
+export const ChallengeCardHeader = styled(CardHeader)`
+    background-color: #bee0c2;
+`;
+

@@ -374,30 +374,31 @@ ipcMain.on('select-logout', async (event, arg) => {
 });
 
 ipcMain.on('login', async (event, arg) => {
-  const keyfileDir = './keyfile';
   let keyfileName = '';
   // Get keyfile name.
-  fs.readdir(keyfileDir, (err, files) => {
+  fs.readdir(isDev ? "./keyfile" : path.join(__dirname, '../keyfile'), (err, files) => {
     if (err) throw err;
     keyfileName = files[0];
   });
 
-  addr = await ngrok.connect(51004);
-  console.log(addr);
+  addr = await ngrok.connect(isDev ? 51004 : { addr: 51004, binPath: path => path.replace('app.asar', 'app.asar.unpacked') });
 
   // Create the browser window.
   proc = pty.spawn('bash', [
-    `metemcyber_ctl.sh`,
+    './metemcyber_ctl.sh',
     "-",
     "client",
-    `-f  ${keyfileDir}/${keyfileName}`,
+    `-f  keyfile/${keyfileName}`,
     `-w  ${addr}`
   ],
     {
       cols: 1500,
       rows: 1500,
+      cwd: isDev ? "./" : '../',
+      env: process.env
     }
   );
+
   await new Promise((resolve) => {
     proc.on('data', function (data) {
       data.split("\r\n").map((val) => {
@@ -416,7 +417,6 @@ ipcMain.on('login', async (event, arg) => {
     });
 
   })
-
   event.reply('login', 'success');
 });
 

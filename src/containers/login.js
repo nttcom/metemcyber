@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Button, Card, CardTitle, CardBody, CardGroup, Col, Container, Form, FormFeedback, FormGroup, Label, Input, InputGroup, InputGroupAddon, InputGroupText, Modal, ModalHeader, ModalBody, ModalFooter, Spinner, Row } from 'reactstrap';
-import './login.css';
+import styled from 'styled-components'
+import { Alert, Button, Card, CardTitle, CardBody, CardGroup, CardImg, Col, Container, Form, FormFeedback, FormGroup, Label, Input, InputGroup, InputGroupAddon, InputGroupText, Media, Modal, ModalHeader, ModalBody, ModalFooter, Spinner, Row } from 'reactstrap';
 
 function Login(props) {
     const { ipcRenderer } = window
@@ -12,7 +12,6 @@ function Login(props) {
     }
 
     const handleSubmit = () => {
-        
         setLoading(true);
         ipcRenderer.on('login', (event, arg) => {
             console.log(arg) 
@@ -24,26 +23,34 @@ function Login(props) {
     return (
         <div className="app flex-row align-items-center">
             <Container>
-                <Row className="justify-content-center">
-                    <Col md="5">
+                <LoginRow className="justify-content-center">
+                    <Col md="4">
                         <CardGroup>
-                            <Card className="p-4">
-                                <CardTitle tag="h3">Metemcyber GUI</CardTitle>
+                            <LoginCard className="p-4">
+                                <CardImg top width="100%" src="./metemcyber_logo.png" alt="Metemcyber UI" />
                                 <CardBody>
-                                    <InputGroup>
+                                    <InputGroup style={{marginBottom: "10px"}}>
                                         <InputGroupAddon addonType="prepend">
                                         </InputGroupAddon>
-                                        <Input placeholder="password" type="password" value={pass} onChange={handleChange} />
+                                        <Input placeholder="Enter your pass" type="password" value={pass} onChange={handleChange} />
                                     </InputGroup>
-                                    <Button outline color="secondary" onClick={handleSubmit}>login{loading && <Spinner color="primary" />}</Button>
+                                    <Button outline color="secondary" size="md" onClick={handleSubmit} block>Login{loading && <Spinner color="primary" />}</Button>
                                 </CardBody>
-                            </Card>
+                            </LoginCard>
                         </CardGroup>
                     </Col>
-                </Row>
+                </LoginRow>
             </Container>
         </div>
     );
 }
 
 export default Login;
+
+const LoginRow = styled(Row)`
+    margin-top: 10px;
+`;
+
+const LoginCard = styled(Card)`
+    border: 0;
+`;
