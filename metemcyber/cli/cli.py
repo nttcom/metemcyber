@@ -17,10 +17,12 @@
 import configparser
 import json
 import os
+import subprocess
 import uuid
 from enum import Enum
 from pathlib import Path
-from subprocess import call
+from shutil import copyfile
+from subprocess import CalledProcessError
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 
 import typer
@@ -44,6 +46,7 @@ APP_DIR = typer.get_app_dir(APP_NAME)
 CONFIG_FILE_NAME = "metemctl.ini"
 CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
 WORKFLOW_FILE_NAME = "workflow.yml"
+DATA_FILE_NAME = "source_of_truth.yml"
 
 app = typer.Typer()
 
@@ -250,6 +253,31 @@ def create_workflow_config(
         logger.info(f"Write successful.")
 
 
+def create_data_for_workflow(yml_filepath: Path):
+    logger = getLogger()
+    output_dir = None
+    repo_name = None
+
+    logger.info(f"check the config from: {yml_filepath}")
+    with open(yml_filepath) as fin:
+        config = yaml.safe_load(fin)
+        if 'output_dir' in config:
+            output_dir = config['output_dir']
+        if 'repo_name' in config:
+            repo_name = config['repo_name']
+
+    if output_dir and repo_name:
+        workflow_dir = Path(output_dir) / repo_name
+        raw_data_dir = workflow_dir / 'data' / '01_raw'
+        logger.info(f"detect the workflow raw data dir: {raw_data_dir}")
+        if os.path.isdir(raw_data_dir):
+            template = Path(__file__).with_name(DATA_FILE_NAME)
+            data_file_path = raw_data_dir / DATA_FILE_NAME
+            if not os.path.exists(data_file_path):
+                logger.info(f"create a data template to : {data_file_path}")
+                copyfile(template, data_file_path)
+
+
 def create_workflow(event_id, category, contents):
     logger = getLogger()
     logger.info(f"Create the workflow: {event_id}")
@@ -276,7 +304,12 @@ def create_workflow(event_id, category, contents):
 
     if os.path.isfile(dist_yml_filepath):
         logger.info(f"Run command: kedro new --config {dist_yml_filepath}")
-        call(['kedro', 'new', '--config', dist_yml_filepath])
+        try:
+            subprocess.run(['kedro', 'new', '--config', dist_yml_filepath], check=True)
+            create_data_for_workflow(dist_yml_filepath)
+        except CalledProcessError as err:
+            logger.exception(err)
+            typer.echo(f'An error occurred while creating the workflow. {err}')
 
 
 @app.command(help="Create a new intelligence workflow.")
