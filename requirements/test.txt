@@ -1,4 +1,5 @@
 autopep8==1.5.5
+isort==5.7.0
 mypy==0.812
 mypy-extensions==0.4.3
 pylint==2.6.0
