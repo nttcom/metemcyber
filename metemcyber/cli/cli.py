@@ -40,6 +40,7 @@ from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
 from metemcyber.core.logger import get_logger
+from metemcyber.core.seeker import Seeker
 
 APP_NAME = "metemcyber"
 APP_DIR = typer.get_app_dir(APP_NAME)
@@ -66,6 +67,8 @@ ix_operator_app = typer.Typer()
 ix_app.add_typer(ix_operator_app, name='operator', help="Manage the CTI operator contract.")
 ix_challenge_app = typer.Typer()
 ix_app.add_typer(ix_challenge_app, name='challenge', help="Execute tasks using the CTI token.")
+ix_seeker_app = typer.Typer()
+ix_app.add_typer(ix_seeker_app, name='seeker', help='Manage CTI seeker subprocess.')
 
 catalog_app = typer.Typer()
 app.add_typer(catalog_app, name="catalog", help="Manage the CTI catalog contract.")
@@ -538,6 +541,46 @@ def ix_token_create(ctx: typer.Context, initial_supply: int):
             raise Exception(f'Invalid initial-supply: {initial_supply}')
         token = Token(account).new(initial_supply, [])
         typer.echo(f'created a new token. address is {token.address}.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_seeker_app.command('status')
+def ix_seeker_status(_ctx: typer.Context):
+    logger = getLogger()
+    try:
+        seeker = Seeker()
+        if seeker.pid == 0:
+            typer.echo(f'not running.')
+        else:
+            typer.echo(f'running on pid {seeker.pid}, listening {seeker.address}:{seeker.port}.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_seeker_app.command('start')
+def ix_seeker_start(_ctx: typer.Context,
+                    local: bool = typer.Option(True, help='listen localhost only')):
+    logger = getLogger()
+    try:
+        seeker = Seeker(local)
+        seeker.start()
+        typer.echo(f'seeker started on process {seeker.pid}, '
+                   f'listening {seeker.address}:{seeker.port}.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_seeker_app.command('stop')
+def ix_seeker_stop(_ctx: typer.Context):
+    logger = getLogger()
+    try:
+        seeker = Seeker()
+        seeker.stop()
+        typer.echo(f'seeker stopped.')
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
