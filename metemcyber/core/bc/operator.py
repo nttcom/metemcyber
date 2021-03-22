@@ -17,16 +17,16 @@
 from typing import List, Optional, Tuple
 
 from eth_typing import ChecksumAddress
-from web3 import Web3
 
+from .account import Account
 from .cti_operator import CTIOperator
 
 TASK_STATES = ['Pending', 'Accepted', 'Finished', 'Cancelled']
 
 
 class Operator():
-    def __init__(self, web3: Web3) -> None:
-        self.web3: Web3 = web3
+    def __init__(self, account: Account) -> None:
+        self.account: Account = account
         self.address: Optional[ChecksumAddress] = None
 
     def get(self, address: ChecksumAddress) -> 'Operator':
@@ -34,17 +34,14 @@ class Operator():
         return self
 
     def new(self) -> 'Operator':
-        assert self.web3
-        cti_operator = CTIOperator(self.web3).new()
+        cti_operator = CTIOperator(self.account).new()
         return self.get(cti_operator.address)
 
     def history(self, token: ChecksumAddress, limit: int, offset: int
                 ) -> List[Tuple[int, ChecksumAddress, ChecksumAddress, ChecksumAddress, int]]:
-        assert self.web3
         assert self.address
-        return CTIOperator(self.web3).get(self.address).history(token, limit, offset)
+        return CTIOperator(self.account).get(self.address).history(token, limit, offset)
 
     def cancel_challenge(self, task_id: int) -> None:
-        assert self.web3
         assert self.address
-        CTIOperator(self.web3).get(self.address).cancel_challenge(task_id)
+        CTIOperator(self.account).get(self.address).cancel_challenge(task_id)

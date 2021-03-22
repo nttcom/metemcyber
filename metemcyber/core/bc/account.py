@@ -14,11 +14,19 @@
 #    limitations under the License.
 #
 
+from typing import Callable
+
+from eth_typing import ChecksumAddress
+from web3 import Web3
+
+from .ether import Ether
+from .util import sign_message
 from .wallet import Wallet
 
 
 class Account:
-    def __init__(self, web3, eoa):
-        self.eoa = eoa
-        self.web3 = web3
-        self.wallet = Wallet(web3, eoa)
+    def __init__(self, ether: Ether, eoa: str, pkey: str) -> None:
+        self.eoa: ChecksumAddress = Web3.toChecksumAddress(eoa)
+        self.web3: Web3 = ether.web3_with_signature(pkey)
+        self.wallet: Wallet = Wallet(self.web3, eoa)
+        self.sign_message: Callable[[str], str] = lambda x: sign_message(x, pkey)

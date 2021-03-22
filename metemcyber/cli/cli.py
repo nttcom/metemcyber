@@ -149,7 +149,7 @@ def _load_metemcyber_util(ctx: typer.Context):
         _ph = MetemcyberUtil.register_library(util_addr)
         assert _ph == util_ph
     else:
-        util = MetemcyberUtil(account.web3).new()
+        util = MetemcyberUtil(account).new()
         util_ph = util.register_library(util.address)
         config.set('metemcyber_util', 'address', util.address)
         config.set('metemcyber_util', 'placeholder', util_ph)
@@ -160,7 +160,7 @@ def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
     if 'catalog_manager' in ctx.meta.keys():
         return ctx.meta['catalog_manager']
     account = ctx.meta['account']
-    catalog_mgr = CatalogManager(account.web3)
+    catalog_mgr = CatalogManager(account)
     config = ctx.meta['config']
     if config.has_section('catalog'):
         actives = config['catalog'].get('actives')
@@ -182,7 +182,7 @@ def _load_broker(ctx: typer.Context) -> Broker:
         broker_address = cast(ChecksumAddress, config['broker']['address'])
     except KeyError as err:
         raise Exception('Broker is not yet configured') from err
-    broker = Broker(account.web3).get(broker_address)
+    broker = Broker(account).get(broker_address)
     ctx.meta['broker'] = broker
     return broker
 
@@ -196,7 +196,7 @@ def _load_operator(ctx: typer.Context) -> Operator:
         operator_address = cast(ChecksumAddress, config['operator']['address'])
     except KeyError as err:
         raise Exception('Operator is not yet configured') from err
-    operator = Operator(account.web3).get(operator_address)
+    operator = Operator(account).get(operator_address)
     ctx.meta['operator'] = operator
     return operator
 
@@ -212,7 +212,7 @@ def app_callback(ctx: typer.Context):
 
     ether = Ether(config['general']['endpoint_url'])
     eoa, pkey = decode_keyfile(config['general']['keyfile'])
-    account = Account(ether.web3_with_signature(pkey), eoa)
+    account = Account(ether, eoa, pkey)
     ctx.meta['account'] = account
 
     _load_metemcyber_util(ctx)
@@ -432,7 +432,7 @@ def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only)
             _load_catalog_manager(ctx).active_catalogs.items(), key=lambda x: x[1], reverse=True):
         typer.echo(f'Catalog {cid}: {caddr}')
         token_infos = sorted(
-            Catalog(account.web3).get(caddr).tokens.values(),
+            Catalog(account).get(caddr).tokens.values(),
             key=lambda x: x.token_id,
             reverse=True)
         amounts = _load_broker(ctx).get_amounts(caddr, [token.address for token in token_infos])
@@ -444,7 +444,7 @@ def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only)
                 continue
             if not soldout and amounts[idx] == 0:
                 continue
-            balance = Token(account.web3).get(tinfo.address).balance_of(account.eoa)
+            balance = Token(account).get(tinfo.address).balance_of(account.eoa)
             if balance == 0:
                 if own_only:
                     continue
@@ -470,7 +470,7 @@ def _ix_parse_token_index(ctx: typer.Context, token_index: str
     account = ctx.meta['account']
     catalog_mgr = _load_catalog_manager(ctx)
     catalog_address = catalog_mgr.id2address(catalog_idx)
-    token_address = Catalog(account.web3).get(catalog_address).id2address(token_idx)
+    token_address = Catalog(account).get(catalog_address).id2address(token_idx)
     return catalog_address, token_address
 
 
@@ -499,7 +499,7 @@ def ix_buy(ctx: typer.Context, token_index: str):
         account = ctx.meta['account']
         broker = _load_broker(ctx)
         catalog, token = _ix_parse_token_index(ctx, token_index)
-        price = Catalog(account.web3).get(catalog).get_tokeninfo(token).price
+        price = Catalog(account).get(catalog).get_tokeninfo(token).price
         broker.buy(catalog, token, price, allow_cheaper=False)
         typer.echo(f'bought token {token_index} for {price} pts.')
     except Exception as err:
@@ -515,10 +515,10 @@ def ix_consign(ctx: typer.Context, token_index: str, amount: int):
             raise Exception(f'Invalid amount: {amount}')
         account = ctx.meta['account']
         catalog_address, token_address = _ix_parse_token_index(ctx, token_index)
-        tinfo = Catalog(account.web3).get(catalog_address).get_tokeninfo(token_address)
+        tinfo = Catalog(account).get(catalog_address).get_tokeninfo(token_address)
         if tinfo.owner != account.eoa:
             raise Exception(f'Not a token published by you')
-        balance = Token(account.web3).get(token_address).balance_of(account.eoa)
+        balance = Token(account).get(token_address).balance_of(account.eoa)
         if balance < amount:
             raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
         broker = _load_broker(ctx)
@@ -536,7 +536,7 @@ def ix_token_create(ctx: typer.Context, initial_supply: int):
         account = ctx.meta['account']
         if initial_supply <= 0:
             raise Exception(f'Invalid initial-supply: {initial_supply}')
-        token = Token(account.web3).new(initial_supply, [])
+        token = Token(account).new(initial_supply, [])
         typer.echo(f'created a new token. address is {token.address}.')
     except Exception as err:
         logger.exception(err)
@@ -551,8 +551,8 @@ def ix_challenge_token(ctx: typer.Context, token_address: str, data: str = ''):
         account = ctx.meta['account']
         operator = _load_operator(ctx)
         assert operator.address
-        Token(account.web3).get(cast(ChecksumAddress, token_address)
-                                ).send(operator.address, amount=1, data=data)
+        Token(account).get(cast(ChecksumAddress, token_address)
+                           ).send(operator.address, amount=1, data=data)
         typer.echo(f'Started challenge with token({token_address}).')
     except Exception as err:
         logger.exception(err)
@@ -564,7 +564,7 @@ def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> Toke
     catalog_mgr = _load_catalog_manager(ctx)
     for catalog_address in catalog_mgr.all_catalogs.keys():
         try:
-            return Catalog(account.web3).get(catalog_address).get_tokeninfo(token_address)
+            return Catalog(account).get(catalog_address).get_tokeninfo(token_address)
         except Exception:
             pass
     raise Exception('No info found for token({token_address}) on registered catalogs')
@@ -644,7 +644,7 @@ def ix_broker_new(ctx: typer.Context,
     logger = getLogger()
     try:
         account = ctx.meta['account']
-        broker = Broker(account.web3).new()
+        broker = Broker(account).new()
         typer.echo(f'deployed a new broker. address is {broker.address}.')
         if switch:
             ctx.meta['broker'] = broker
@@ -660,7 +660,7 @@ def ix_broker_set(ctx: typer.Context, broker_address: str):
     logger = getLogger()
     try:
         account = ctx.meta['account']
-        broker = Broker(account.web3).get(cast(ChecksumAddress, broker_address))
+        broker = Broker(account).get(cast(ChecksumAddress, broker_address))
         ctx.meta['broker'] = broker
         config_update_broker(ctx)
         typer.echo(f'configured to use broker({broker_address}).')
@@ -723,7 +723,7 @@ def catalog_new(
     logger = getLogger()
     try:
         account = ctx.meta['account']
-        catalog: Catalog = Catalog(account.web3).new(private)
+        catalog: Catalog = Catalog(account).new(private)
         typer.echo('deployed a new '
                    f'{"private" if private else "public"} catalog. '
                    f'address is {catalog.address}.')
@@ -784,7 +784,7 @@ def catalog_register(ctx: typer.Context, catalog_address: str, token_address: st
         catalog_mgr = _load_catalog_manager(ctx)
         if by_id:
             catalog_address = catalog_mgr.id2address(int(catalog_address))
-        catalog = Catalog(account.web3).get(cast(ChecksumAddress, catalog_address))
+        catalog = Catalog(account).get(cast(ChecksumAddress, catalog_address))
         catalog.register_cti(cast(ChecksumAddress, token_address), uuid_, title, price)
         typer.echo(f'registered token({token_address}) onto catalog({catalog_address}).')
     except Exception as err:
@@ -802,7 +802,7 @@ def catalog_publish(ctx: typer.Context, catalog_address: str, token_address: str
         catalog_mgr = _load_catalog_manager(ctx)
         if by_id:
             catalog_address = catalog_mgr.id2address(int(catalog_address))
-        catalog = Catalog(account.web3).get(cast(ChecksumAddress, catalog_address))
+        catalog = Catalog(account).get(cast(ChecksumAddress, catalog_address))
         catalog.publish_cti(producer, cast(ChecksumAddress, token_address))
         typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
     except Exception as err:
@@ -856,12 +856,12 @@ def account_info(ctx: typer.Context):
     for caddr, cid in sorted(
             catalog_mgr.active_catalogs.items(), key=lambda x: x[1]):
         typer.echo(f'Catalog {cid}: {caddr}')
-        catalog = Catalog(account.web3).get(caddr)
+        catalog = Catalog(account).get(caddr)
         if len(catalog.tokens) > 0:
             typer.echo('  Tokens <id, balance, address>')
             for taddr, tinfo in sorted(
                     catalog.tokens.items(), key=lambda x: x[1].token_id):
-                token = Token(account.web3).get(taddr)
+                token = Token(account).get(taddr)
                 balance = token.balance_of(account.eoa)
                 if balance > 0:
                     typer.echo(f'  {tinfo.token_id}: {balance}: {taddr}')
