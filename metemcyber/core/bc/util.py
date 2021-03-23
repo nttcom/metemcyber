@@ -16,7 +16,7 @@
 
 import json
 from getpass import getpass
-from typing import Tuple, cast
+from typing import Callable, Tuple, cast
 
 from eth_account.messages import encode_defunct
 from eth_typing import ChecksumAddress
@@ -40,11 +40,13 @@ def verify_message(message: str, signature: str) -> ChecksumAddress:
     return signer
 
 
-def decode_keyfile(filename: str) -> Tuple[ChecksumAddress, str]:
+def decode_keyfile(filename: str,
+                   password_func: Callable[[], str] = lambda: getpass('Enter password for keyfile:')
+                   ) -> Tuple[ChecksumAddress, str]:
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
     with open(filename) as keyfile:
         enc_data = keyfile.read()
     address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
-    word = getpass('Enter password for keyfile:')
+    word = password_func()
     private_key = w3.eth.account.decrypt(enc_data, word).hex()
     return Web3.toChecksumAddress(address), private_key

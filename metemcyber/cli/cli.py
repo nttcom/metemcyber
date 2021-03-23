@@ -14,6 +14,8 @@
 #    limitations under the License.
 #
 
+#pylint: disable=too-many-lines
+
 import configparser
 import json
 import os
@@ -40,6 +42,7 @@ from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
 from metemcyber.core.logger import get_logger
+from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 from metemcyber.core.seeker import Seeker
 
 APP_NAME = "metemcyber"
@@ -68,7 +71,9 @@ ix_app.add_typer(ix_operator_app, name='operator', help="Manage the CTI operator
 ix_challenge_app = typer.Typer()
 ix_app.add_typer(ix_challenge_app, name='challenge', help="Execute tasks using the CTI token.")
 ix_seeker_app = typer.Typer()
-ix_app.add_typer(ix_seeker_app, name='seeker', help='Manage CTI seeker subprocess.')
+ix_app.add_typer(ix_seeker_app, name='seeker', help='Manage the CTI seeker subprocess.')
+ix_solver_app = typer.Typer()
+ix_app.add_typer(ix_solver_app, name='solver', help='Manage the CTI solver subprocess.')
 
 catalog_app = typer.Typer()
 app.add_typer(catalog_app, name="catalog", help="Manage the CTI catalog contract.")
@@ -217,6 +222,8 @@ def app_callback(ctx: typer.Context):
     eoa, pkey = decode_keyfile(config['general']['keyfile'])
     account = Account(ether, eoa, pkey)
     ctx.meta['account'] = account
+
+    ctx.meta['xxx_pkey'] = pkey  # FIXME: TODO: XXX
 
     _load_metemcyber_util(ctx)
 
@@ -586,6 +593,101 @@ def ix_seeker_stop(_ctx: typer.Context):
         typer.echo(f'failed operation: {err}')
 
 
+def _solver_client(ctx: typer.Context) -> MCSClient:
+    if 'solver_client' in ctx.meta.keys():
+        return ctx.meta['solver_client']
+    account = ctx.meta['account']
+    solver = MCSClient(account.eoa, ctx.meta.get('xxx_pkey'))
+    solver.connect()
+    solver.login()
+    ctx.meta['solver_client'] = solver
+    return solver
+
+
+@ix_solver_app.command('status')
+def ix_solver_status(ctx: typer.Context):
+    logger = getLogger()
+    try:
+        operator = _load_operator(ctx)
+        solver = _solver_client(ctx)
+        solver.get_solver()
+        if solver.operator_address == operator.address:
+            typer.echo(f'Solver running with operator you configured({operator.address}).')
+        else:
+            typer.echo('[WARNING] '
+                       f'Solver running with another operator({solver.operator_address}).')
+    except MCSError as err:
+        if err.code == MCSErrno.ENOENT:
+            typer.echo('Solver running without your operator.')
+        else:
+            typer.echo(f'failed operation: {err}')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_solver_app.command('start')
+def ix_solver_start(ctx: typer.Context):
+    logger = getLogger()
+    try:
+        _solver_client(ctx)
+        typer.echo('Solver already running.')
+    except Exception:
+        pass
+    try:
+        config = ctx.meta['config']
+        endpoint_url = config['general']['endpoint_url']
+    except Exception:
+        typer.echo('Configuration error: missing general.endpoint_url.')
+    try:
+        subprocess.Popen(
+            ['python3', 'metemcyber/core/multi_solver_cli.py', '-e', endpoint_url, '-m', 'server'],
+            shell=False)
+        typer.echo('Solver started as a subprocess.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_solver_app.command('stop')
+def ix_solver_stop(ctx: typer.Context):
+    logger = getLogger()
+    try:
+        solver = _solver_client(ctx)
+        solver.shutdown()
+        typer.echo('Solver shutted down.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_solver_app.command('apply')
+def ix_solver_apply(ctx: typer.Context,
+                    plugin: Optional[str] = typer.Option(None, help='solver plugin filename')):
+    logger = getLogger()
+    try:
+        operator = _load_operator(ctx)
+        solver = _solver_client(ctx)
+        applied = solver.new_solver(operator.address, pluginfile=plugin)
+        assert applied == operator.address
+        typer.echo(f'Solver is now running with your operator({new}).')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_solver_app.command('purge')
+def ix_solver_purge(ctx: typer.Context):
+    logger = getLogger()
+    try:
+        solver = _solver_client(ctx)
+        solver.get_solver()
+        solver.purge_solver()
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
 @ix_challenge_app.command('token',
                           help="Use the token to challenge the task. (Get the MISP object, etc.")
 def ix_challenge_token(ctx: typer.Context, token_address: str, data: str = ''):
@@ -721,6 +823,43 @@ def ix_operator_show(ctx: typer.Context):
             typer.echo(f'Operator is not yet configured.')
         else:
             typer.echo(f'Operator address is {operator.address}.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_operator_app.command('new')
+def ix_operator_new(ctx: typer.Context,
+                    switch: bool = typer.Option(True, help='switch to deployed operator')):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        operator = Operator(account).new()
+        typer.echo(f'deployed a new operator. address is {operator.address}.')
+        if switch:
+            ctx.meta['operator'] = operator
+            config_update_operator(ctx)
+            typer.echo('configured to use the operator above.')
+
+            # TODO: need notify about plugin file.
+
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_operator_app.command('set')
+def ix_operator_set(ctx: typer.Context, operator_address: str):
+    logger = getLogger()
+    try:
+        account = ctx.meta['account']
+        operator = Operator(account).get(cast(ChecksumAddress, operator_address))
+        ctx.meta['operator'] = operator
+        config_update_operator(ctx)
+        typer.echo(f'configured to use operator({operator_address}).')
+
+        # TODO: need notify about plugin file.
+
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
