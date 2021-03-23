@@ -16,3 +16,4 @@ docopt==0.6.2
 kedro==0.17.0
 typer==0.3.2
 psutil
+cryptography
