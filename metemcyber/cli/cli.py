@@ -670,7 +670,7 @@ def ix_solver_apply(ctx: typer.Context,
         solver = _solver_client(ctx)
         applied = solver.new_solver(operator.address, pluginfile=plugin)
         assert applied == operator.address
-        typer.echo(f'Solver is now running with your operator({new}).')
+        typer.echo(f'Solver is now running with your operator({applied}).')
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
