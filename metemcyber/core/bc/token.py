@@ -14,6 +14,8 @@
 #    limitations under the License.
 #
 
+from __future__ import annotations
+
 from typing import Dict, List, Optional
 
 from eth_typing import ChecksumAddress
@@ -30,12 +32,12 @@ class Token():
         self.account: Account = account
         self.address: Optional[ChecksumAddress] = None
 
-    def get(self, address: ChecksumAddress) -> 'Token':
+    def get(self, address: ChecksumAddress) -> Token:
         self.address = address
         return self
 
     def new(self, initial_supply: int,
-            default_operators: List[ChecksumAddress]) -> 'Token':
+            default_operators: List[ChecksumAddress]) -> Token:
         cti_token = CTIToken(self.account).new(initial_supply, default_operators)
         return self.get(cti_token.address)
 

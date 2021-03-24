@@ -14,6 +14,8 @@
 #    limitations under the License.
 #
 
+from __future__ import annotations
+
 from typing import Dict, Optional
 from uuid import UUID
 
@@ -64,15 +66,15 @@ class Catalog():
         self.private: Optional[bool] = None
         self.tokens: Dict[ChecksumAddress, TokenInfo] = {}
 
-    def get(self, address: ChecksumAddress) -> 'Catalog':
+    def get(self, address: ChecksumAddress) -> Catalog:
         self.address = address
         self._sync_catalog()
         return self
 
-    def get_by_id(self, catalog_id: int) -> 'Catalog':
+    def get_by_id(self, catalog_id: int) -> Catalog:
         return self.get(self._catalogs_by_id()[catalog_id].address)
 
-    def new(self, private: bool) -> 'Catalog':
+    def new(self, private: bool) -> Catalog:
         cti_catalog = CTICatalog(self.account).new(private)
         return self.get(cti_catalog.address)
 
