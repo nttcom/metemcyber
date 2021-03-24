@@ -39,7 +39,7 @@ class Solver(BaseSolver):
                 'Solver として受付を開始しました。\n' + \
                 'チャレンジ結果は中継点( {} )にアップロードされます'.\
                 format(FUNCTIONS_URL)
-        return 'Solver用のURLが設定されていません。'
+        raise Exception('Solver用のURLが設定されていません。')
 
     def process_challenge(self, token_address, event):
         LOGGER.info('GCSSolver: callback: %s', token_address)
