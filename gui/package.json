@@ -1,5 +1,5 @@
 {
-  "name": "my-app",
+  "name": "Metemcyber",
   "version": "0.1.0",
   "private": true,
   "main": "public/electron.js",
