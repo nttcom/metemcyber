@@ -374,9 +374,22 @@ ipcMain.on('select-logout', async (event, arg) => {
 });
 
 ipcMain.on('login', async (event, arg) => {
+  const exec = require('util').promisify(require('child_process').exec);
+
+  const dockerPath = fs.readFileSync(isDev ? "./docker-path" : path.join(__dirname, '../../../docker-path'), 'utf8').toString().split('¥n');
+  process.env.PATH = `${dockerPath}:${process.env.PATH}`;
+
+  const echoRes = await exec('echo $PATH');
+  event.reply('send-log', "echo result");
+  event.reply('send-log', echoRes.stdout);
+
+  const whichRes = await exec('which docker');
+  event.reply('send-log', "which result");
+  event.reply('send-log', whichRes.stdout);
+
   let keyfileName = '';
   // Get keyfile name.
-  fs.readdir(isDev ? "../keyfile" : path.join(__dirname, '../keyfile'), (err, files) => {
+  fs.readdir(isDev ? "../keyfile" : path.join(__dirname, '../../../metemcyber_contents/keyfile'), (err, files) => {
     if (err) throw err;
     keyfileName = files[0];
   });
@@ -385,7 +398,7 @@ ipcMain.on('login', async (event, arg) => {
 
   // Create the browser window.
   proc = pty.spawn('bash', [
-    '../metemcyber_ctl.sh',
+    isDev ? '../metemcyber_ctl.sh' : path.join(__dirname, '../../../metemcyber_contents/metemcyber_ctl.sh'),
     "-",
     "client",
     `-f  keyfile/${keyfileName}`,
@@ -402,6 +415,7 @@ ipcMain.on('login', async (event, arg) => {
   await new Promise((resolve) => {
     proc.on('data', function (data) {
       data.split("\r\n").map((val) => {
+        event.reply('send-log', val);
         console.log(val)
         switch (val) {
           case 'Enter password for keyfile:':

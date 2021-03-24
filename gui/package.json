@@ -1,8 +1,8 @@
 {
   "name": "Metemcyber",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
-  "main": "public/electron.js",
+  "main": "build/electron.js",
   "homepage": "./",
   "dependencies": {
     "@testing-library/jest-dom": "^5.11.4",
@@ -55,5 +55,27 @@
     "electron-builder": "^22.9.1",
     "npm-run-all": "^4.1.5",
     "wait-on": "^5.2.0"
+  },
+  "build": {
+    "extends": null,
+    "directories": {
+      "buildResources": "resources",
+      "output": "dist"
+    },
+    "extraFiles": [
+      {
+        "from": "../",
+        "to": "./metemcyber_contents",
+        "filter": ["!gui/*"]
+      },
+      {
+        "from": "docker-path",
+        "to": "./"
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "public/logo512.png"
+    }
   }
 }
