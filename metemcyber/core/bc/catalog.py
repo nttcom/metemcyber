@@ -26,24 +26,24 @@ from .cti_catalog import CTICatalog
 
 
 class TokenInfo():
-    def __init__(self):
-        self.address = None
-        self.token_id = None
-        self.owner = None
-        self.uuid = None
-        self.title = None
-        self.price = None
-        self.operator = None
-        self.like_count = None
+    def __init__(self, address, token_id, owner, uuid, title, price, operator, like_count):
+        self.address = address
+        self.token_id = token_id
+        self.owner = owner
+        self.uuid = uuid
+        self.title = title
+        self.price = price
+        self.operator = operator
+        self.like_count = like_count
 
 
 class CatalogInfo():
-    def __init__(self):
-        self.address = None
-        self.catalog_id = None
-        self.owner = None
-        self.private = None
-        self.tokens: Dict[ChecksumAddress, TokenInfo] = {}
+    def __init__(self, address, catalog_id, owner, private, tokens):
+        self.address = address
+        self.catalog_id = catalog_id
+        self.owner = owner
+        self.private = private
+        self.tokens: Dict[ChecksumAddress, TokenInfo] = tokens
 
 
 class Catalog():
@@ -97,26 +97,16 @@ class Catalog():
         assert self.address
         cinfo = self._catalogs_by_address.get(self.address)
         if not cinfo:
-            cinfo = CatalogInfo()
-            cinfo.address = self.address
-            cinfo.catalog_id = self._gen_catalog_id()
+            cinfo = CatalogInfo(self.address, self._gen_catalog_id(), None, None, {})
             Catalog.__addressed_catalogs[self.address] = cinfo
             cti_catalog = CTICatalog(self.account).get(self.address)
             cinfo.owner = cti_catalog.get_owner()
             cinfo.private = cti_catalog.is_private()
             for taddr in cti_catalog.list_token_uris():
-                tinfo = TokenInfo()
                 tid, owner, uuid, title, price, operator, lcount = \
                     cti_catalog.get_cti_info(taddr)
-                tinfo.address = taddr
-                tinfo.token_id = tid
-                tinfo.owner = owner
-                tinfo.uuid = uuid
-                tinfo.title = title
-                tinfo.price = price
-                tinfo.operator = operator
-                tinfo.like_count = lcount
-                cinfo.tokens[taddr] = tinfo
+                cinfo.tokens[taddr] = TokenInfo(
+                    taddr, tid, owner, uuid, title, price, operator, lcount)
         self.catalog_id = cinfo.catalog_id
         self.owner = cinfo.owner
         self.private = cinfo.private

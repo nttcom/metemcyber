@@ -436,16 +436,31 @@ def config_update_operator(ctx: typer.Context):
     write_config(config, CONFIG_FILE_PATH)
 
 
-def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only):
+class TokenInfoEx(TokenInfo):
+    """ Class for pack token data. do not cache my instance.
+    """
+
+    def __init__(self, tinfo, amount, balance):
+        super().__init__(tinfo.address, tinfo.token_id, tinfo.owner, tinfo.uuid,
+                         tinfo.title, tinfo.price, tinfo.operator, tinfo.like_count)
+        self.amount = amount
+        self.balance = balance
+
+
+def _get_tokens_population(ctx: typer.Context,
+                           mine: bool = True, mine_only: bool = False, soldout: bool = False,
+                           own: bool = True, own_only: bool = False
+                           ) -> Dict[int, List[TokenInfoEx]]:
     account = ctx.meta['account']
+    ret: Dict[int, List[TokenInfoEx]] = {}
     for caddr, cid in sorted(
             _load_catalog_manager(ctx).active_catalogs.items(), key=lambda x: x[1], reverse=True):
-        typer.echo(f'Catalog {cid}: {caddr}')
         token_infos = sorted(
             Catalog(account).get(caddr).tokens.values(),
             key=lambda x: x.token_id,
             reverse=True)
         amounts = _load_broker(ctx).get_amounts(caddr, [token.address for token in token_infos])
+        ret[cid] = []
         for idx, tinfo in enumerate(token_infos):
             if account.eoa == tinfo.owner:
                 if not mine:
@@ -460,13 +475,41 @@ def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only)
                     continue
             elif not own:
                 continue
+            ret[cid].append(TokenInfoEx(tinfo, amounts[idx], balance))
+    return ret
+
+
+def _get_accepting_tokens(ctx: typer.Context) -> List[ChecksumAddress]:
+    solver = _solver_client(ctx)
+    solver.get_solver()
+    return solver.solver('accepting_tokens')
+
+
+def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only):
+    account = ctx.meta['account']
+    try:
+        accepting = _get_accepting_tokens(ctx)
+    except Exception:
+        accepting = []
+    if mine:
+        typer.echo(' o   = published by you')
+        typer.echo('  *  = currently accepting')
+    typer.echo('    C-T: title  /  C = CatalogId, T = TokenId in catalog')
+    typer.echo('--------')
+
+    population = _get_tokens_population(
+        ctx, mine=mine, mine_only=mine_only, soldout=soldout, own=own, own_only=own_only)
+    for cid, tokens in sorted(population.items(), reverse=True):
+        for tinfo in tokens:
+            mrk = ('o' if tinfo.owner == account.eoa else ' ') + \
+                  ('*' if tinfo.address in accepting else ' ')
 
             typer.echo(
-                f'  {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
+                f' {mrk} {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
                 f'     ├ UUID : {tinfo.uuid}' + '\n'
                 f'     ├ Addr : {tinfo.address}' + '\n'
-                f'     └ Price: {tinfo.price} pts / {amounts[idx]} tokens left' +
-                ('' if balance == 0 else f' (you have {balance})'))
+                f'     └ Price: {tinfo.price} pts / {tinfo.amount} tokens left' +
+                ('' if tinfo.balance == 0 else f' (you have {tinfo.balance})'))
 
 
 def _ix_parse_token_index(ctx: typer.Context, token_index: str
@@ -679,6 +722,28 @@ def ix_solver_apply(ctx: typer.Context,
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
+        return
+
+    # start accept tokens already registered if exists.
+    try:
+        population = _get_tokens_population(
+            ctx, mine=True, mine_only=True, soldout=True, own=True, own_only=False)
+        token_addresses = [t.address for lst in population.values() for t in lst]
+        if len(token_addresses) == 0:
+            return
+    except Exception:
+        return
+
+    try:
+        solver.solver('accept_registered', token_addresses)
+        acceptings = solver.solver('accepting_tokens')
+        if acceptings:
+            typer.echo(f'and accepting {len(acceptings)} token(s) already registered.')
+        else:
+            typer.echo(f'No token registered on this operator.')
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'accepting registerd tokens failed: {err}')
 
 
 @ix_solver_app.command('purge',
@@ -689,6 +754,34 @@ def ix_solver_purge(ctx: typer.Context):
         solver = _solver_client(ctx)
         solver.get_solver()
         solver.purge_solver()
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_solver_app.command('register',
+                       help='Register token to accept challenge.')
+def ix_solver_register(ctx: typer.Context,
+                       token_address: str):
+    logger = getLogger()
+    try:
+        solver = _solver_client(ctx)
+        solver.get_solver()
+        solver.solver('accept_challenges', [cast(ChecksumAddress, token_address)])
+    except Exception as err:
+        logger.exception(err)
+        typer.echo(f'failed operation: {err}')
+
+
+@ix_solver_app.command('unregister',
+                       help='Unregister token not to accept challenge.')
+def ix_solver_unregister(ctx: typer.Context,
+                         token_address: str):
+    logger = getLogger()
+    try:
+        solver = _solver_client(ctx)
+        solver.get_solver()
+        solver.solver('refuse_challenges', [cast(ChecksumAddress, token_address)])
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
