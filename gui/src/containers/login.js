@@ -20,6 +20,10 @@ function Login(props) {
         ipcRenderer.send('login', pass)
     }
 
+    ipcRenderer.on('send-log', (event, arg) => {
+        console.log(arg);
+    });
+
     return (
         <div className="app flex-row align-items-center">
             <Container>
