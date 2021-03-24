@@ -144,8 +144,22 @@ def decode_keyfile(filepath: Path):
         raise typer.Exit(code=1)
 
 
+def _load_account(ctx: typer.Context) -> Account:
+    if 'account' in ctx.meta.keys():
+        return ctx.meta['account']
+    config = ctx.meta['config']
+    ether = Ether(config['general']['endpoint_url'])
+    eoa, pkey = decode_keyfile(config['general']['keyfile'])
+    account = Account(ether, eoa, pkey)
+    ctx.meta['account'] = account
+
+    ctx.meta['xxx_pkey'] = pkey  # FIXME: TODO: XXX
+
+    return account
+
+
 def _load_metemcyber_util(ctx: typer.Context):
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     config = ctx.meta['config']
     if config.has_section('metemcyber_util'):
         util_addr = config['metemcyber_util'].get('address')
@@ -167,7 +181,7 @@ def _load_metemcyber_util(ctx: typer.Context):
 def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
     if 'catalog_manager' in ctx.meta.keys():
         return ctx.meta['catalog_manager']
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     catalog_mgr = CatalogManager(account)
     config = ctx.meta['config']
     if config.has_section('catalog'):
@@ -184,7 +198,7 @@ def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
 def _load_broker(ctx: typer.Context) -> Broker:
     if 'broker' in ctx.meta.keys():
         return ctx.meta['broker']
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     config = ctx.meta['config']
     try:
         broker_address = cast(ChecksumAddress, config['broker']['address'])
@@ -198,7 +212,7 @@ def _load_broker(ctx: typer.Context) -> Broker:
 def _load_operator(ctx: typer.Context) -> Operator:
     if 'operator' in ctx.meta.keys():
         return ctx.meta['operator']
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     config = ctx.meta['config']
     try:
         operator_address = cast(ChecksumAddress, config['operator']['address'])
@@ -217,13 +231,6 @@ def app_callback(ctx: typer.Context):
         create_config(CONFIG_FILE_PATH)
     config = read_config(CONFIG_FILE_PATH)
     ctx.meta['config'] = config
-
-    ether = Ether(config['general']['endpoint_url'])
-    eoa, pkey = decode_keyfile(config['general']['keyfile'])
-    account = Account(ether, eoa, pkey)
-    ctx.meta['account'] = account
-
-    ctx.meta['xxx_pkey'] = pkey  # FIXME: TODO: XXX
 
 
 class IntelligenceCategory(str, Enum):
@@ -409,8 +416,7 @@ def config_update_catalog(ctx: typer.Context):
                    ','.join(catalog_mgr.reserved_catalogs.keys()))
     write_config(config, CONFIG_FILE_PATH)
     del ctx.meta['catalog_manager']
-    account = ctx.meta['account']
-    Catalog(account).uncache(entire=True)
+    Catalog(_load_account(ctx)).uncache(entire=True)
 
 
 def config_update_broker(ctx: typer.Context):
@@ -452,7 +458,7 @@ def _get_tokens_population(ctx: typer.Context,
                            mine: bool = True, mine_only: bool = False, soldout: bool = False,
                            own: bool = True, own_only: bool = False
                            ) -> Dict[int, List[TokenInfoEx]]:
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     ret: Dict[int, List[TokenInfoEx]] = {}
     for caddr, cid in sorted(
             _load_catalog_manager(ctx).active_catalogs.items(), key=lambda x: x[1], reverse=True):
@@ -487,7 +493,7 @@ def _get_accepting_tokens(ctx: typer.Context) -> List[ChecksumAddress]:
 
 
 def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only):
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     try:
         accepting = _get_accepting_tokens(ctx)
     except Exception:
@@ -521,7 +527,7 @@ def _ix_parse_token_index(ctx: typer.Context, token_index: str
         token_idx = int(token_part)
     except Exception as err:
         raise Exception(f'Invalid index: {token_index}') from err
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     catalog_mgr = _load_catalog_manager(ctx)
     catalog_address = catalog_mgr.id2address(catalog_idx)
     token_address = Catalog(account).get(catalog_address).id2address(token_idx)
@@ -550,7 +556,7 @@ def ix_list(ctx: typer.Context,
 def ix_buy(ctx: typer.Context, token_index: str):
     logger = getLogger()
     try:
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         broker = _load_broker(ctx)
         catalog, token = _ix_parse_token_index(ctx, token_index)
         price = Catalog(account).get(catalog).get_tokeninfo(token).price
@@ -567,7 +573,7 @@ def ix_consign(ctx: typer.Context, token_index: str, amount: int):
     try:
         if amount <= 0:
             raise Exception(f'Invalid amount: {amount}')
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         catalog_address, token_address = _ix_parse_token_index(ctx, token_index)
         tinfo = Catalog(account).get(catalog_address).get_tokeninfo(token_address)
         if tinfo.owner != account.eoa:
@@ -588,7 +594,7 @@ def ix_token_create(ctx: typer.Context, initial_supply: int):
     logger = getLogger()
     try:
         _load_metemcyber_util(ctx)
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         if initial_supply <= 0:
             raise Exception(f'Invalid initial-supply: {initial_supply}')
         token = Token(account).new(initial_supply, [])
@@ -641,7 +647,7 @@ def ix_seeker_stop(_ctx: typer.Context):
 def _solver_client(ctx: typer.Context) -> MCSClient:
     if 'solver_client' in ctx.meta.keys():
         return ctx.meta['solver_client']
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     solver = MCSClient(account.eoa, ctx.meta.get('xxx_pkey'))
     solver.connect()
     solver.login()
@@ -794,7 +800,7 @@ def ix_solver_unregister(ctx: typer.Context,
 def ix_challenge_token(ctx: typer.Context, token_address: str, data: str = ''):
     logger = getLogger()
     try:
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         operator = _load_operator(ctx)
         assert operator.address
         Token(account).get(cast(ChecksumAddress, token_address)
@@ -806,7 +812,7 @@ def ix_challenge_token(ctx: typer.Context, token_address: str, data: str = ''):
 
 
 def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> TokenInfo:
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     catalog_mgr = _load_catalog_manager(ctx)
     for catalog_address in catalog_mgr.all_catalogs.keys():
         try:
@@ -838,7 +844,7 @@ def ix_challenge_list(ctx: typer.Context,
                       mine_only: bool = typer.Option(True, help='show yours only')):
     logger = getLogger()
     try:
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         raw_tasks = _get_challenges(ctx)
         for (task_id, token, _, seeker, state) in reversed(raw_tasks):
             if mine_only and seeker != account.eoa:
@@ -890,7 +896,7 @@ def ix_broker_new(ctx: typer.Context,
     logger = getLogger()
     try:
         _load_metemcyber_util(ctx)
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         broker = Broker(account).new()
         typer.echo(f'deployed a new broker. address is {broker.address}.')
         if switch:
@@ -906,7 +912,7 @@ def ix_broker_new(ctx: typer.Context,
 def ix_broker_set(ctx: typer.Context, broker_address: str):
     logger = getLogger()
     try:
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         broker = Broker(account).get(cast(ChecksumAddress, broker_address))
         ctx.meta['broker'] = broker
         config_update_broker(ctx)
@@ -936,7 +942,7 @@ def ix_operator_new(ctx: typer.Context,
     logger = getLogger()
     try:
         _load_metemcyber_util(ctx)
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         operator = Operator(account).new()
         typer.echo(f'deployed a new operator. address is {operator.address}.')
         if switch:
@@ -955,7 +961,7 @@ def ix_operator_new(ctx: typer.Context,
 def ix_operator_set(ctx: typer.Context, operator_address: str):
     logger = getLogger()
     try:
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         operator = Operator(account).get(cast(ChecksumAddress, operator_address))
         ctx.meta['operator'] = operator
         config_update_operator(ctx)
@@ -1008,7 +1014,7 @@ def catalog_new(
     logger = getLogger()
     try:
         _load_metemcyber_util(ctx)
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         catalog: Catalog = Catalog(account).new(private)
         typer.echo('deployed a new '
                    f'{"private" if private else "public"} catalog. '
@@ -1066,7 +1072,7 @@ def catalog_register(ctx: typer.Context, catalog_address: str, token_address: st
             raise Exception(f'Invalid(empty) title')
         if price < 0:
             raise Exception(f'Invalid price: {price}')
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         catalog_mgr = _load_catalog_manager(ctx)
         if by_id:
             catalog_address = catalog_mgr.id2address(int(catalog_address))
@@ -1083,7 +1089,7 @@ def catalog_publish(ctx: typer.Context, catalog_address: str, token_address: str
                     by_id: bool = typer.Option(False, help='select catalog by id')):
     logger = getLogger()
     try:
-        account = ctx.meta['account']
+        account = _load_account(ctx)
         producer = account.eoa
         catalog_mgr = _load_catalog_manager(ctx)
         if by_id:
@@ -1131,7 +1137,7 @@ def publish():
 
 @account_app.command("info", help="Show the current account information.")
 def account_info(ctx: typer.Context):
-    account = ctx.meta['account']
+    account = _load_account(ctx)
     typer.echo(f'--------------------')
     typer.echo(f'Summary')
     typer.echo(f'  - EOA Address: {account.wallet.eoa}')
