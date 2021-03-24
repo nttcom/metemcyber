@@ -386,10 +386,9 @@ class SolverThread():
                 tracelog(SERVERLOG, '%d: len == 0 (disconnect)', self.index)
                 break
             msg += tmp
-            tracelog(SERVERLOG, 'received: ' + tmp.strip())
             queries = msg.split(EOM)
-            tracelog(SERVERLOG, 'current queries: ' + str(queries))
             for query in queries[:-1]:
+                tracelog(SERVERLOG, 'query: %s', query)
 
                 brk, discon = self._treat_one_query(query, conn)
 
