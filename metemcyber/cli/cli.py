@@ -225,8 +225,6 @@ def app_callback(ctx: typer.Context):
 
     ctx.meta['xxx_pkey'] = pkey  # FIXME: TODO: XXX
 
-    _load_metemcyber_util(ctx)
-
 
 class IntelligenceCategory(str, Enum):
     fraud = 'Fraud'
@@ -586,6 +584,7 @@ def ix_consign(ctx: typer.Context, token_index: str, amount: int):
 def ix_token_create(ctx: typer.Context, initial_supply: int):
     logger = getLogger()
     try:
+        _load_metemcyber_util(ctx)
         account = ctx.meta['account']
         if initial_supply <= 0:
             raise Exception(f'Invalid initial-supply: {initial_supply}')
@@ -887,6 +886,7 @@ def ix_broker_new(ctx: typer.Context,
                   switch: bool = typer.Option(True, help='switch to deployed broker')):
     logger = getLogger()
     try:
+        _load_metemcyber_util(ctx)
         account = ctx.meta['account']
         broker = Broker(account).new()
         typer.echo(f'deployed a new broker. address is {broker.address}.')
@@ -932,6 +932,7 @@ def ix_operator_new(ctx: typer.Context,
                     switch: bool = typer.Option(True, help='switch to deployed operator')):
     logger = getLogger()
     try:
+        _load_metemcyber_util(ctx)
         account = ctx.meta['account']
         operator = Operator(account).new()
         typer.echo(f'deployed a new operator. address is {operator.address}.')
@@ -1003,6 +1004,7 @@ def catalog_new(
         help='activate created catalog')):
     logger = getLogger()
     try:
+        _load_metemcyber_util(ctx)
         account = ctx.meta['account']
         catalog: Catalog = Catalog(account).new(private)
         typer.echo('deployed a new '
