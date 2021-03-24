@@ -14,6 +14,8 @@
 #    limitations under the License.
 #
 
+from __future__ import annotations
+
 from typing import Dict, List, Optional
 
 from eth_typing import ChecksumAddress
@@ -35,11 +37,11 @@ class Broker():
         self.account: Account = account
         self.address: Optional[ChecksumAddress] = None
 
-    def get(self, address: ChecksumAddress) -> 'Broker':
+    def get(self, address: ChecksumAddress) -> Broker:
         self.address = address
         return self
 
-    def new(self) -> 'Broker':
+    def new(self) -> Broker:
         cti_broker = CTIBroker(self.account).new()
         return self.get(cti_broker.address)
 

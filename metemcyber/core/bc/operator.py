@@ -14,34 +14,10 @@
 #    limitations under the License.
 #
 
-from typing import List, Optional, Tuple
-
-from eth_typing import ChecksumAddress
-
-from .account import Account
 from .cti_operator import CTIOperator
 
 TASK_STATES = ['Pending', 'Accepted', 'Finished', 'Cancelled']
 
 
-class Operator():
-    def __init__(self, account: Account) -> None:
-        self.account: Account = account
-        self.address: Optional[ChecksumAddress] = None
-
-    def get(self, address: ChecksumAddress) -> 'Operator':
-        self.address = address
-        return self
-
-    def new(self) -> 'Operator':
-        cti_operator = CTIOperator(self.account).new()
-        return self.get(cti_operator.address)
-
-    def history(self, token: ChecksumAddress, limit: int, offset: int
-                ) -> List[Tuple[int, ChecksumAddress, ChecksumAddress, ChecksumAddress, int]]:
-        assert self.address
-        return CTIOperator(self.account).get(self.address).history(token, limit, offset)
-
-    def cancel_challenge(self, task_id: int) -> None:
-        assert self.address
-        CTIOperator(self.account).get(self.address).cancel_challenge(task_id)
+class Operator(CTIOperator):
+    pass

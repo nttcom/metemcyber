@@ -14,6 +14,8 @@
 #    limitations under the License.
 #
 
+from __future__ import annotations
+
 import inspect
 import json
 import os
@@ -70,7 +72,7 @@ class DataPack:
         self.sign: Optional[str] = None
 
     @classmethod
-    def from_string(cls, str_data: str) -> 'DataPack':
+    def from_string(cls, str_data: str) -> DataPack:
         jdata = json.loads(str_data)
         inst = cls(
             jdata.get('code'),
@@ -98,7 +100,7 @@ class DataPack:
             'sign': self.sign,
         })
 
-    def sign_message(self, pkey) -> 'DataPack':
+    def sign_message(self, pkey) -> DataPack:
         if pkey:
             self.sign = sign_message(str(self), pkey)
         return self  # for DataPack(...).sign_message(pkey).send(conn)
@@ -384,10 +386,9 @@ class SolverThread():
                 tracelog(SERVERLOG, '%d: len == 0 (disconnect)', self.index)
                 break
             msg += tmp
-            tracelog(SERVERLOG, 'received: ' + tmp.strip())
             queries = msg.split(EOM)
-            tracelog(SERVERLOG, 'current queries: ' + str(queries))
             for query in queries[:-1]:
+                tracelog(SERVERLOG, 'query: %s', query)
 
                 brk, discon = self._treat_one_query(query, conn)
 

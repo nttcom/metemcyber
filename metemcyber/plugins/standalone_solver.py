@@ -15,7 +15,6 @@
 #
 
 import os
-import socket
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
 from threading import Thread
@@ -138,7 +137,7 @@ class Solver(BaseSolver):
 
     def create_misp_download_url(self, cti_address):
         url = 'http://{host}:{port}/{path}'.format(
-            host=socket.gethostname(),
+            host='localhost',
             port=self.fileserver.port,
             path=cti_address)
         return url
