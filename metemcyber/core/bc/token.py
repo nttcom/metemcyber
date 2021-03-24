@@ -17,8 +17,8 @@
 from typing import Dict, List, Optional
 
 from eth_typing import ChecksumAddress
-from web3 import Web3
 
+from .account import Account
 from .cti_token import CTIToken
 
 
@@ -26,8 +26,8 @@ class Token():
     #                token address         eoa address      balance
     tokens_map: Dict[ChecksumAddress, Dict[ChecksumAddress, int]] = {}
 
-    def __init__(self, web3: Web3) -> None:
-        self.web3: Web3 = web3
+    def __init__(self, account: Account) -> None:
+        self.account: Account = account
         self.address: Optional[ChecksumAddress] = None
 
     def get(self, address: ChecksumAddress) -> 'Token':
@@ -36,8 +36,7 @@ class Token():
 
     def new(self, initial_supply: int,
             default_operators: List[ChecksumAddress]) -> 'Token':
-        assert self.web3
-        cti_token = CTIToken(self.web3).new(initial_supply, default_operators)
+        cti_token = CTIToken(self.account).new(initial_supply, default_operators)
         return self.get(cti_token.address)
 
     def uncache(self, entire: bool = False) -> None:
@@ -54,21 +53,19 @@ class Token():
         if self.address not in Token.tokens_map.keys():
             Token.tokens_map[self.address] = {}
         if target not in Token.tokens_map[self.address].keys():
-            cti_token = CTIToken(self.web3).get(self.address)
+            cti_token = CTIToken(self.account).get(self.address)
             balance = cti_token.balance_of(target)
             Token.tokens_map[self.address][target] = balance
         return Token.tokens_map[self.address][target]
 
     def send(self, dest: ChecksumAddress, amount: int, data: str = '') -> None:
-        assert self.web3
         assert self.address
-        cti_token = CTIToken(self.web3).get(self.address)
+        cti_token = CTIToken(self.account).get(self.address)
         cti_token.send_token(dest, amount, data)
         self.uncache()
 
     def burn(self, amount: int, data: str = '') -> None:
-        assert self.web3
         assert self.address
-        cti_token = CTIToken(self.web3).get(self.address)
+        cti_token = CTIToken(self.account).get(self.address)
         cti_token.burn_token(amount, data)
         self.uncache()

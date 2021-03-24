@@ -17,8 +17,8 @@
 from typing import Dict, List, Optional
 
 from eth_typing import ChecksumAddress
-from web3 import Web3
 
+from .account import Account
 from .catalog import Catalog
 from .cti_broker import CTIBroker
 from .cti_token import CTIToken
@@ -31,8 +31,8 @@ class Broker():
     #            {broker:              {catalog:             {token:           amount}}}
     amounts: Dict[ChecksumAddress, Dict[ChecksumAddress, Dict[ChecksumAddress, int]]] = {}
 
-    def __init__(self, web3: Web3) -> None:
-        self.web3: Web3 = web3
+    def __init__(self, account: Account) -> None:
+        self.account: Account = account
         self.address: Optional[ChecksumAddress] = None
 
     def get(self, address: ChecksumAddress) -> 'Broker':
@@ -40,8 +40,7 @@ class Broker():
         return self
 
     def new(self) -> 'Broker':
-        assert self.web3
-        cti_broker = CTIBroker(self.web3).new()
+        cti_broker = CTIBroker(self.account).new()
         return self.get(cti_broker.address)
 
     def uncache(self, catalog: Optional[ChecksumAddress] = None,
@@ -72,10 +71,10 @@ class Broker():
         if catalog not in bmap.keys():
             bmap[catalog] = {}
         cmap: dict = bmap[catalog]
-        queries = list(Catalog(self.web3).get(catalog).tokens.keys() - cmap.keys())
+        queries = list(Catalog(self.account).get(catalog).tokens.keys() - cmap.keys())
         if len(queries) == 0:  # already filled
             return
-        cti_broker = CTIBroker(self.web3).get(self.address)
+        cti_broker = CTIBroker(self.account).get(self.address)
         amounts = cti_broker.get_amounts(catalog, queries)
         for idx, token in enumerate(queries):
             cmap[token] = amounts[idx]
@@ -99,28 +98,29 @@ class Broker():
     def consign(self, catalog: ChecksumAddress, token: ChecksumAddress,
                 amount: int) -> None:
         assert self.address
-        cti_token = CTIToken(self.web3).get(token)
-        cti_broker = CTIBroker(self.web3).get(self.address)
+        cti_token = CTIToken(self.account).get(token)
+        cti_broker = CTIBroker(self.account).get(self.address)
         cti_token.authorize_operator(self.address)
         try:
             cti_broker.consign_token(catalog, token, amount)
             self.uncache(catalog, token)
-            Token(self.web3).get(token).uncache()  # FIXME: should I?
+            Token(self.account).get(token).uncache()  # FIXME: should I?
         finally:
             cti_token.revoke_operator(self.address)
 
     def takeback(self, catalog: ChecksumAddress, token: ChecksumAddress,
                  amount: int) -> None:
         assert self.address
-        cti_broker = CTIBroker(self.web3).get(self.address)
+        cti_broker = CTIBroker(self.account).get(self.address)
         cti_broker.takeback_token(catalog, token, amount)
         self.uncache(catalog, token)
-        Token(self.web3).get(token).uncache()  # FIXME: should I?
+        Token(self.account).get(token).uncache()  # FIXME: should I?
 
     def buy(self, catalog: ChecksumAddress, token: ChecksumAddress,
             price: int, allow_cheaper: bool = False) -> None:
+        assert self.address
         wei = price * PTS_RATE
-        cti_broker = CTIBroker(self.web3).get(self.address)
+        cti_broker = CTIBroker(self.account).get(self.address)
         cti_broker.buy_token(catalog, token, wei, allow_cheaper)
         self.uncache(catalog, token)
-        Token(self.web3).get(token).uncache()  # FIXME: should I?
+        Token(self.account).get(token).uncache()  # FIXME: should I?

@@ -18,8 +18,8 @@ from typing import Dict, Optional
 from uuid import UUID
 
 from eth_typing import ChecksumAddress
-from web3 import Web3
 
+from .account import Account
 from .cti_catalog import CTICatalog
 
 
@@ -56,8 +56,8 @@ class Catalog():
         return {info['catalog_id']: info
                 for info in Catalog.__addressed_catalogs.values()}
 
-    def __init__(self, web3: Web3) -> None:
-        self.web3: Web3 = web3
+    def __init__(self, account: Account) -> None:
+        self.account: Account = account
         self.address: Optional[ChecksumAddress] = None
         self.catalog_id: int = 0
         self.owner: Optional[ChecksumAddress] = None
@@ -65,7 +65,6 @@ class Catalog():
         self.tokens: Dict[ChecksumAddress, TokenInfo] = {}
 
     def get(self, address: ChecksumAddress) -> 'Catalog':
-        assert self.web3
         self.address = address
         self._sync_catalog()
         return self
@@ -74,8 +73,7 @@ class Catalog():
         return self.get(self._catalogs_by_id()[catalog_id].address)
 
     def new(self, private: bool) -> 'Catalog':
-        assert self.web3
-        cti_catalog = CTICatalog(self.web3).new(private)
+        cti_catalog = CTICatalog(self.account).new(private)
         return self.get(cti_catalog.address)
 
     def uncache(self, entire: bool = False) -> None:
@@ -94,7 +92,6 @@ class Catalog():
                    ) + 1
 
     def _sync_catalog(self) -> None:
-        assert self.web3
         assert self.address
         cinfo = self._catalogs_by_address.get(self.address)
         if not cinfo:
@@ -102,7 +99,7 @@ class Catalog():
             cinfo.address = self.address
             cinfo.catalog_id = self._gen_catalog_id()
             Catalog.__addressed_catalogs[self.address] = cinfo
-            cti_catalog = CTICatalog(self.web3).get(self.address)
+            cti_catalog = CTICatalog(self.account).get(self.address)
             cinfo.owner = cti_catalog.get_owner()
             cinfo.private = cti_catalog.is_private()
             for taddr in cti_catalog.list_token_uris():
@@ -142,22 +139,23 @@ class Catalog():
     def register_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int) -> None:
         if price < 0:
             raise Exception(f'Invalid price: {price}')
-        cti_catalog = CTICatalog(self.web3).get(self.address)
+        assert self.address
+        cti_catalog = CTICatalog(self.account).get(self.address)
         cti_catalog.register_cti(token, uuid, title, price, '')
 
     def publish_cti(self, producer: ChecksumAddress, token: ChecksumAddress) -> None:
         assert self.address
-        cti_catalog = CTICatalog(self.web3).get(self.address)
+        cti_catalog = CTICatalog(self.account).get(self.address)
         cti_catalog.publish_cti(producer, token)
 
     def modify_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int) -> None:
         if price < 0:
             raise Exception(f'Invalid price: {price}')
         assert self.address
-        cti_catalog = CTICatalog(self.web3).get(self.address)
+        cti_catalog = CTICatalog(self.account).get(self.address)
         cti_catalog.modify_cti(token, uuid, title, price, '')
 
     def unregister_cti(self, token: ChecksumAddress) -> None:
         assert self.address
-        cti_catalog = CTICatalog(self.web3).get(self.address)
+        cti_catalog = CTICatalog(self.account).get(self.address)
         cti_catalog.unregister_cti(token)

@@ -21,10 +21,12 @@ from typing import Dict, Optional
 
 from eth_typing import ChecksumAddress
 from web3 import Web3
+from web3.contract import Contract as Web3Contract
 
 from ..logger import get_logger
+from .account import Account
 
-LOGGER = get_logger(name='core.bc', app_dir='', file_prefix='core.bc')
+LOGGER = get_logger(name='contract', file_prefix='core.bc')
 
 
 class Contract():
@@ -55,13 +57,16 @@ class Contract():
         finally:
             pass
 
-    def __init__(self, web3: Web3):
-        assert web3
-        self.web3 = web3  # should be initialized with EOA & private key
-        self._contract = None  # initialized by get()
+    def __init__(self, account: Account):
+        self.account: Account = account
+        self._contract: Optional[Web3Contract] = None  # initialized by get()
 
     @property
-    def contract(self):
+    def web3(self) -> Web3:
+        return self.account.web3
+
+    @property
+    def contract(self) -> Web3Contract:
         assert self._contract
         return self._contract
 
@@ -70,13 +75,11 @@ class Contract():
         return self._contract.address if self._contract else None
 
     def new(self, *args, **kwargs):
-        assert self.web3
         # pylint: disable=protected-access
-        address = self.__class__.__deploy(self.web3, *args, **kwargs)
+        address = self.__class__.__deploy(self.account, *args, **kwargs)
         return self.get(address)
 
-    def get(self, address):
-        assert self.web3
+    def get(self, address: ChecksumAddress):
         assert address
         if not Web3.isChecksumAddress(address):
             raise Exception('Invalid address: {}'.format(address))
@@ -146,30 +149,28 @@ class Contract():
         cls.contract_interface = contract_interface
 
     @classmethod
-    def __deploy(cls, web3, *args, **kwargs):
+    def __deploy(cls, account: Account, *args, **kwargs):
         # コントラクトのチェーンへのデプロイ
         if not cls.contract_interface:
             cls.__load()
-        if not web3:
-            raise Exception('missing web3')
 
         LOGGER.debug('deploying %s with args=%s, kwargs=%s',
                      cls.__name__, args, kwargs)
 
         # constructorに引数が必要な場合は指定
         if args or kwargs:
-            func = web3.eth.contract(
+            func = account.web3.eth.contract(
                 abi=cls.contract_interface['abi'],
                 bytecode=cls.contract_interface['bin']).\
                 constructor(*args, **kwargs)
         else:
-            func = web3.eth.contract(
+            func = account.web3.eth.contract(
                 abi=cls.contract_interface['abi'],
                 bytecode=cls.contract_interface['bin']).\
                 constructor()
 
         tx_hash = func.transact()
-        tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
+        tx_receipt = account.web3.eth.waitForTransactionReceipt(tx_hash)
         cls.gaslog('deploy', tx_receipt)
         if tx_receipt['status'] != 1:
             raise ValueError(

@@ -17,21 +17,21 @@
 from typing import Dict, List, Optional, Set
 
 from eth_typing import ChecksumAddress
-from web3 import Web3
 
+from .account import Account
 from .catalog import Catalog
 
 
 class CatalogManager():
-    def __init__(self, web3: Web3) -> None:
-        self.web3: Web3 = web3
+    def __init__(self, account: Account) -> None:
+        self.account: Account = account
         #                   catalog_address  catalog_id
         self.catalogs: Dict[ChecksumAddress, int] = {}
         self.actives: Set[ChecksumAddress] = set()
 
     def add(self, addresses: List[ChecksumAddress], activate=False) -> None:
         for address in addresses:
-            catalog = Catalog(self.web3).get(address)
+            catalog = Catalog(self.account).get(address)
             self.catalogs[address] = catalog.catalog_id
             if activate:
                 self.actives.add(address)
