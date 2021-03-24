@@ -604,7 +604,8 @@ def _solver_client(ctx: typer.Context) -> MCSClient:
     return solver
 
 
-@ix_solver_app.command('status')
+@ix_solver_app.command('status',
+                       help='Show Solver status.')
 def ix_solver_status(ctx: typer.Context):
     logger = getLogger()
     try:
@@ -626,7 +627,8 @@ def ix_solver_status(ctx: typer.Context):
         typer.echo(f'failed operation: {err}')
 
 
-@ix_solver_app.command('start')
+@ix_solver_app.command('start',
+                       help='Start Solver process.')
 def ix_solver_start(ctx: typer.Context):
     logger = getLogger()
     try:
@@ -649,7 +651,8 @@ def ix_solver_start(ctx: typer.Context):
         typer.echo(f'failed operation: {err}')
 
 
-@ix_solver_app.command('stop')
+@ix_solver_app.command('stop',
+                       help='Kill Solver process, all solver (not only yours) are killed.')
 def ix_solver_stop(ctx: typer.Context):
     logger = getLogger()
     try:
@@ -661,7 +664,8 @@ def ix_solver_stop(ctx: typer.Context):
         typer.echo(f'failed operation: {err}')
 
 
-@ix_solver_app.command('apply')
+@ix_solver_app.command('apply',
+                       help='Solver start running with operator you configured.')
 def ix_solver_apply(ctx: typer.Context,
                     plugin: Optional[str] = typer.Option(None, help='solver plugin filename')):
     logger = getLogger()
@@ -676,7 +680,8 @@ def ix_solver_apply(ctx: typer.Context,
         typer.echo(f'failed operation: {err}')
 
 
-@ix_solver_app.command('purge')
+@ix_solver_app.command('purge',
+                       help='Solver will purge your operator, and keep running.')
 def ix_solver_purge(ctx: typer.Context):
     logger = getLogger()
     try:
