@@ -61,7 +61,7 @@ class Catalog():
     def __init__(self, account: Account) -> None:
         self.account: Account = account
         self.address: Optional[ChecksumAddress] = None
-        self.catalog_id: int = 0
+        self.catalog_id: int = self._gen_catalog_id()
         self.owner: Optional[ChecksumAddress] = None
         self.private: Optional[bool] = None
         self.tokens: Dict[ChecksumAddress, TokenInfo] = {}
@@ -97,7 +97,7 @@ class Catalog():
         assert self.address
         cinfo = self._catalogs_by_address.get(self.address)
         if not cinfo:
-            cinfo = CatalogInfo(self.address, self._gen_catalog_id(), None, None, {})
+            cinfo = CatalogInfo(self.address, self.catalog_id, None, None, {})
             Catalog.__addressed_catalogs[self.address] = cinfo
             cti_catalog = CTICatalog(self.account).get(self.address)
             cinfo.owner = cti_catalog.get_owner()

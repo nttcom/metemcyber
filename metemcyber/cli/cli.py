@@ -408,6 +408,9 @@ def config_update_catalog(ctx: typer.Context):
         config.set('catalog', 'reserves',
                    ','.join(catalog_mgr.reserved_catalogs.keys()))
     write_config(config, CONFIG_FILE_PATH)
+    del ctx.meta['catalog_manager']
+    account = ctx.meta['account']
+    Catalog(account).uncache(entire=True)
 
 
 def config_update_broker(ctx: typer.Context):
