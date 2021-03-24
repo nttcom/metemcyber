@@ -634,6 +634,7 @@ def ix_solver_start(ctx: typer.Context):
     try:
         _solver_client(ctx)
         typer.echo('Solver already running.')
+        return
     except Exception:
         pass
     try:
