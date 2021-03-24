@@ -5,7 +5,7 @@ npm:6.14.11
 
 ### パッケージのインストール
 
-以下コマンドをmetemcyberディレクトリ内で実行
+以下コマンドをmetemcyber/guiディレクトリ内で実行
 ```
 npm install
 ```
@@ -16,7 +16,7 @@ metemcyberディレクトリ直下に'keyfile'ディレクトリを作成後、'
 
 ### GUIの起動
 
-以下コマンドをmetemcyberディレクトリ内で実行
+以下コマンドをmetemcyber/guiディレクトリ内で実行
 ```
 npm start
 ```

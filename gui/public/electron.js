@@ -376,7 +376,7 @@ ipcMain.on('select-logout', async (event, arg) => {
 ipcMain.on('login', async (event, arg) => {
   let keyfileName = '';
   // Get keyfile name.
-  fs.readdir(isDev ? "./keyfile" : path.join(__dirname, '../keyfile'), (err, files) => {
+  fs.readdir(isDev ? "../keyfile" : path.join(__dirname, '../keyfile'), (err, files) => {
     if (err) throw err;
     keyfileName = files[0];
   });
@@ -385,7 +385,7 @@ ipcMain.on('login', async (event, arg) => {
 
   // Create the browser window.
   proc = pty.spawn('bash', [
-    './metemcyber_ctl.sh',
+    '../metemcyber_ctl.sh',
     "-",
     "client",
     `-f  keyfile/${keyfileName}`,
