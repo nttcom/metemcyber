@@ -30,8 +30,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 import typer
 import yaml
 from eth_typing import ChecksumAddress
-from web3 import Web3
-from web3.auto import w3
 
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
@@ -41,7 +39,7 @@ from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
-from metemcyber.core.bc.util import ADDRESS0
+from metemcyber.core.bc.util import ADDRESS0, decode_keyfile
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 from metemcyber.core.seeker import Seeker
@@ -131,28 +129,12 @@ def write_config(config: configparser.ConfigParser, filepath: Path):
     logger.debug(f'update config file: {filepath}')
 
 
-def decode_keyfile(filepath: Path):
-    # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
-    logger = getLogger()
-    try:
-        logger.info(f"Decode ethereum key file: {filepath}")
-        with open(filepath) as keyfile:
-            enc_data = keyfile.read()
-        address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
-        word = os.getenv('METEMCTL_KEYFILE_PASSWORD', "")
-        if word == "":
-            typer.echo('You can also use an env METEMCTL_KEYFILE_PASSWORD.')
-            word = typer.prompt('Enter password for keyfile:', hide_input=True)
-
-        private_key = w3.eth.account.decrypt(enc_data, word).hex()
-        return address, private_key
-    except Exception as err:
-        typer.echo(f'ERROR:{err}')
-        typer.echo(
-            f'cannot decode keyfile:{os.path.basename(filepath)}', err=True)
-        logger.error(f'Decode keyfile Error: {err}')
-        logger.exception(f'test: {err}')
-        raise typer.Exit(code=1)
+def _get_keyfile_password() -> str:
+    word = os.getenv('METEMCTL_KEYFILE_PASSWORD', "")
+    if word:
+        return word
+    typer.echo('You can also use an env METEMCTL_KEYFILE_PASSWORD.')
+    return typer.prompt('Enter password for keyfile', hide_input=True)
 
 
 def _load_account(ctx: typer.Context) -> Account:
@@ -160,7 +142,7 @@ def _load_account(ctx: typer.Context) -> Account:
         return ctx.meta['account']
     config = ctx.meta['config']
     ether = Ether(config['general']['endpoint_url'])
-    eoa, pkey = decode_keyfile(config['general']['keyfile'])
+    eoa, pkey = decode_keyfile(config['general']['keyfile'], _get_keyfile_password)
     account = Account(ether, eoa, pkey)
     ctx.meta['account'] = account
 
