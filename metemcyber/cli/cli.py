@@ -41,6 +41,7 @@ from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
+from metemcyber.core.bc.util import ADDRESS0
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 from metemcyber.core.seeker import Seeker
@@ -837,9 +838,8 @@ def _get_challenges(ctx: typer.Context
     raw_tasks = []
     limit_atonce = 16
     offset = 0
-    address0 = cast(ChecksumAddress, '0x{:040x}'.format(0))  # address(0): wildcard in history()
     while True:
-        tmp = operator.history(address0, limit_atonce, offset)
+        tmp = operator.history(ADDRESS0, limit_atonce, offset)
         raw_tasks.extend(tmp)
         if len(tmp) < limit_atonce:
             break
