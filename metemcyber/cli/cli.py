@@ -134,7 +134,10 @@ def _get_keyfile_password() -> str:
     if word:
         return word
     typer.echo('You can also use an env METEMCTL_KEYFILE_PASSWORD.')
-    return typer.prompt('Enter password for keyfile', hide_input=True)
+    try:
+        return typer.prompt('Enter password for keyfile', hide_input=True)
+    except Exception as err:
+        raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
 
 
 def _load_account(ctx: typer.Context) -> Account:
