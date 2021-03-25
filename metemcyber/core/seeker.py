@@ -29,6 +29,7 @@ from werkzeug.datastructures import EnvironHeaders
 
 from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
+from metemcyber.core.solver import SIGNATURE_HEADER
 from metemcyber.core.webhook import WebhookReceiver
 
 LOGGER = get_logger(name='seeker', file_prefix='core')
@@ -69,7 +70,7 @@ def download_json(download_url: str, token_address: ChecksumAddress) -> None:
 class Resolver(WebhookReceiver):
     @staticmethod
     def resolve_request(headers: EnvironHeaders, body: str) -> None:
-        sign = headers.get('MetemcyberSignature')
+        sign = headers.get(SIGNATURE_HEADER)
         if sign is None:
             LOGGER.error(f'Received request without signature. headers={headers}, body={body}.')
             return

@@ -28,6 +28,8 @@ from .bc.cti_operator import CTIOperator
 from .bc.eventlistener import BasicEventListener
 from .logger import get_logger
 
+SIGNATURE_HEADER = 'Metemcyber-Signature'
+
 LOGGER = get_logger(name='solver', file_prefix='core.bc')
 
 
@@ -159,7 +161,7 @@ class BaseSolver:
         data = json.dumps(data_obj)
         sign = self.account.sign_message(str(data))
         headers = {"Content-Type": "application/json",
-                   "MetemcyberSignature": sign}
+                   SIGNATURE_HEADER: sign}
         # httpリクエストを準備してPOST
         request = Request(url, data=data.encode('utf-8'), method="POST", headers=headers)
         with urlopen(request) as response:
