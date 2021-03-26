@@ -85,6 +85,9 @@ app.add_typer(seeker_app, name='seeker', help='Manage the CTI seeker subprocess.
 solver_app = typer.Typer()
 app.add_typer(solver_app, name='solver', help='Manage the CTI solver subprocess.')
 
+config_app = typer.Typer()
+app.add_typer(config_app, name='config', help="Manage your config file of metemctl")
+
 
 # pylint: disable=invalid-name
 def getLogger(name='cli'):
@@ -1146,9 +1149,15 @@ def account_show(ctx: typer.Context):
                     typer.echo(f'  {tinfo.token_id}: {balance}: {taddr}')
 
 
-@app.command('config', help="Manage your config file of metemctl")
-def _config():
-    typer.echo(f"config")
+@config_app.command('show', help="Show your config file of metemctl")
+def config_show():
+    with open(CONFIG_FILE_PATH) as fin:
+        typer.echo(fin.read())
+
+
+@config_app.command('edit', help="Edit your config file of metemctl")
+def config_edit():
+    typer.edit(filename=CONFIG_FILE_PATH)
 
 
 @app.command(help="Start an interactive intelligence cycle.")
