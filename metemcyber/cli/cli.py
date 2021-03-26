@@ -79,6 +79,7 @@ contract_app.add_typer(contract_broker_app, name='broker', help="Manage the CTI 
 contract_operator_app = typer.Typer()
 contract_app.add_typer(contract_operator_app, name='operator',
                        help="Manage the CTI operator contract.")
+
 seeker_app = typer.Typer()
 app.add_typer(seeker_app, name='seeker', help='Manage the CTI seeker subprocess.')
 solver_app = typer.Typer()
