@@ -169,7 +169,9 @@ class SolverManager():
 
     def destroy(self):
         for solver in [v['solver'] for v in self.solvers.values()]:
-            solver.destroy()
+            if solver:
+                solver.destroy()
+        self.solvers = {}
 
     def new_solver(self, eoaa: ChecksumAddress,
                    encrypted_pkey: str,
@@ -224,7 +226,7 @@ class SolverManager():
 
     def _solver_control(self, eoaa: ChecksumAddress, act: str) -> Optional[BaseSolver]:
         cache = self.solvers.get(eoaa)
-        if not cache:
+        if not cache or not cache['solver']:
             raise MCSError(MCSErrno.ENOENT, 'Not found')
         if not Web3.isChecksumAddress(eoaa):
             raise MCSError(MCSErrno.EINVAL, 'Not a checksum address')

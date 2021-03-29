@@ -46,6 +46,7 @@ class Solver(BaseSolver):
         try:
             url = self.config[CONFIG_SECTION]['functions_url']
             token = self.config[CONFIG_SECTION]['functions_token']
+            assert url and token
         except Exception as err:
             raise Exception('Not enough configuration to upload to GCS') from err
         self.uploader = Uploader(url, token)
