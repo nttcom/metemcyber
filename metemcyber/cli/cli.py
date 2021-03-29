@@ -656,9 +656,13 @@ def _solver_client(ctx: typer.Context) -> MCSClient:
 def solver_status(ctx: typer.Context):
     logger = getLogger()
     try:
-        operator = _load_operator(ctx)
         solver = _solver_client(ctx)
         solver.get_solver()
+        try:
+            operator = _load_operator(ctx)
+        except Exception:
+            typer.echo('Solver running, but you have not yet configured operator.')
+            return
         if solver.operator_address == operator.address:
             typer.echo(f'Solver running with operator you configured({operator.address}).')
         else:
