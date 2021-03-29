@@ -174,7 +174,8 @@ class SolverManager():
     def new_solver(self, eoaa: ChecksumAddress,
                    encrypted_pkey: str,
                    operator_address: Optional[ChecksumAddress],
-                   solver_plugin: Optional[str] = None
+                   solver_plugin: Optional[str] = None,
+                   solver_config: Optional[str] = None,
                    ) -> BaseSolver:
         cache = self.solvers.get(eoaa)
         if not cache or not cache['fernet_key']:
@@ -199,7 +200,7 @@ class SolverManager():
         if solver_plugin:
             self.plugin.set_solverclass(operator_address, solver_plugin)
         solverclass = self.plugin.get_solverclass(operator_address)
-        solver = solverclass(account, operator_address)
+        solver = solverclass(account, operator_address, solver_config)
 
         cache['solver'] = solver
         cache['account'] = account
@@ -549,7 +550,8 @@ class MCSClient():
     def login(self):
         self._simple_query('login')
 
-    def new_solver(self, operator_address: Optional[ChecksumAddress], pluginfile=None
+    def new_solver(self, operator_address: Optional[ChecksumAddress],
+                   pluginfile: Optional[str] = None, configfile: Optional[str] = None,
                    ) -> ChecksumAddress:
         fnt = Fernet(self._get_fernet_key())
         enc_pkey = fnt.encrypt(self.pkey.encode('utf-8')).decode()
@@ -557,6 +559,7 @@ class MCSClient():
             'encrypted_pkey': enc_pkey,
             'operator_address': operator_address,
             'solver_plugin': pluginfile,
+            'solver_config': configfile,
         }
         self.send_query('new_solver', **kwargs)
         resp = self.wait_response()

@@ -14,30 +14,41 @@
 #    limitations under the License.
 #
 
-import os
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
 from threading import Thread
+from typing import ClassVar, Optional
 
+from eth_typing import ChecksumAddress
 from web3 import Web3
 
+from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import BaseSolver
-from metemcyber.core.util import get_random_local_port
+from metemcyber.core.util import get_random_local_port, merge_config
 
 LOGGER = get_logger(name='standaone_solver', file_prefix='core')
 
-FILESERVER_ASSETS_PATH = os.getenv('FILESERVER_ASSET_PATH', 'workspace/dissemination')  # FIXME
-CONTENTS_ROOT = FILESERVER_ASSETS_PATH
-LISTEN_ADDR = ''
 GET_RANDOM_RETRY_MAX = 10
 JOIN_TIMEOUT_SEC = 30
 
+CONFIG_SECTION = 'standalone_solver'
+DEFAULT_CONFIGS = {
+    CONFIG_SECTION: {
+        'listen_address': 'localhost',
+        'contents_root': 'workspace/dissemination',  # FIXME
+    }
+}
+
 
 class SimpleHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args):
+    contents_root: ClassVar[str] = ''  # Oops, is there smart way to set contents_root?
+
+    def __init__(self, *args, **kwargs):
+        assert SimpleHandler.contents_root
         self.logpref = 'LocalHttpServer'
-        SimpleHTTPRequestHandler.__init__(self, *args, directory=CONTENTS_ROOT)
+        SimpleHTTPRequestHandler.__init__(
+            self, *args, directory=SimpleHandler.contents_root, **kwargs)
 
     def do_GET(self):
         SimpleHTTPRequestHandler.do_GET(self)
@@ -50,12 +61,13 @@ class SimpleHandler(SimpleHTTPRequestHandler):
 
 
 class LocalHttpServer():
-    def __init__(self, identity):
+    def __init__(self, identity, addr, root):
         self.identity = identity
         self.thread = None
         self.server = None
-        self.addr = LISTEN_ADDR
+        self.addr = addr
         self.port = 0
+        self.contents_root = root
         self.handler = SimpleHandler
 
     def start(self):
@@ -65,6 +77,7 @@ class LocalHttpServer():
         self.thread.start()
 
     def run(self):
+        SimpleHandler.contents_root = self.contents_root
         for _count in range(GET_RANDOM_RETRY_MAX):
             try:
                 self.port = get_random_local_port()
@@ -94,9 +107,14 @@ class LocalHttpServer():
 
 
 class Solver(BaseSolver):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fileserver = LocalHttpServer(self.account.eoa)
+    def __init__(self, account: Account, operator_address: ChecksumAddress,
+                 config_path: Optional[str]) -> None:
+        super().__init__(account, operator_address)
+        self.config = merge_config(config_path, DEFAULT_CONFIGS, self.config)
+        self.fileserver = LocalHttpServer(
+            self.account.eoa,
+            self.config[CONFIG_SECTION]['listen_address'],
+            self.config[CONFIG_SECTION]['contents_root'])
         self.fileserver.start()
 
     def destroy(self):
@@ -137,7 +155,7 @@ class Solver(BaseSolver):
 
     def create_misp_download_url(self, cti_address):
         url = 'http://{host}:{port}/{path}'.format(
-            host='localhost',
+            host=self.config[CONFIG_SECTION]['listen_address'],
             port=self.fileserver.port,
             path=cti_address)
         return url

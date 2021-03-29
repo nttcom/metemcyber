@@ -15,31 +15,45 @@
 #
 
 import os
+from typing import Optional
 
 import requests
+from eth_typing import ChecksumAddress
 from web3 import Web3
 
+from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import BaseSolver
+from metemcyber.core.util import merge_config
 
 LOGGER = get_logger(name='gcs_solver', file_prefix='core')
-FILESERVER_ASSETS_PATH = os.getenv('FILESERVER_ASSETS_PATH', 'workspace/dissemination')  # FIXME
-FUNCTIONS_URL = os.getenv("FUNCTIONS_URL", "")
-FUNCTIONS_TOKEN = os.getenv("FUNCTIONS_TOKEN", "")
+
+CONFIG_SECTION = 'gcs_solver'
+DEFAULT_CONFIGS = {
+    CONFIG_SECTION: {
+        'assets_path': 'workspace/dissemination',  # FIXME
+        'functions_url': 'https://exchange.metemcyber.ntt.com',
+        'functions_token': '',
+    }
+}
 
 
 class Solver(BaseSolver):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.uploader = Uploader()
+    def __init__(self, account: Account, operator_address: ChecksumAddress,
+                 config_file: Optional[str]) -> None:
+        super().__init__(account, operator_address)
+        self.config = merge_config(config_file, DEFAULT_CONFIGS, self.config)
+        try:
+            url = self.config[CONFIG_SECTION]['functions_url']
+            token = self.config[CONFIG_SECTION]['functions_token']
+        except Exception as err:
+            raise Exception('Not enough configuration to upload to GCS') from err
+        self.uploader = Uploader(url, token)
 
     def notify_first_accept(self):
-        if FUNCTIONS_URL:
-            return \
-                'Solver として受付を開始しました。\n' + \
-                'チャレンジ結果は中継点( {} )にアップロードされます'.\
-                format(FUNCTIONS_URL)
-        raise Exception('Solver用のURLが設定されていません。')
+        url = self.config[CONFIG_SECTION]['functions_url']
+        return 'Solver として受付を開始しました。\n' + \
+               f'チャレンジ結果は中継点( {url} )にアップロードされます'
 
     def process_challenge(self, token_address, event):
         LOGGER.info('GCSSolver: callback: %s', token_address)
@@ -77,23 +91,24 @@ class Solver(BaseSolver):
 
     def upload_to_storage(self, cti_address):
         file_path = os.path.abspath('{}/{}'.format(
-            FILESERVER_ASSETS_PATH, cti_address))
+            self.config.get(CONFIG_SECTION, 'assets_path'), cti_address))
         url = self.uploader.upload_file(file_path)
         return url
 
 
 class Uploader:
-    @staticmethod
-    def upload_file(upload_path):
-        if not FUNCTIONS_URL:
-            LOGGER.error('There are no settings for upload URL')
-            return None
+    def __init__(self, url: str, token: str) -> None:
+        assert url
+        assert token
+        self.url = url
+        self.token = token
 
+    def upload_file(self, upload_path: str) -> Optional[str]:
         headers = {
-            'Authorization': 'Bearer {}'.format(FUNCTIONS_TOKEN),
+            'Authorization': 'Bearer {}'.format(self.token),
             'Content-Type': 'application/json'}
         response = requests.post(
-            FUNCTIONS_URL,
+            self.url,
             data=open(upload_path, 'rb'),
             headers=headers)
         results = response.json()

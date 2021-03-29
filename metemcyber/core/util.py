@@ -14,7 +14,9 @@
 #    limitations under the License.
 #
 
+from configparser import ConfigParser
 from random import randint
+from typing import Any, Dict, Optional
 
 LOCAL_PORT_RANGE_FILE = '/proc/sys/net/ipv4/ip_local_port_range'
 LOCAL_PORT_MIN = 0
@@ -34,3 +36,18 @@ def get_random_local_port() -> int:
             LOCAL_PORT_MIN = 50000
             LOCAL_PORT_MAX = 59999
     return randint(LOCAL_PORT_MIN, LOCAL_PORT_MAX)
+
+
+def merge_config(file_path: Optional[str], defaults: Dict[str, Dict[str, Any]],
+                 base_config: Optional[ConfigParser] = None) -> ConfigParser:
+    config = base_config if base_config else ConfigParser()
+    if file_path:
+        if file_path not in config.read(file_path):
+            raise Exception(f'Load config failed: {file_path}')
+    for sect, sect_item in defaults.items():
+        if not config.has_section(sect):
+            config.add_section(sect)
+        for key, val in sect_item.items():
+            if not config[sect].get(key):
+                config.set(sect, key, val)
+    return config

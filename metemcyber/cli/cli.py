@@ -715,12 +715,13 @@ def solver_stop(ctx: typer.Context):
 @solver_app.command('enable',
                     help='Solver start running with operator you configured.')
 def solver_enable(ctx: typer.Context,
-                  plugin: Optional[str] = typer.Option(None, help='solver plugin filename')):
+                  plugin: Optional[str] = typer.Option(None, help='solver plugin filename'),
+                  config: Optional[str] = typer.Option(None, help='solver config filename')):
     logger = getLogger()
     try:
         operator = _load_operator(ctx)
         solver = _solver_client(ctx)
-        applied = solver.new_solver(operator.address, pluginfile=plugin)
+        applied = solver.new_solver(operator.address, pluginfile=plugin, configfile=config)
         assert applied == operator.address
         typer.echo(f'Solver is now running with your operator({applied}).')
     except Exception as err:
