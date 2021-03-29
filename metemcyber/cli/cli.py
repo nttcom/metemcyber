@@ -604,7 +604,7 @@ def token_create(ctx: typer.Context, initial_supply: int):
 def seeker_status(_ctx: typer.Context):
     logger = getLogger()
     try:
-        seeker = Seeker()
+        seeker = Seeker(APP_DIR)
         if seeker.pid == 0:
             typer.echo(f'not running.')
         else:
@@ -616,10 +616,10 @@ def seeker_status(_ctx: typer.Context):
 
 @seeker_app.command('start')
 def seeker_start(_ctx: typer.Context,
-                 local: bool = typer.Option(True, help='listen localhost only')):
+                 config: Optional[str] = typer.Option(None, help='seeker config filepath')):
     logger = getLogger()
     try:
-        seeker = Seeker(local)
+        seeker = Seeker(APP_DIR, config)
         seeker.start()
         typer.echo(f'seeker started on process {seeker.pid}, '
                    f'listening {seeker.address}:{seeker.port}.')
@@ -632,7 +632,7 @@ def seeker_start(_ctx: typer.Context,
 def seeker_stop(_ctx: typer.Context):
     logger = getLogger()
     try:
-        seeker = Seeker()
+        seeker = Seeker(APP_DIR)
         seeker.stop()
         typer.echo(f'seeker stopped.')
     except Exception as err:
@@ -716,7 +716,7 @@ def solver_stop(ctx: typer.Context):
                     help='Solver start running with operator you configured.')
 def solver_enable(ctx: typer.Context,
                   plugin: Optional[str] = typer.Option(None, help='solver plugin filename'),
-                  config: Optional[str] = typer.Option(None, help='solver config filename')):
+                  config: Optional[str] = typer.Option(None, help='solver config filepath')):
     logger = getLogger()
     try:
         operator = _load_operator(ctx)

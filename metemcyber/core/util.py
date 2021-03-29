@@ -16,7 +16,7 @@
 
 from configparser import ConfigParser
 from random import randint
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 LOCAL_PORT_RANGE_FILE = '/proc/sys/net/ipv4/ip_local_port_range'
 LOCAL_PORT_MIN = 0
@@ -38,7 +38,7 @@ def get_random_local_port() -> int:
     return randint(LOCAL_PORT_MIN, LOCAL_PORT_MAX)
 
 
-def merge_config(file_path: Optional[str], defaults: Dict[str, Dict[str, Any]],
+def merge_config(file_path: Optional[str], defaults: Dict[str, Dict[str, str]],
                  base_config: Optional[ConfigParser] = None) -> ConfigParser:
     config = base_config if base_config else ConfigParser()
     if file_path:
