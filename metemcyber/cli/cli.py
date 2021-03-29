@@ -30,8 +30,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 import typer
 import yaml
 from eth_typing import ChecksumAddress
-from web3 import Web3
-from web3.auto import w3
 
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
@@ -41,6 +39,7 @@ from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
+from metemcyber.core.bc.util import ADDRESS0, decode_keyfile
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 from metemcyber.core.seeker import Seeker
@@ -130,28 +129,15 @@ def write_config(config: configparser.ConfigParser, filepath: Path):
     logger.debug(f'update config file: {filepath}')
 
 
-def decode_keyfile(filepath: Path):
-    # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
-    logger = getLogger()
+def _get_keyfile_password() -> str:
+    word = os.getenv('METEMCTL_KEYFILE_PASSWORD', "")
+    if word:
+        return word
+    typer.echo('You can also use an env METEMCTL_KEYFILE_PASSWORD.')
     try:
-        logger.info(f"Decode ethereum key file: {filepath}")
-        with open(filepath) as keyfile:
-            enc_data = keyfile.read()
-        address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
-        word = os.getenv('METEMCTL_KEYFILE_PASSWORD', "")
-        if word == "":
-            typer.echo('You can also use an env METEMCTL_KEYFILE_PASSWORD.')
-            word = typer.prompt('Enter password for keyfile:', hide_input=True)
-
-        private_key = w3.eth.account.decrypt(enc_data, word).hex()
-        return address, private_key
+        return typer.prompt('Enter password for keyfile', hide_input=True)
     except Exception as err:
-        typer.echo(f'ERROR:{err}')
-        typer.echo(
-            f'cannot decode keyfile:{os.path.basename(filepath)}', err=True)
-        logger.error(f'Decode keyfile Error: {err}')
-        logger.exception(f'test: {err}')
-        raise typer.Exit(code=1)
+        raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
 
 
 def _load_account(ctx: typer.Context) -> Account:
@@ -159,7 +145,7 @@ def _load_account(ctx: typer.Context) -> Account:
         return ctx.meta['account']
     config = ctx.meta['config']
     ether = Ether(config['general']['endpoint_url'])
-    eoa, pkey = decode_keyfile(config['general']['keyfile'])
+    eoa, pkey = decode_keyfile(config['general']['keyfile'], _get_keyfile_password)
     account = Account(ether, eoa, pkey)
     ctx.meta['account'] = account
 
@@ -618,7 +604,7 @@ def token_create(ctx: typer.Context, initial_supply: int):
 def seeker_status(_ctx: typer.Context):
     logger = getLogger()
     try:
-        seeker = Seeker()
+        seeker = Seeker(APP_DIR)
         if seeker.pid == 0:
             typer.echo(f'not running.')
         else:
@@ -630,10 +616,10 @@ def seeker_status(_ctx: typer.Context):
 
 @seeker_app.command('start')
 def seeker_start(_ctx: typer.Context,
-                 local: bool = typer.Option(True, help='listen localhost only')):
+                 config: Optional[str] = typer.Option(None, help='seeker config filepath')):
     logger = getLogger()
     try:
-        seeker = Seeker(local)
+        seeker = Seeker(APP_DIR, config)
         seeker.start()
         typer.echo(f'seeker started on process {seeker.pid}, '
                    f'listening {seeker.address}:{seeker.port}.')
@@ -646,7 +632,7 @@ def seeker_start(_ctx: typer.Context,
 def seeker_stop(_ctx: typer.Context):
     logger = getLogger()
     try:
-        seeker = Seeker()
+        seeker = Seeker(APP_DIR)
         seeker.stop()
         typer.echo(f'seeker stopped.')
     except Exception as err:
@@ -729,12 +715,13 @@ def solver_stop(ctx: typer.Context):
 @solver_app.command('enable',
                     help='Solver start running with operator you configured.')
 def solver_enable(ctx: typer.Context,
-                  plugin: Optional[str] = typer.Option(None, help='solver plugin filename')):
+                  plugin: Optional[str] = typer.Option(None, help='solver plugin filename'),
+                  config: Optional[str] = typer.Option(None, help='solver config filepath')):
     logger = getLogger()
     try:
         operator = _load_operator(ctx)
         solver = _solver_client(ctx)
-        applied = solver.new_solver(operator.address, pluginfile=plugin)
+        applied = solver.new_solver(operator.address, pluginfile=plugin, configfile=config)
         assert applied == operator.address
         typer.echo(f'Solver is now running with your operator({applied}).')
     except Exception as err:
@@ -837,9 +824,8 @@ def _get_challenges(ctx: typer.Context
     raw_tasks = []
     limit_atonce = 16
     offset = 0
-    address0 = cast(ChecksumAddress, '0x{:040x}'.format(0))  # address(0): wildcard in history()
     while True:
-        tmp = operator.history(address0, limit_atonce, offset)
+        tmp = operator.history(ADDRESS0, limit_atonce, offset)
         raw_tasks.extend(tmp)
         if len(tmp) < limit_atonce:
             break

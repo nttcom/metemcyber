@@ -29,15 +29,27 @@ from werkzeug.datastructures import EnvironHeaders
 
 from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
+from metemcyber.core.solver import SIGNATURE_HEADER
+from metemcyber.core.util import merge_config
 from metemcyber.core.webhook import WebhookReceiver
 
 LOGGER = get_logger(name='seeker', file_prefix='core')
 
-DOWNLOADED_CTI_PATH = './download'  # FIXME: should import from somewhere
-SEEKER_PID_FILEPATH = './seeker.pid'  # FIXME
+CONFIG_SECTION = 'seeker'
+DEFAULT_CONFIGS = {
+    CONFIG_SECTION: {
+        'downloaded_cti_path': './download',
+        'listen_address': '127.0.0.1',
+        'listen_port': '0',
+    }
+}
 
 
-def download_json(download_url: str, token_address: ChecksumAddress) -> None:
+def seeker_pid_filepath(app_dir: str) -> str:
+    return f'{app_dir}/seeker.pid'
+
+
+def download_json(download_url: str, token_address: ChecksumAddress, dir_path: str) -> None:
     try:
         request = Request(download_url, method='GET')
         with urlopen(request) as response:
@@ -55,9 +67,9 @@ def download_json(download_url: str, token_address: ChecksumAddress) -> None:
     LOGGER.info(f'Downloaded data, title: {title}.')
 
     try:
-        if not os.path.isdir(DOWNLOADED_CTI_PATH):
-            os.makedirs(DOWNLOADED_CTI_PATH)
-        filepath = f'{DOWNLOADED_CTI_PATH}/{token_address}.json'
+        if not os.path.isdir(dir_path):
+            os.makedirs(dir_path)
+        filepath = f'{dir_path}/{token_address}.json'
         with open(filepath, 'wb') as fout:
             fout.write(rdata)
         LOGGER.info(f'Saved downloaded data in {filepath}.')
@@ -67,9 +79,12 @@ def download_json(download_url: str, token_address: ChecksumAddress) -> None:
 
 
 class Resolver(WebhookReceiver):
-    @staticmethod
-    def resolve_request(headers: EnvironHeaders, body: str) -> None:
-        sign = headers.get('MetemcyberSignature')
+    def __init__(self, listen_address: str, listen_port: int, download_path: str):
+        super().__init__(listen_address, listen_port)
+        self.download_path = download_path
+
+    def resolve_request(self, headers: EnvironHeaders, body: str):
+        sign = headers.get(SIGNATURE_HEADER)
         if sign is None:
             LOGGER.error(f'Received request without signature. headers={headers}, body={body}.')
             return
@@ -96,7 +111,7 @@ class Resolver(WebhookReceiver):
             LOGGER.error('Decoding request body failed.')
             return
         LOGGER.info(f'Received download_url for token({token_address}): {download_url}')
-        download_json(download_url, token_address)
+        download_json(download_url, token_address, self.download_path)
 
 
 class Seeker():
@@ -104,14 +119,28 @@ class Seeker():
 
     @property
     def cmd_args(self) -> List[str]:
-        if self.local:
-            return Seeker.cmd_args_base + ['127.0.0.1', '0']
-        return Seeker.cmd_args_base + ['0.0.0.0', '0']
+        args = Seeker.cmd_args_base + [
+            self.config[CONFIG_SECTION]['listen_address'],
+            self.config[CONFIG_SECTION]['listen_port'],
+            self.app_dir,
+        ]
+        if self.config_path:
+            args += [self.config_path]
+        return args
 
-    @staticmethod
-    def check_running() -> Tuple[int, Optional[str], int]:  # (pid|0, listen_address, listen_port)
+    def __init__(self, app_dir: str, config_path: Optional[str] = None) -> None:
+        self.app_dir = app_dir
+        self.config_path = config_path
+        self.config = merge_config(config_path, DEFAULT_CONFIGS)
+        pid, address, port = self.check_running()
+        self.pid: int = pid
+        self.address: Optional[str] = address
+        self.port: int = port
+
+    #                               (pid|0, listen_address, listen_port)
+    def check_running(self) -> Tuple[int, Optional[str], int]:
         try:
-            with open(SEEKER_PID_FILEPATH, 'r') as fin:
+            with open(seeker_pid_filepath(self.app_dir), 'r') as fin:
                 str_data = fin.readline().strip()
             str_pid, address, str_port = str_data.split('\t', 2)
             pid = int(str_pid)
@@ -123,17 +152,10 @@ class Seeker():
                 return pid, address, int(str_port)
             # found pid, but it's not a seeker. remove defunct data.
             LOGGER.info(f'got pid({pid}) which is not a seeker. remove defunct.')
-            os.unlink(SEEKER_PID_FILEPATH)
+            os.unlink(seeker_pid_filepath(self.app_dir))
             return 0, None, 0
         except NoSuchProcess:
             return 0, None, 0
-
-    def __init__(self, local: bool = True) -> None:
-        self.local: bool = local
-        pid, address, port = self.check_running()
-        self.pid: int = pid
-        self.address: Optional[str] = address
-        self.port: int = port
 
     def start(self) -> None:
         """launch Resolver by calling main() as another process
@@ -162,20 +184,30 @@ class Seeker():
             raise Exception(f'Cannot stop webhook(pid={pid})') from err
 
 
-def main(listen_address: str, listen_port: str):
+def main(listen_address: str, listen_port: int, app_dir: str, config_path: Optional[str]):
+    pid_file = seeker_pid_filepath(app_dir)
     try:
-        resolver = Resolver(listen_address, int(listen_port))
+        config = merge_config(config_path, DEFAULT_CONFIGS)
+        resolver = Resolver(listen_address, listen_port,
+                            config[CONFIG_SECTION]['downloaded_cti_path'])
         address, port = resolver.start()
         pid = os.getpid()
-        with open(SEEKER_PID_FILEPATH, 'w') as fout:
+        with open(pid_file, 'w') as fout:
             fout.write(f'{pid}\t{address}\t{port}\n')
         assert resolver.thread
         resolver.thread.join()
     except KeyboardInterrupt:
         LOGGER.info('caught SIGINT.')
     finally:
-        os.unlink(SEEKER_PID_FILEPATH)
+        if os.path.exists(pid_file):
+            os.unlink(pid_file)
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    if len(sys.argv) < 4:
+        raise Exception('Not enough arguments')
+    addr_ = sys.argv[1]
+    port_ = sys.argv[2]
+    app_dir_ = sys.argv[3]
+    config_path_ = sys.argv[4] if len(sys.argv) > 4 else None
+    main(addr_, int(port_), app_dir_, config_path_)

@@ -15,6 +15,7 @@
 #
 
 import json
+from configparser import ConfigParser
 from typing import Any, Callable, Dict, List, Optional
 from urllib.request import Request, urlopen
 
@@ -23,10 +24,13 @@ from eth_utils.exceptions import ValidationError
 from requests.exceptions import HTTPError
 from web3.datastructures import AttributeDict
 
-from .bc.account import Account
-from .bc.cti_operator import CTIOperator
-from .bc.eventlistener import BasicEventListener
-from .logger import get_logger
+from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.cti_operator import CTIOperator
+from metemcyber.core.bc.eventlistener import BasicEventListener
+from metemcyber.core.logger import get_logger
+from metemcyber.core.util import merge_config
+
+SIGNATURE_HEADER = 'Metemcyber-Signature'
 
 LOGGER = get_logger(name='solver', file_prefix='core.bc')
 
@@ -61,11 +65,13 @@ class ChallengeListener(BasicEventListener):
 
 
 class BaseSolver:
-    def __init__(self, account: Account, operator_address: ChecksumAddress) -> None:
+    def __init__(self, account: Account, operator_address: ChecksumAddress,
+                 config_path: Optional[str] = None) -> None:
         LOGGER.info('initializing solver %s for %s', self, operator_address)
         self.account: Account = account
         self.operator_address: ChecksumAddress = operator_address
         self.listener: Optional[ChallengeListener] = None
+        self.config: ConfigParser = merge_config(config_path, {})
 
     def destroy(self):
         LOGGER.info('destructing solver %s for %s', self, self.operator_address)
@@ -159,7 +165,7 @@ class BaseSolver:
         data = json.dumps(data_obj)
         sign = self.account.sign_message(str(data))
         headers = {"Content-Type": "application/json",
-                   "MetemcyberSignature": sign}
+                   SIGNATURE_HEADER: sign}
         # httpリクエストを準備してPOST
         request = Request(url, data=data.encode('utf-8'), method="POST", headers=headers)
         with urlopen(request) as response:

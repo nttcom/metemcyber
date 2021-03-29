@@ -78,8 +78,8 @@ class WebhookReceiver():
         Thread(target=self.callback, args=[headers, body], daemon=True).start()
         return 'ok'
 
-    @staticmethod
-    def resolve_request(headers: EnvironHeaders, body: str) -> None:
+    def resolve_request(self, headers: EnvironHeaders, body: str) -> None:
+        print(self)
         print(headers)
         print('--')
         print(body)
