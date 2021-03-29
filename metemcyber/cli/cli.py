@@ -198,7 +198,8 @@ def _load_broker(ctx: typer.Context) -> Broker:
     config = ctx.meta['config']
     try:
         broker_address = cast(ChecksumAddress, config['broker']['address'])
-    except KeyError as err:
+        assert(broker_address)
+    except Exception as err:
         raise Exception('Broker is not yet configured') from err
     broker = Broker(account).get(broker_address)
     ctx.meta['broker'] = broker
@@ -212,7 +213,8 @@ def _load_operator(ctx: typer.Context) -> Operator:
     config = ctx.meta['config']
     try:
         operator_address = cast(ChecksumAddress, config['operator']['address'])
-    except KeyError as err:
+        assert operator_address
+    except Exception as err:
         raise Exception('Operator is not yet configured') from err
     operator = Operator(account).get(operator_address)
     ctx.meta['operator'] = operator
