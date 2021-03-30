@@ -39,7 +39,7 @@ from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
-from metemcyber.core.bc.util import ADDRESS0, decode_keyfile
+from metemcyber.core.bc.util import ADDRESS0, decode_keyfile, deploy_erc1820
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 from metemcyber.core.seeker import Seeker
@@ -154,9 +154,10 @@ def _load_account(ctx: typer.Context) -> Account:
     return account
 
 
-def _load_metemcyber_util(ctx: typer.Context):
+def _load_contract_libs(ctx: typer.Context):
     account = _load_account(ctx)
     config = ctx.meta['config']
+    deploy_erc1820(account.eoa, account.web3)
     if config.has_section('metemcyber_util'):
         util_addr = config['metemcyber_util'].get('address')
         util_ph = config['metemcyber_util'].get('placeholder')
@@ -198,7 +199,7 @@ def _load_broker(ctx: typer.Context) -> Broker:
     config = ctx.meta['config']
     try:
         broker_address = cast(ChecksumAddress, config['broker']['address'])
-        assert(broker_address)
+        assert broker_address
     except Exception as err:
         raise Exception('Broker is not yet configured') from err
     broker = Broker(account).get(broker_address)
@@ -591,7 +592,7 @@ def broker_serve(ctx: typer.Context, token_index: str, amount: int):
 def token_create(ctx: typer.Context, initial_supply: int):
     logger = getLogger()
     try:
-        _load_metemcyber_util(ctx)
+        _load_contract_libs(ctx)
         account = _load_account(ctx)
         if initial_supply <= 0:
             raise Exception(f'Invalid initial-supply: {initial_supply}')
@@ -896,7 +897,7 @@ def broker_create(ctx: typer.Context,
                   switch: bool = typer.Option(True, help='switch to deployed broker')):
     logger = getLogger()
     try:
-        _load_metemcyber_util(ctx)
+        _load_contract_libs(ctx)
         account = _load_account(ctx)
         broker = Broker(account).new()
         typer.echo(f'deployed a new broker. address is {broker.address}.')
@@ -942,9 +943,10 @@ def operator_create(ctx: typer.Context,
                     switch: bool = typer.Option(True, help='switch to deployed operator')):
     logger = getLogger()
     try:
-        _load_metemcyber_util(ctx)
+        _load_contract_libs(ctx)
         account = _load_account(ctx)
         operator = Operator(account).new()
+        operator.set_recipient()
         typer.echo(f'deployed a new operator. address is {operator.address}.')
         if switch:
             ctx.meta['operator'] = operator
@@ -1014,7 +1016,7 @@ def catalog_create(
         help='activate created catalog')):
     logger = getLogger()
     try:
-        _load_metemcyber_util(ctx)
+        _load_contract_libs(ctx)
         account = _load_account(ctx)
         catalog: Catalog = Catalog(account).new(private)
         typer.echo('deployed a new '

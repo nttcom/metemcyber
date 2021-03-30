@@ -19,7 +19,7 @@ from getpass import getpass
 from typing import Callable, Tuple, cast
 
 from eth_account.messages import encode_defunct
-from eth_typing import ChecksumAddress
+from eth_typing import ChecksumAddress, HexStr
 from hexbytes import HexBytes
 from web3 import Web3
 from web3.auto import w3
@@ -50,3 +50,31 @@ def decode_keyfile(filename: str,
     word = password_func()
     private_key = w3.eth.account.decrypt(enc_data, word).hex()
     return Web3.toChecksumAddress(address), private_key
+
+
+def deploy_erc1820(eoa: ChecksumAddress, web3: Web3) -> None:
+    erc1820_raw_tx_filepath = 'metemcyber/core/bc/erc1820.tx.raw'
+    deployer_address = '0xa990077c3205cbDf861e17Fa532eeB069cE9fF96'
+    contract_address = '0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24'
+    code = web3.eth.getCode(contract_address)
+    if code:  # already deployed
+        return
+    try:
+        # send enough Ether to deploy erc1820.
+        tx_hash = web3.eth.sendTransaction({
+            'from': eoa,
+            'to': deployer_address,
+            'value': Web3.toWei('0.1', 'ether'),
+        })
+        tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
+        assert tx_receipt['status'] == 1
+    except Exception as err:
+        raise ValueError('Sending Ether for ERC1820 failed') from err
+    try:
+        with open(erc1820_raw_tx_filepath, 'r') as fin:
+            raw_tx = fin.read().strip()
+        tx_hash = web3.eth.sendRawTransaction(cast(HexStr, raw_tx))
+        tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
+        assert tx_receipt['status'] == 1
+    except Exception as err:
+        raise ValueError('Sending ERC1820 raw transaction failed') from err
