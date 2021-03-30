@@ -14,7 +14,9 @@
 #    limitations under the License.
 #
 
+import json
 import os
+from json.decoder import JSONDecodeError
 from typing import Optional
 
 import requests
@@ -98,22 +100,32 @@ class Solver(BaseSolver):
 
 
 class Uploader:
-    def __init__(self, url: str, token: str) -> None:
+    def __init__(self, url: str, functions_token: str) -> None:
         assert url
-        assert token
+        assert functions_token
         self.url = url
-        self.token = token
+        self.functions_token = functions_token
 
-    def upload_file(self, upload_path: str) -> Optional[str]:
+    def upload_file(self, upload_path: str) -> str:
         headers = {
-            'Authorization': 'Bearer {}'.format(self.token),
+            'Authorization': 'Bearer {}'.format(self.functions_token),
             'Content-Type': 'application/json'}
+        try:
+            # Note: gcs(exchange.metemcyber.ntt.com) accepts json data only.
+            with open(upload_path, 'r') as fin:
+                jdata = json.load(fin)
+        except Exception as err:
+            raise Exception(f'Not a expected data format: {upload_path}') from err
         response = requests.post(
             self.url,
-            data=open(upload_path, 'rb'),
+            json=jdata.encode('utf-8'),
             headers=headers)
-        results = response.json()
+        try:
+            results = response.json()
+        except JSONDecodeError as err:
+            LOGGER.debug(response.headers)
+            LOGGER.debug(response.text[:256])
+            raise Exception(f'Received unexpected (not a JSON) result: {err}') from err
         if 'result' in results:
-            return results['result']
-        LOGGER.error('File upload Error: %s', results['error'])
-        return None
+            return results['result']  # OK
+        raise Exception('File upload failed: ' + results['error'])
