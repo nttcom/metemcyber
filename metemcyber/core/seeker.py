@@ -54,6 +54,8 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
         request = Request(download_url, method='GET')
         with urlopen(request) as response:
             rdata = response.read()
+            if isinstance(rdata, bytes):
+                rdata = rdata.decode()
     except Exception as err:
         LOGGER.exception(err)
         LOGGER.error(f'Failed download from {download_url}.')
@@ -70,7 +72,7 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
         if not os.path.isdir(dir_path):
             os.makedirs(dir_path)
         filepath = f'{dir_path}/{token_address}.json'
-        with open(filepath, 'wb') as fout:
+        with open(filepath, 'w') as fout:
             fout.write(rdata)
         LOGGER.info(f'Saved downloaded data in {filepath}.')
     except Exception as err:
