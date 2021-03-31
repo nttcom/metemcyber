@@ -73,7 +73,7 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
             os.makedirs(dir_path)
         filepath = f'{dir_path}/{token_address}.json'
         with open(filepath, 'w') as fout:
-            fout.write(rdata)
+            json.dump(jdata, fout, ensure_ascii=False, indent=2)
         LOGGER.info(f'Saved downloaded data in {filepath}.')
     except Exception as err:
         LOGGER.exception(err)
