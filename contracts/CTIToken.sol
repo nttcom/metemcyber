@@ -29,4 +29,15 @@ contract CTIToken is ERC777 {
     {
         _mint(msg.sender, initialSupply, "", "");
     }
+
+    function mint(
+        address dest,
+        uint256 amount,
+        bytes memory userData,
+        bytes memory operatorData
+    )
+        public
+    {
+        _mint(dest, amount, userData, operatorData);
+    }
 }

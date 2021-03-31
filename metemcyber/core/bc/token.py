@@ -20,8 +20,9 @@ from typing import Dict, List, Optional
 
 from eth_typing import ChecksumAddress
 
-from .account import Account
-from .cti_token import CTIToken
+from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.cti_token import CTIToken
+from metemcyber.core.bc.util import ADDRESS0
 
 
 class Token():
@@ -59,6 +60,14 @@ class Token():
             balance = cti_token.balance_of(target)
             Token.tokens_map[self.address][target] = balance
         return Token.tokens_map[self.address][target]
+
+    def mint(self, amount: int, dest: Optional[ChecksumAddress] = None) -> None:
+        assert self.address
+        if dest in (None, ADDRESS0):
+            dest = self.account.eoa
+        cti_token = CTIToken(self.account).get(self.address)
+        cti_token.mint(dest, amount)
+        self.uncache()
 
     def send(self, dest: ChecksumAddress, amount: int, data: str = '') -> None:
         assert self.address
