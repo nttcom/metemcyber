@@ -16,8 +16,7 @@
 
 from web3 import Web3
 from web3.exceptions import ExtraDataLengthError
-from web3.middleware import (construct_sign_and_send_raw_middleware,
-                             geth_poa_middleware)
+from web3.middleware import construct_sign_and_send_raw_middleware, geth_poa_middleware
 from web3.providers.rpc import HTTPProvider
 
 
