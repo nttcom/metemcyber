@@ -617,8 +617,8 @@ def _token_create(ctx, initial_supply):
 @contract_token_app.command('mint')
 def token_mint(ctx: typer.Context, token_address: str, amount: int,
                dest: Optional[str] = typer.Option(
-                None, help='Account EOA minted tokens are given to, instead of you. '
-                           'Do not assign Broker, it does not mean serving.')):
+                   None, help='Account EOA minted tokens are given to, instead of you. '
+                   'Do not assign Broker, it does not mean serving.')):
     _token_mint(ctx, token_address, amount, dest)
 
 

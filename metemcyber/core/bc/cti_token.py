@@ -26,6 +26,12 @@ class CTIToken(Contract):
     contract_interface: Dict[str, str] = {}
     contract_id = 'CTIToken.sol:CTIToken'
 
+    @property
+    def publisher(self) -> ChecksumAddress:
+        self.log_trace()
+        func = self.contract.functions.publisher()
+        return func.call()
+
     def balance_of(self, account_id):
         self.log_trace()
         func = self.contract.functions.balanceOf(account_id)

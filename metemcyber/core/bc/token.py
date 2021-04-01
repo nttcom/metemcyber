@@ -51,6 +51,11 @@ class Token():
             if self.address in Token.tokens_map.keys():
                 del Token.tokens_map[self.address]
 
+    @property
+    def publisher(self) -> ChecksumAddress:
+        assert self.address
+        return CTIToken(self.account).get(self.address).publisher
+
     def balance_of(self, target: ChecksumAddress) -> int:
         assert self.address
         if self.address not in Token.tokens_map.keys():

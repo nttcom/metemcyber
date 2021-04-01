@@ -21,12 +21,16 @@ pragma solidity >=0.7.0 <0.8.0;
 import "@openzeppelin/contracts/token/ERC777/ERC777.sol";
 
 contract CTIToken is ERC777 {
+
+    address public publisher;
+
     constructor(
         uint256 initialSupply,
         address[] memory defaultOperators
     )
         ERC777("CTIToken", "CTIT", defaultOperators)
     {
+        publisher = msg.sender;
         _mint(msg.sender, initialSupply, "", "");
     }
 
@@ -38,6 +42,7 @@ contract CTIToken is ERC777 {
     )
         public
     {
+        require(msg.sender == publisher, "not publisher");
         _mint(dest, amount, userData, operatorData);
     }
 }
