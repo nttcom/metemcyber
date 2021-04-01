@@ -20,12 +20,12 @@ import configparser
 import json
 import os
 import subprocess
-import uuid
 from enum import Enum
 from pathlib import Path
 from shutil import copyfile
 from subprocess import CalledProcessError
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
+from uuid import UUID, uuid4
 
 import typer
 import yaml
@@ -222,6 +222,17 @@ def _load_operator(ctx: typer.Context) -> Operator:
     return operator
 
 
+def common_logging(func):
+    def wrapper(*args, **kwargs):
+        logger = getLogger()
+        try:
+            func(*args, **kwargs)
+        except Exception as err:
+            logger.exception(err)
+            typer.echo(f'failed operation: {err}')
+    return wrapper
+
+
 @app.callback()
 def app_callback(ctx: typer.Context):
     if not os.path.exists(CONFIG_FILE_PATH):
@@ -328,7 +339,7 @@ def create_workflow(event_id, category, contents):
 
 @app.command(help="Create a new intelligence workflow.")
 def new(
-    event_uuid: uuid.UUID = typer.Option(
+    event_uuid: UUID = typer.Option(
         None,
         help='Recommend to be the same as the UUID of the misp object'),
     category: IntelligenceCategory = typer.Option(
@@ -367,7 +378,7 @@ def new(
     else:
         # create new uuid if not exist
         event_id = typer.prompt(
-            'Input a new event_id(UUID)', str(uuid.uuid4()))
+            'Input a new event_id(UUID)', str(uuid4()))
 
     logger.info(f"EventID: {event_id}")
 
@@ -540,107 +551,107 @@ def ix_search(ctx: typer.Context,
               soldout: bool = typer.Option(False, help='show soldout tokens'),
               own: bool = typer.Option(True, help='show tokens you own'),
               own_only: bool = typer.Option(False)):
-    logger = getLogger()
-    try:
-        if (mine_only and not mine) or (own_only and not own):
-            typer.echo('contradictory options')
-            return
-        _ix_list_tokens(ctx, mine, mine_only, soldout, own, own_only)
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _ix_search(ctx, mine, mine_only, soldout, own, own_only)
+
+
+@common_logging
+def _ix_search(ctx, mine, mine_only, soldout, own, own_only):
+    if (mine_only and not mine) or (own_only and not own):
+        typer.echo('contradictory options')
+        return
+    _ix_list_tokens(ctx, mine, mine_only, soldout, own, own_only)
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
 def ix_buy(ctx: typer.Context, token_index: str):
-    logger = getLogger()
-    try:
-        account = _load_account(ctx)
-        broker = _load_broker(ctx)
-        catalog, token = _ix_parse_token_index(ctx, token_index)
-        price = Catalog(account).get(catalog).get_tokeninfo(token).price
-        broker.buy(catalog, token, price, allow_cheaper=False)
-        typer.echo(f'bought token {token_index} for {price} pts.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _ix_buy(ctx, token_index)
+
+
+@common_logging
+def _ix_buy(ctx, token_index):
+    account = _load_account(ctx)
+    broker = _load_broker(ctx)
+    catalog, token = _ix_parse_token_index(ctx, token_index)
+    price = Catalog(account).get(catalog).get_tokeninfo(token).price
+    broker.buy(catalog, token, price, allow_cheaper=False)
+    typer.echo(f'bought token {token_index} for {price} pts.')
 
 
 @contract_broker_app.command('serve', help="Pass your tokens to the broker for disseminate.")
 def broker_serve(ctx: typer.Context, token_index: str, amount: int):
-    logger = getLogger()
-    try:
-        if amount <= 0:
-            raise Exception(f'Invalid amount: {amount}')
-        account = _load_account(ctx)
-        catalog_address, token_address = _ix_parse_token_index(ctx, token_index)
-        tinfo = Catalog(account).get(catalog_address).get_tokeninfo(token_address)
-        if tinfo.owner != account.eoa:
-            raise Exception(f'Not a token published by you')
-        balance = Token(account).get(token_address).balance_of(account.eoa)
-        if balance < amount:
-            raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
-        broker = _load_broker(ctx)
-        broker.consign(catalog_address, token_address, amount)
-        typer.echo(f'consigned {amount} of token({token_address}) to broker({broker.address}).')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _broker_serve(ctx, token_index, amount)
+
+
+@common_logging
+def _broker_serve(ctx, token_index, amount):
+    if amount <= 0:
+        raise Exception(f'Invalid amount: {amount}')
+    account = _load_account(ctx)
+    catalog_address, token_address = _ix_parse_token_index(ctx, token_index)
+    tinfo = Catalog(account).get(catalog_address).get_tokeninfo(token_address)
+    if tinfo.owner != account.eoa:
+        raise Exception(f'Not a token published by you')
+    balance = Token(account).get(token_address).balance_of(account.eoa)
+    if balance < amount:
+        raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
+    broker = _load_broker(ctx)
+    broker.consign(catalog_address, token_address, amount)
+    typer.echo(f'consigned {amount} of token({token_address}) to broker({broker.address}).')
 
 
 @contract_token_app.command('create')
 def token_create(ctx: typer.Context, initial_supply: int):
-    logger = getLogger()
-    try:
-        _load_contract_libs(ctx)
-        account = _load_account(ctx)
-        if initial_supply <= 0:
-            raise Exception(f'Invalid initial-supply: {initial_supply}')
-        token = Token(account).new(initial_supply, [])
-        typer.echo(f'created a new token. address is {token.address}.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _token_create(ctx, initial_supply)
+
+
+@common_logging
+def _token_create(ctx, initial_supply):
+    _load_contract_libs(ctx)
+    account = _load_account(ctx)
+    if initial_supply <= 0:
+        raise Exception(f'Invalid initial-supply: {initial_supply}')
+    token = Token(account).new(initial_supply, [])
+    typer.echo(f'created a new token. address is {token.address}.')
 
 
 @seeker_app.command('status')
-def seeker_status(_ctx: typer.Context):
-    logger = getLogger()
-    try:
-        seeker = Seeker(APP_DIR)
-        if seeker.pid == 0:
-            typer.echo(f'not running.')
-        else:
-            typer.echo(f'running on pid {seeker.pid}, listening {seeker.address}:{seeker.port}.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+def seeker_status(ctx: typer.Context):
+    _seeker_status(ctx)
+
+
+@common_logging
+def _seeker_status(_ctx):
+    seeker = Seeker(APP_DIR)
+    if seeker.pid == 0:
+        typer.echo(f'not running.')
+    else:
+        typer.echo(f'running on pid {seeker.pid}, listening {seeker.address}:{seeker.port}.')
 
 
 @seeker_app.command('start')
-def seeker_start(_ctx: typer.Context,
+def seeker_start(ctx: typer.Context,
                  config: Optional[str] = typer.Option(None, help='seeker config filepath')):
-    logger = getLogger()
-    try:
-        seeker = Seeker(APP_DIR, config)
-        seeker.start()
-        typer.echo(f'seeker started on process {seeker.pid}, '
-                   f'listening {seeker.address}:{seeker.port}.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _seeker_start(ctx, config)
+
+
+@common_logging
+def _seeker_start(_ctx, config):
+    seeker = Seeker(APP_DIR, config)
+    seeker.start()
+    typer.echo(f'seeker started on process {seeker.pid}, '
+               f'listening {seeker.address}:{seeker.port}.')
 
 
 @seeker_app.command('stop')
-def seeker_stop(_ctx: typer.Context):
-    logger = getLogger()
-    try:
-        seeker = Seeker(APP_DIR)
-        seeker.stop()
-        typer.echo(f'seeker stopped.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+def seeker_stop(ctx: typer.Context):
+    _seeker_stop(ctx)
+
+
+@common_logging
+def _seeker_stop(_ctx):
+    seeker = Seeker(APP_DIR)
+    seeker.stop()
+    typer.echo(f'seeker stopped.')
 
 
 def _solver_client(ctx: typer.Context) -> MCSClient:
@@ -709,14 +720,14 @@ def solver_start(ctx: typer.Context):
 @solver_app.command('stop',
                     help='Kill Solver process, all solver (not only yours) are killed.')
 def solver_stop(ctx: typer.Context):
-    logger = getLogger()
-    try:
-        solver = _solver_client(ctx)
-        solver.shutdown()
-        typer.echo('Solver shutted down.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _solver_stop(ctx)
+
+
+@common_logging
+def _solver_stop(ctx):
+    solver = _solver_client(ctx)
+    solver.shutdown()
+    typer.echo('Solver shutted down.')
 
 
 @solver_app.command('enable',
@@ -761,57 +772,55 @@ def solver_enable(ctx: typer.Context,
 @solver_app.command('disable',
                     help='Solver will purge your operator, and keep running.')
 def solver_disable(ctx: typer.Context):
-    logger = getLogger()
-    try:
-        solver = _solver_client(ctx)
-        solver.get_solver()
-        solver.purge_solver()
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _solver_disable(ctx)
+
+
+@common_logging
+def _solver_disable(ctx):
+    solver = _solver_client(ctx)
+    solver.get_solver()
+    solver.purge_solver()
 
 
 @solver_app.command('support',
                     help='Register token to accept challenge.')
-def solver_support(ctx: typer.Context,
-                   token_address: str):
-    logger = getLogger()
-    try:
-        solver = _solver_client(ctx)
-        solver.get_solver()
-        solver.solver('accept_challenges', [cast(ChecksumAddress, token_address)])
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+def solver_support(ctx: typer.Context, token_address: str):
+    _solver_support(ctx, token_address)
+
+
+@common_logging
+def _solver_support(ctx, token_address):
+    solver = _solver_client(ctx)
+    solver.get_solver()
+    solver.solver('accept_challenges', [cast(ChecksumAddress, token_address)])
 
 
 @solver_app.command('obsolete',
                     help='Unregister token not to accept challenge.')
-def solver_obsolete(ctx: typer.Context,
-                    token_address: str):
-    logger = getLogger()
-    try:
-        solver = _solver_client(ctx)
-        solver.get_solver()
-        solver.solver('refuse_challenges', [cast(ChecksumAddress, token_address)])
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+def solver_obsolete(ctx: typer.Context, token_address: str):
+    _solver_obsolete(ctx, token_address)
+
+
+@common_logging
+def _solver_obsolete(ctx, token_address):
+    solver = _solver_client(ctx)
+    solver.get_solver()
+    solver.solver('refuse_challenges', [cast(ChecksumAddress, token_address)])
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
 def ix_use(ctx: typer.Context, token_address: str, data: str = ''):
-    logger = getLogger()
-    try:
-        account = _load_account(ctx)
-        operator = _load_operator(ctx)
-        assert operator.address
-        Token(account).get(cast(ChecksumAddress, token_address)
-                           ).send(operator.address, amount=1, data=data)
-        typer.echo(f'Started challenge with token({token_address}).')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _ix_use(ctx, token_address, data)
+
+
+@common_logging
+def _ix_use(ctx, token_address, data):
+    account = _load_account(ctx)
+    operator = _load_operator(ctx)
+    assert operator.address
+    Token(account).get(cast(ChecksumAddress, token_address)
+                       ).send(operator.address, amount=1, data=data)
+    typer.echo(f'Started challenge with token({token_address}).')
 
 
 def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> TokenInfo:
@@ -844,141 +853,144 @@ def _get_challenges(ctx: typer.Context
 def ix_challenge_show(ctx: typer.Context,
                       done: bool = typer.Option(False, help='show finished and cancelled'),
                       mine_only: bool = typer.Option(True, help='show yours only')):
-    logger = getLogger()
-    try:
-        account = _load_account(ctx)
-        raw_tasks = _get_challenges(ctx)
-        for (task_id, token, _, seeker, state) in reversed(raw_tasks):
-            if mine_only and seeker != account.eoa:
-                continue
-            if not done and state in (2, 3):  # ('Finished', 'Cancelled')
-                continue
-            try:
-                title = _find_token_info(ctx, token).title
-            except Exception:
-                title = '(no information found on current catalogs)'
-            typer.echo(
-                f'  {task_id}: {title}' + '\n'
-                f'    ├ Token: {token}' + '\n'
-                f'    └ State: {TASK_STATES[state]}')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _ix_challenge_show(ctx, done, mine_only)
+
+
+@common_logging
+def _ix_challenge_show(ctx, done, mine_only):
+    account = _load_account(ctx)
+    raw_tasks = _get_challenges(ctx)
+    for (task_id, token, _, seeker, state) in reversed(raw_tasks):
+        if mine_only and seeker != account.eoa:
+            continue
+        if not done and state in (2, 3):  # ('Finished', 'Cancelled')
+            continue
+        try:
+            title = _find_token_info(ctx, token).title
+        except Exception:
+            title = '(no information found on current catalogs)'
+        typer.echo(
+            f'  {task_id}: {title}' + '\n'
+            f'    ├ Token: {token}' + '\n'
+            f'    └ State: {TASK_STATES[state]}')
 
 
 @ix_app.command('cancel', help="Abort the task in progress.")
 def ix_cancel(ctx: typer.Context, challenge_id: int):
-    logger = getLogger()
-    try:
-        operator = _load_operator(ctx)
-        operator.cancel_challenge(challenge_id)
-        typer.echo(f'cancelled challenge: {challenge_id}.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _ix_cancel(ctx, challenge_id)
+
+
+@common_logging
+def _ix_cancel(ctx, challenge_id):
+    operator = _load_operator(ctx)
+    operator.cancel_challenge(challenge_id)
+    typer.echo(f'cancelled challenge: {challenge_id}.')
 
 
 @contract_broker_app.command('show')
 def broker_show(ctx: typer.Context):
-    logger = getLogger()
-    try:
-        broker = _load_broker(ctx)
-        if broker is None:
-            typer.echo(f'Broker is not yet configured.')
-        else:
-            typer.echo(f'Broker address is {broker.address}.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _broker_show(ctx)
+
+
+@common_logging
+def _broker_show(ctx):
+    broker = _load_broker(ctx)
+    if broker is None:
+        typer.echo(f'Broker is not yet configured.')
+    else:
+        typer.echo(f'Broker address is {broker.address}.')
 
 
 @contract_broker_app.command('create')
 def broker_create(ctx: typer.Context,
                   switch: bool = typer.Option(True, help='switch to deployed broker')):
-    logger = getLogger()
-    try:
-        _load_contract_libs(ctx)
-        account = _load_account(ctx)
-        broker = Broker(account).new()
-        typer.echo(f'deployed a new broker. address is {broker.address}.')
-        if switch:
-            ctx.meta['broker'] = broker
-            config_update_broker(ctx)
-            typer.echo('configured to use the broker above.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _broker_create(ctx, switch)
+
+
+@common_logging
+def _broker_create(ctx, switch):
+    _load_contract_libs(ctx)
+    account = _load_account(ctx)
+    broker = Broker(account).new()
+    typer.echo(f'deployed a new broker. address is {broker.address}.')
+    if switch:
+        ctx.meta['broker'] = broker
+        config_update_broker(ctx)
+        typer.echo('configured to use the broker above.')
 
 
 # @contract_broker_app.command('set')
 def broker_set(ctx: typer.Context, broker_address: str):
-    logger = getLogger()
-    try:
-        account = _load_account(ctx)
-        broker = Broker(account).get(cast(ChecksumAddress, broker_address))
-        ctx.meta['broker'] = broker
-        config_update_broker(ctx)
-        typer.echo(f'configured to use broker({broker_address}).')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _broker_set(ctx, broker_address)
+
+
+@common_logging
+def _broker_set(ctx, broker_address):
+    account = _load_account(ctx)
+    broker = Broker(account).get(cast(ChecksumAddress, broker_address))
+    ctx.meta['broker'] = broker
+    config_update_broker(ctx)
+    typer.echo(f'configured to use broker({broker_address}).')
 
 
 @contract_operator_app.command('show', help="Show the contract address of the operator.")
 def operator_show(ctx: typer.Context):
-    logger = getLogger()
-    try:
-        operator = _load_operator(ctx)
-        if operator is None:
-            typer.echo(f'Operator is not yet configured.')
-        else:
-            typer.echo(f'Operator address is {operator.address}.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _operator_show(ctx)
+
+
+@common_logging
+def _operator_show(ctx):
+    operator = _load_operator(ctx)
+    if operator is None:
+        typer.echo(f'Operator is not yet configured.')
+    else:
+        typer.echo(f'Operator address is {operator.address}.')
 
 
 @contract_operator_app.command('create')
 def operator_create(ctx: typer.Context,
                     switch: bool = typer.Option(True, help='switch to deployed operator')):
-    logger = getLogger()
-    try:
-        _load_contract_libs(ctx)
-        account = _load_account(ctx)
-        operator = Operator(account).new()
-        operator.set_recipient()
-        typer.echo(f'deployed a new operator. address is {operator.address}.')
-        if switch:
-            ctx.meta['operator'] = operator
-            config_update_operator(ctx)
-            typer.echo('configured to use the operator above.')
+    _operator_create(ctx, switch)
 
-            # TODO: need notify about plugin file.
 
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+@common_logging
+def _operator_create(ctx, switch):
+    _load_contract_libs(ctx)
+    account = _load_account(ctx)
+    operator = Operator(account).new()
+    operator.set_recipient()
+    typer.echo(f'deployed a new operator. address is {operator.address}.')
+    if switch:
+        ctx.meta['operator'] = operator
+        config_update_operator(ctx)
+        typer.echo('configured to use the operator above.')
+
+        # TODO: need notify about plugin file.
 
 
 # @contract_operator_app.command('set')
 def operator_set(ctx: typer.Context, operator_address: str):
-    logger = getLogger()
-    try:
-        account = _load_account(ctx)
-        operator = Operator(account).get(cast(ChecksumAddress, operator_address))
-        ctx.meta['operator'] = operator
-        config_update_operator(ctx)
-        typer.echo(f'configured to use operator({operator_address}).')
+    _operator_set(ctx, operator_address)
 
-        # TODO: need notify about plugin file.
 
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+@common_logging
+def _operator_set(ctx, operator_address):
+    account = _load_account(ctx)
+    operator = Operator(account).get(cast(ChecksumAddress, operator_address))
+    ctx.meta['operator'] = operator
+    config_update_operator(ctx)
+    typer.echo(f'configured to use operator({operator_address}).')
+
+    # TODO: need notify about plugin file.
 
 
 @contract_catalog_app.command('show', help="Show the list of CTI catalogs")
 def catalog_show(ctx: typer.Context):
+    _catalog_show(ctx)
+
+
+@common_logging
+def _catalog_show(ctx):
     catalog_mgr = _load_catalog_manager(ctx)
     typer.echo('Catalogs *:active')
     for caddr, cid in sorted(
@@ -988,63 +1000,49 @@ def catalog_show(ctx: typer.Context):
 
 
 # @contract_catalog_app.command('add', help="Add the CTI catalog to the list.")
-def catalog_add(
-    ctx: typer.Context,
-    catalog_address: str,
-    activate: bool = typer.Option(
-        True,
-        help='activate added catalog')):
-    logger = getLogger()
-    try:
-        catalog_mgr = _load_catalog_manager(ctx)
-        catalog_mgr.add([cast(ChecksumAddress, catalog_address)], activate=activate)
-        config_update_catalog(ctx)
-        catalog_show(ctx)
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+def catalog_add(ctx: typer.Context, catalog_address: str,
+                activate: bool = typer.Option(True, help='activate added catalog')):
+    _catalog_add(ctx, catalog_address, activate)
+
+
+@common_logging
+def _catalog_add(ctx, catalog_address, activate):
+    catalog_mgr = _load_catalog_manager(ctx)
+    catalog_mgr.add([cast(ChecksumAddress, catalog_address)], activate=activate)
+    config_update_catalog(ctx)
+    catalog_show(ctx)
 
 
 @contract_catalog_app.command('create', help="Create a new CTI catalog.")
-def catalog_create(
-    ctx: typer.Context,
-    private: bool = typer.Option(
-        False,
-        help='create a private catalog'),
-        activate: bool = typer.Option(
-            False,
-        help='activate created catalog')):
-    logger = getLogger()
-    try:
-        _load_contract_libs(ctx)
-        account = _load_account(ctx)
-        catalog: Catalog = Catalog(account).new(private)
-        typer.echo('deployed a new '
-                   f'{"private" if private else "public"} catalog. '
-                   f'address is {catalog.address}.')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
-        return
+def catalog_create(ctx: typer.Context,
+                   private: bool = typer.Option(False, help='create a private catalog'),
+                   activate: bool = typer.Option(False, help='activate created catalog')):
+    _catalog_create(ctx, private, activate)
+
+
+@common_logging
+def _catalog_create(ctx, private, activate):
+    _load_contract_libs(ctx)
+    account = _load_account(ctx)
+    catalog: Catalog = Catalog(account).new(private)
+    typer.echo('deployed a new '
+               f'{"private" if private else "public"} catalog. '
+               f'address is {catalog.address}.')
     catalog_add(ctx, str(catalog.address), activate)
 
 
+@common_logging
 def _catalog_ctrl(
         act: str, ctx: typer.Context, catalog_address: ChecksumAddress, by_id: bool):
-    logger = getLogger()
-    try:
-        catalog_mgr = _load_catalog_manager(ctx)
-        if by_id:
-            catalog_address = catalog_mgr.id2address(int(catalog_address))
-        if act not in ('remove', 'activate', 'deactivate'):
-            raise Exception('Invalid act: ' + act)
-        func: Callable[[List[ChecksumAddress]], None] = getattr(catalog_mgr, act)
-        func([catalog_address])
-        config_update_catalog(ctx)
-        catalog_show(ctx)
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    catalog_mgr = _load_catalog_manager(ctx)
+    if by_id:
+        catalog_address = catalog_mgr.id2address(int(catalog_address))
+    if act not in ('remove', 'activate', 'deactivate'):
+        raise Exception('Invalid act: ' + act)
+    func: Callable[[List[ChecksumAddress]], None] = getattr(catalog_mgr, act)
+    func([catalog_address])
+    config_update_catalog(ctx)
+    catalog_show(ctx)
 
 
 # @contract_catalog_app.command('remove', help="Remove the CTI catalog from the list.")
@@ -1095,32 +1093,37 @@ def check():
 
 @app.command(help="Deploy the CTI token to disseminate CTI.")
 def publish(ctx: typer.Context, catalog_address: str, token_address: str,
-            uuid_: uuid.UUID, title: str, price: int,
+            uuid: UUID, title: str, price: int,
             by_id: bool = typer.Option(False, help='select catalog by id')):
-    logger = getLogger()
-    try:
-        if len(title) == 0:
-            raise Exception(f'Invalid(empty) title')
-        if price < 0:
-            raise Exception(f'Invalid price: {price}')
-        account = _load_account(ctx)
-        catalog_mgr = _load_catalog_manager(ctx)
-        if by_id:
-            catalog_address = catalog_mgr.id2address(int(catalog_address))
-        catalog = Catalog(account).get(cast(ChecksumAddress, catalog_address))
-        catalog.register_cti(cast(ChecksumAddress, token_address), uuid_, title, price)
-        typer.echo(f'registered token({token_address}) onto catalog({catalog_address}).')
-        producer = account.eoa
-        catalog = Catalog(account).get(cast(ChecksumAddress, catalog_address))
-        catalog.publish_cti(producer, cast(ChecksumAddress, token_address))
-        typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+    _publish(ctx, catalog_address, token_address, uuid, title, price, by_id)
+
+
+@common_logging
+def _publish(ctx, catalog_address, token_address, uuid, title, price, by_id):
+    if len(title) == 0:
+        raise Exception(f'Invalid(empty) title')
+    if price < 0:
+        raise Exception(f'Invalid price: {price}')
+    account = _load_account(ctx)
+    catalog_mgr = _load_catalog_manager(ctx)
+    if by_id:
+        catalog_address = catalog_mgr.id2address(int(catalog_address))
+    catalog = Catalog(account).get(cast(ChecksumAddress, catalog_address))
+    catalog.register_cti(cast(ChecksumAddress, token_address), uuid, title, price)
+    typer.echo(f'registered token({token_address}) onto catalog({catalog_address}).')
+    producer = account.eoa
+    catalog = Catalog(account).get(cast(ChecksumAddress, catalog_address))
+    catalog.publish_cti(producer, cast(ChecksumAddress, token_address))
+    typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
 
 
 @account_app.command("show", help="Show the current account information.")
 def account_show(ctx: typer.Context):
+    _account_show(ctx)
+
+
+@common_logging
+def _account_show(ctx):
     account = _load_account(ctx)
     typer.echo(f'--------------------')
     typer.echo(f'Summary')
