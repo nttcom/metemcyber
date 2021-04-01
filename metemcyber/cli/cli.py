@@ -614,6 +614,36 @@ def _token_create(ctx, initial_supply):
     typer.echo(f'created a new token. address is {token.address}.')
 
 
+@contract_token_app.command('mint')
+def token_mint(ctx: typer.Context, token_address: str, amount: int,
+               dest: Optional[str] = typer.Option(
+                   None, help='Account EOA minted tokens are given to, instead of you. '
+                   'Do not assign Broker, it does not mean serving.')):
+    _token_mint(ctx, token_address, amount, dest)
+
+
+@common_logging
+def _token_mint(ctx, token_address, amount, dest):
+    account = _load_account(ctx)
+    dest = dest if dest else account.eoa
+    Token(account).get(token_address).mint(amount, dest=cast(ChecksumAddress, dest))
+    typer.echo(f'minted {amount} of token({token_address}) for account({dest}).')
+
+
+@contract_token_app.command('burn')
+def token_burn(ctx: typer.Context, token_address: str, amount: int, data: str = ''):
+    _token_burn(ctx, token_address, amount, data)
+
+
+@common_logging
+def _token_burn(ctx, token_address, amount, data):
+    if amount <= 0:
+        raise Exception(f'Invalid amount: {amount}.')
+    account = _load_account(ctx)
+    Token(account).get(token_address).burn(amount, data)
+    typer.echo(f'burned {amount} of token({token_address}).')
+
+
 @seeker_app.command('status')
 def seeker_status(ctx: typer.Context):
     _seeker_status(ctx)

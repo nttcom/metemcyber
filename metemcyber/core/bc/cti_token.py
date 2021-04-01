@@ -16,6 +16,7 @@
 
 from typing import Dict
 
+from eth_typing import ChecksumAddress
 from web3 import Web3
 
 from .contract import Contract
@@ -25,10 +26,28 @@ class CTIToken(Contract):
     contract_interface: Dict[str, str] = {}
     contract_id = 'CTIToken.sol:CTIToken'
 
+    @property
+    def publisher(self) -> ChecksumAddress:
+        self.log_trace()
+        func = self.contract.functions.publisher()
+        return func.call()
+
     def balance_of(self, account_id):
         self.log_trace()
         func = self.contract.functions.balanceOf(account_id)
         return func.call()
+
+    def mint(self, dest: ChecksumAddress, amount: int,
+             user_data: str = '', operator_data: str = ''):
+        self.log_trace()
+        bdata_user = Web3.toBytes(text=user_data)
+        bdata_operator = Web3.toBytes(text=operator_data)
+        func = self.contract.functions.mint(dest, amount, bdata_user, bdata_operator)
+        tx_hash = func.transact()
+        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: mint')
+        self.log_success()
 
     def send_token(self, dest, amount=1, data=''):
         self.log_trace()

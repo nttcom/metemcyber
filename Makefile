@@ -1,11 +1,10 @@
 
 
 SOLS_DIR        = contracts
-DEPLOY_DIR      = deployed_contracts
-DATA_DIR        = src/contracts_data
+DATA_DIR        = metemcyber/core/bc/contracts_data
 
 SOURCE_SOLS     = CTICatalog CTIOperator CTIToken CTIBroker MetemcyberUtil
-TARGET_ABIS     = $(SOURCE_SOLS:%=$(DEPLOY_DIR)/Default%.json)
+TARGET_ABIS     = $(SOURCE_SOLS:%=$(DATA_DIR)/%.abi.json)
 TARGET_COMBINEDS= $(SOURCE_SOLS:%=$(DATA_DIR)/%.combined.json)
 
 SOLC_ARGS       = @openzeppelin/=$(CURDIR)/node_modules/@openzeppelin/
@@ -18,7 +17,8 @@ all: combined
 abi: $(TARGET_ABIS)
 combined: $(TARGET_COMBINEDS)
 
-$(DEPLOY_DIR)/Default%.json: $(SOLS_DIR)/%.sol
+$(DATA_DIR)/%.abi.json: $(SOLS_DIR)/%.sol
+	mkdir -p $(DATA_DIR)
 	( cd $(SOLS_DIR) \
 	  && ($(SOLC_COMMAND) --abi $*.sol \
 	      | grep -A2 "^======= $*.sol:" \

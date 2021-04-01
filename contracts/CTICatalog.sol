@@ -114,6 +114,11 @@ contract CTICatalog is ERC721 {
         string calldata operator
     ) public {
         require(bytes(tokenURI).length > 0, "invalid tokenURI");
+        require(
+            msg.sender == CTIToken(
+                MetemcyberUtil.stringToAddress(tokenURI)).publisher(),
+            "not token publisher"
+        );
         string memory uri = MetemcyberUtil.toChecksumAddress(tokenURI);
         require(
             bytes(_ctiInfo[uri].uuid).length == 0,

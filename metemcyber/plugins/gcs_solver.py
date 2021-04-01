@@ -118,7 +118,7 @@ class Uploader:
             raise Exception(f'Not a expected data format: {upload_path}') from err
         response = requests.post(
             self.url,
-            json=jdata.encode('utf-8'),
+            json=jdata,
             headers=headers)
         try:
             results = response.json()

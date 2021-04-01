@@ -60,6 +60,10 @@ contract CTIBroker is IERC777Recipient {
         uint256 amount
     ) public {
         require(amount > 0, "invalid amount");
+        require(
+            CTIToken(tokenAddress).publisher() == msg.sender,
+            "not token publisher"
+        );
         CTICatalog.Cti memory cti =
             CTICatalog(catalogAddress).getCtiInfoByAddress(tokenAddress);
         require(cti.tokenId > 0, "not a published token");
