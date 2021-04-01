@@ -66,6 +66,6 @@ jobs:
       - name: Run formatting check
         run: |
           . venv/bin/activate
-          isort ${{ env.PYTHON_ROOT_DIRS }} --diff --check-only --line_length=100
+          isort ${{ env.PYTHON_ROOT_DIRS }} --diff --check-only --line-length=100
           pylint ${{ env.PYTHON_ROOT_DIRS }} --max-line-length=100 --score=n --disable=${{ env.PYLINT_DISABLE }}
           mypy ${{ env.PYTHON_ROOT_DIRS }} --ignore-missing-imports --show-error-codes --no-error-summary
