@@ -20,8 +20,12 @@ pragma solidity >=0.7.0 <0.8.0;
 
 import "@openzeppelin/contracts/token/ERC777/ERC777.sol";
 
+string constant CTIToken_ContractId = "CTIToken.sol:CTIToken";
+
 contract CTIToken is ERC777 {
 
+    string public constant contractId = CTIToken_ContractId;
+    uint256 public constant contractVersion = 0;
     address public publisher;
 
     constructor(

@@ -79,9 +79,9 @@ class Contract():
     def new(self, *args, **kwargs):
         # pylint: disable=protected-access
         address = self.__class__.__deploy(self.account, *args, **kwargs)
-        return self.get(address)
+        return self.get(address, id_check=False)
 
-    def get(self, address: ChecksumAddress):
+    def get(self, address: ChecksumAddress, id_check: bool = False):  # FIXME: make default=True
         assert address
         if not Web3.isChecksumAddress(address):
             raise Exception('Invalid address: {}'.format(address))
@@ -89,6 +89,15 @@ class Contract():
         self.__class__.__load()
         self._contract = self.web3.eth.contract(
             address=address, abi=self.__class__.contract_interface['abi'])
+        if not id_check:
+            return self
+        try:
+            tmp_id = self._contract.functions.contractId().call()
+        except Exception:
+            tmp_id = 'UnKnown:unknown type of address'
+        if tmp_id != self.__class__.contract_id:
+            tmp_id = tmp_id.split(':', 1)[1] if ':' in tmp_id else tmp_id
+            raise Exception(f'Invalid address. {address} is {tmp_id}.')
         return self
 
     @classmethod

@@ -24,6 +24,8 @@ import "@openzeppelin/contracts/introspection/IERC1820Registry.sol";
 import "./CTIToken.sol";
 import "./CTICatalog.sol";
 
+string constant CTIBroker_ContractId = "CTIBroker.sol:CTIBroker";
+
 contract CTIBroker is IERC777Recipient {
 
     event AmountChanged(
@@ -31,6 +33,9 @@ contract CTIBroker is IERC777Recipient {
         address token,
         uint256 amount
     );
+
+    string public constant contractId = CTIBroker_ContractId;
+    uint256 public constant contractVersion = 0;
 
     IERC1820Registry private _erc1820 =
         IERC1820Registry(0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24);

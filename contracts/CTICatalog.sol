@@ -21,7 +21,7 @@ pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "./CTIToken.sol";
+import {CTIToken, CTIToken_ContractId} from "./CTIToken.sol";
 import {MetemcyberUtil} from "./MetemcyberUtil.sol";
 
 contract CTICatalog is ERC721 {
@@ -52,6 +52,9 @@ contract CTICatalog is ERC721 {
         string operator; // should be address?
         Counters.Counter likecount; // The number of count
     }
+
+    string public constant contractId = "CTICatalog.sol:CTICatalog";
+    uint256 public constant contractVersion = 0;
 
     Counters.Counter private _tokenIds;
     address private _owner;
@@ -114,9 +117,13 @@ contract CTICatalog is ERC721 {
         string calldata operator
     ) public {
         require(bytes(tokenURI).length > 0, "invalid tokenURI");
+        CTIToken token = CTIToken(MetemcyberUtil.stringToAddress(tokenURI));
         require(
-            msg.sender == CTIToken(
-                MetemcyberUtil.stringToAddress(tokenURI)).publisher(),
+            MetemcyberUtil.isSameStrings(token.contractId(), CTIToken_ContractId),
+            "not a token address"
+        );
+        require(
+            msg.sender == token.publisher(),
             "not token publisher"
         );
         string memory uri = MetemcyberUtil.toChecksumAddress(tokenURI);
