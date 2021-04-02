@@ -140,11 +140,11 @@ class Solver(BaseSolver):
         try:
             # process for Demo
             download_url = self.create_misp_download_url(token_address)
-            url = Web3.toText(event['args']['data'])
+            webhook_url = Web3.toText(event['args']['data'])
 
             # return answer via webhook
-            LOGGER.info('returning answer to %s', url)
-            self.webhook(url, download_url, token_address)
+            LOGGER.info('returning answer to %s', webhook_url)
+            self.webhook(webhook_url, download_url, challenge_seeker, task_id, token_address)
         except Exception as err:
             data = str(err)
             LOGGER.exception(err)

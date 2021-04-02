@@ -75,13 +75,13 @@ class Solver(BaseSolver):
         try:
             try:
                 download_url = self.upload_to_storage(token_address)
-                url = Web3.toText(event['args']['data'])
+                webhook_url = Web3.toText(event['args']['data'])
             except Exception:
                 data = 'Challenge failed by solver side error'
                 raise
             try:
                 # return answer via webhook
-                self.webhook(url, download_url, token_address)
+                self.webhook(webhook_url, download_url, challenge_seeker, task_id, token_address)
             except Exception as err:
                 data = 'cannot sendback result via webhook: ' + str(err)
                 raise

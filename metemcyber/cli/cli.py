@@ -667,8 +667,8 @@ def seeker_status(ctx: typer.Context):
 
 
 @common_logging
-def _seeker_status(_ctx):
-    seeker = Seeker(APP_DIR)
+def _seeker_status(ctx):
+    seeker = Seeker(APP_DIR, _load_operator(ctx).address)
     if seeker.pid == 0:
         typer.echo(f'not running.')
     else:
@@ -682,8 +682,8 @@ def seeker_start(ctx: typer.Context,
 
 
 @common_logging
-def _seeker_start(_ctx, config):
-    seeker = Seeker(APP_DIR, config)
+def _seeker_start(ctx, config):
+    seeker = Seeker(APP_DIR, _load_operator(ctx).address, config)
     seeker.start()
     typer.echo(f'seeker started on process {seeker.pid}, '
                f'listening {seeker.address}:{seeker.port}.')
@@ -695,8 +695,8 @@ def seeker_stop(ctx: typer.Context):
 
 
 @common_logging
-def _seeker_stop(_ctx):
-    seeker = Seeker(APP_DIR)
+def _seeker_stop(ctx):
+    seeker = Seeker(APP_DIR, _load_operator(ctx).address)
     seeker.stop()
     typer.echo(f'seeker stopped.')
 
@@ -883,12 +883,13 @@ def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> Toke
 
 def _get_challenges(ctx: typer.Context
                     ) -> List[Tuple[int, ChecksumAddress, ChecksumAddress, ChecksumAddress, int]]:
+    account = _load_account(ctx)
     operator = _load_operator(ctx)
     raw_tasks = []
     limit_atonce = 16
     offset = 0
     while True:
-        tmp = operator.history(ADDRESS0, limit_atonce, offset)
+        tmp = operator.history(ADDRESS0, account.eoa, limit_atonce, offset)
         raw_tasks.extend(tmp)
         if len(tmp) < limit_atonce:
             break

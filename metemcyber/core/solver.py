@@ -157,17 +157,22 @@ class BaseSolver:
         #    url can be gotten by Web3.toText(event['args']['data'].
         # 5. finish_task.
 
-    def webhook(self, url, download_url, token_address):
+    def webhook(self, webhook_url: str, download_url: str,
+                seeker: ChecksumAddress, task_id: int, token_address: ChecksumAddress
+                ) -> None:
         data_obj = {
+            "from": self.account.eoa,
+            "to": seeker,
+            "task_id": task_id,
+            "token_address": token_address,
             "download_url": download_url,
-            "token_address": token_address
         }
         data = json.dumps(data_obj)
         sign = self.account.sign_message(str(data))
         headers = {"Content-Type": "application/json",
                    SIGNATURE_HEADER: sign}
         # httpリクエストを準備してPOST
-        request = Request(url, data=data.encode('utf-8'), method="POST", headers=headers)
+        request = Request(webhook_url, data=data.encode('utf-8'), method="POST", headers=headers)
         with urlopen(request) as response:
             LOGGER.info(response.getcode())
             LOGGER.debug(response.info())
