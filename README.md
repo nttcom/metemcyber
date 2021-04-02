@@ -1,121 +1,107 @@
-[![Documentation Status](https://readthedocs.org/projects/metemcyber/badge/?version=latest)](https://metemcyber.readthedocs.io/ja/latest/?badge=latest)
+<div align="center">
+
+[![banner](https://raw.githubusercontent.com/nttcom/metemcyber/main/banner.png)](https://metemcyber.ntt.com)
 
 # Metemcyber
 
-Decentralized Cyber Threat Intelligence Kaizen Framework.
+</div>
 
-[Metemcyber User Documentation](https://docs.google.com/document/d/1RL_0hDulTSuogskajhyv--eHGTsOiO6g2WLE4nTned4/edit?usp=sharing)
-
-![A Metemcyber Screenshot](screenshot.png)
-
-## [実証実験の参加はこちらから](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)
-
-現在開催中の[実証実験](https://www.ntt.com/about-us/press-releases/news/article/2020/1006_2.html)へのご参加には、[こちらのフォーム](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)から利用規約に同意していただく必要があります。
-
-利用規約に同意していただくことで、以下の情報へのアクセスが可能となります。
-
- - アクセストークン
- - Metemcyber コミュニティ(Slack ワークスペース)への参加
-
-ご利用のユーザアカウントへの入金は、該当ワークスペースの`#okawari`チャンネルをご利用ください。
-
-## Overview
-
-Metemcyberでは、Cyber Threat Intelligence の共有 (売買) を通じて以下の特徴を実現します。
-
-- インテリジェンスに基づく活動の影響を一か所に集約
-- セキュリティ対応に関する気づきを共有
-- よりActionableな脅威インテリジェンスの生産
-
-```
-git clone --recursive https://github.com/nttcom/metemcyber
-cd metemcyber
-geth account new
-./metemcyber_ctl.sh pricom init 
-./metemcyber_ctl.sh - client -f $YOUR_KEY_FILE -w $WEBHOOK_URL
-```
-
-## Requirement
-
-Ubuntu 18.04, 20.04, macOS Catalina で動作を確認しています。
-
-- Docker環境 (Docker-CE等)
-
-## Install
-
-Docker環境をセットアップします。
-
-https://docs.docker.com/install/linux/docker-ce/ubuntu/
+> Decentralized Cyber Threat Intelligence Kaizen Framework. https://metemcyber.ntt.com
 
 
-次に、ユーザーをdockerグループに所属させます。ユーザがdockerグループに所属したことを `id` コマンドで確認してください。
+[![CI](https://github.com/nttcom/metemcyber/actions/workflows/main.yml/badge.svg)](https://github.com/nttcom/metemcyber/actions/workflows/main.yml)
+[![Documentation Status](https://readthedocs.org/projects/metemcyber/badge/?version=latest)](https://metemcyber.readthedocs.io/ja/latest/?badge=latest)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/nttcom/metemcyber)
+[![GitHub commit activity](https://img.shields.io/badge/discussions-welcome!-success)](https://github.com/nttcom/metemcyber/discussions)
+[![Twitter](https://img.shields.io/twitter/follow/metemcyber?label=Follow&style=social)](https://twitter.com/metemcyber)
+<!-- ![GitHub Release](https://img.shields.io/github/v/release/nttcom/metemcyber.svg?style=flat) -->
+
+
+## 💡 Overview
+
+Metemcyber™ enables security collaboration and assessment all the across organization through the intelligence cycle successful.
+
+## ✨ Features
+
+- A Content-oriented Workflow
+- A Fault-tolerant Collaboration
+- A Disclosure Control of CTIs
+- A Transparency for Trust
+    - Monitoring the activity of information distribution
+    - Unlocking achievements based on your contribution.
+
+## 🚅 QuickStart
+This exercise will be performed on the testnet environment.
 
 ```
-sudo usermod -aG docker $USER
-su - $USER
-id
+pip install $PACKAGE_NAME[cli]
 ```
 
-必要なパッケージをインストールします。
-```
-sudo add-apt-repository -y ppa:ethereum/ethereum
-sudo apt-get update
-sudo apt install ethereum jq curl python3-dateutil
-```
 
-リポジトリをクローンして、metemcyberのフォルダに移動します。
-```
-git clone --recursive https://github.com/nttcom/metemcyber.git
-cd metemcyber
-```
-
-## QuickStart
-
-NTTコミュニケーションズのEnterprise Ethereum "Pricom" へ接続します。
-
-### Metemcyberのセットアップ
-
-Ethereum上で利用する鍵ファイルを作成します
-```
-geth account new
-```
-
-Metemcyber実行環境を初期化します。
-```
-./metemcyber_ctl.sh pricom init
-```
-
-P2P接続にngrokを用いるため、以下サイトにてアカウント作成を実施します。
-
-https://dashboard.ngrok.com/
-
-その後、setupページに従ってngrokをセットアップします。
-
-https://dashboard.ngrok.com/get-started/setup
-
-
-### Metemcyberの起動
-
-**別画面**でngrokを起動し、インターネット上からのデータ接続を可能にします。
-```
-./ngrok http 51004
-```
-
-ngrokが起動されていることを確認し、Metemcyberのクライアントを起動します。
-このとき、先ほど作成した鍵ファイルと、ngrok画面で表示されている通信先を指定してください。
-
-デフォルトの場合、作成された鍵ファイルは`~/.etherium/keystore/`配下（Ubuntu環境）または`~/Library/Ethereum/keystore/`配下（macOS環境）にファイル名`UTC--xxxx`の形式で保存されています。
+### 🔑 Create a new account
 
 ```
-./metemcyber_ctl.sh - client -f $YOUR_KEY_FILE -w $YOUR_NGROK_URL
+metemctl account create
 ```
 
-**🎉🎉🎉Metemcyberへようこそ！🎉🎉🎉**
+```
+metemctl account show
+```
+```
+metemctl account airdrop
+```
 
-CTIの収集や配布に関する詳細な操作は、[Metemcyber User Documentation](https://docs.google.com/document/d/1RL_0hDulTSuogskajhyv--eHGTsOiO6g2WLE4nTned4/edit?usp=sharing) をご覧ください。
+### 📝 Summarize the data analysis process
 
-### Metemcyberの終了
-メニュー画面で 0 を入力するか、Ctrl-C を入力します。
+```
+metemctl new　--starter=ir-handson
+```
 
-Ctrl-Dを入力すると、いつでもメニュー画面に戻ることができます。
+```
+metemctl ix
+```
+
+```
+metemctl run 
+```
+
+```
+metemctl check --viz
+```
+
+### 🚀 Disseminate your CTI products
+
+```
+metemctl publish
+```
+
+🎉🎉🎉 Welcome to Metemcyber, Dear Awesome CTI Analyst!!!  🎉🎉🎉
+
+## 🌳 Metemcyber Ecosystem
+
+This section is Under Construction now.
+
+## 🤝 Contributing
+This section is Under Construction now.
+
+### 🖥️ Local Development
+### 🧪 Test
+### 👕 Code Style
+
+## ⚖️ LICENSE
+```
+Copyright 2020 NTT Communications Corporation
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
 
