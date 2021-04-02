@@ -19,7 +19,12 @@
 pragma solidity >=0.7.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
+string constant MetemcyberUtil_ContractId = "MetemcyberUtil.sol:MetemcyberUtil";
+
 library MetemcyberUtil {
+
+    string constant public contractId = MetemcyberUtil_ContractId;
+    uint256 constant public contractVersion = 0;
 
     bytes constant private _lowerHexChars = "0123456789abcdef";
     bytes1 constant private _b1_0 = bytes1("0");
