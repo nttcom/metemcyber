@@ -335,10 +335,12 @@ def create_workflow(event_id, category, contents):
         except CalledProcessError as err:
             logger.exception(err)
             typer.echo(f'An error occurred while creating the workflow. {err}')
+            raise typer.Abort()
 
 
 @app.command(help="Create a new intelligence workflow.")
 def new(
+    ctx: typer.Context,
     event_uuid: UUID = typer.Option(
         None,
         help='Recommend to be the same as the UUID of the misp object'),
@@ -410,6 +412,10 @@ def new(
     # run "kedro new --config workflow.yml"
     if answer:
         create_workflow(event_id, formal_category[category], display_contents)
+        #TODO: manage the project id on workspace directory
+        config = ctx.meta['config']
+        config.set('general', 'project', event_id)
+        write_config(config, CONFIG_FILE_PATH)
 
 
 def config_update_catalog(ctx: typer.Context):
@@ -1112,13 +1118,35 @@ def misp_open(ctx: typer.Context):
 
 
 @app.command(help="Run the current intelligence workflow.")
-def run():
-    typer.echo(f"run")
+def run(ctx: typer.Context):
+    logger = getLogger()
+    logger.info(f"Run command: kedro run")
+    try:
+        # TODO: check the existence of a CWD path
+        cwd = ctx.meta['config']['general']['project']
+        subprocess.run(['kedro', 'run'], check=True, cwd=cwd)
+    except CalledProcessError as err:
+        logger.exception(err)
+        typer.echo(f'An error occurred while running the workflow. {err}')
 
 
-@app.command(help="Validate the use of your CTIs")
-def check():
-    typer.echo(f"check")
+@app.command(help="Validate the current intelligence cylcle")
+def check(ctx: typer.Context, viz: bool = typer.Option(
+        False, help='Show the visualized current workflow')):
+    # TODO: check the available intelligece workflow
+    # TODO: check available intelligece contents
+    logger = getLogger()
+    logger.info(f"Run command: kedro test")
+    try:
+        # TODO: check the existence of a CWD path
+        cwd = ctx.meta['config']['general']['project']
+        subprocess.run(['kedro', 'test'], check=True, cwd=cwd)
+        if viz:
+            logger.info(f"Run command: kedro viz")
+            subprocess.run(['kedro', 'viz'], check=True, cwd=cwd)
+    except CalledProcessError as err:
+        logger.exception(err)
+        typer.echo(f'An error occurred while testing the workflow. {err}')
 
 
 @app.command(help="Deploy the CTI token to disseminate CTI.")
