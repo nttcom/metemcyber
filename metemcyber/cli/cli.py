@@ -338,6 +338,24 @@ def create_workflow(event_id, category, contents):
             raise typer.Abort()
 
 
+def pick_up_contents() -> Optional[List[IntelligenceContents]]:
+    contents = []
+    # allow index selector
+    contents_selector = list(IntelligenceContents)
+    for i, content_type in enumerate(contents_selector):
+        typer.echo(f'{i}: {content_type}')
+    items = typer.prompt('Choose contents to be include', "0,1")
+    indices = [int(i) for i in items.split(',') if i.isdecimal()]
+    for i in indices:
+        if i <= len(contents_selector):
+            contents.append(IntelligenceContents(contents_selector[i]))
+
+    if len(contents) > 0:
+        return contents
+
+    return None
+
+
 @app.command(help="Create a new intelligence workflow.")
 def new(
     ctx: typer.Context,
@@ -384,16 +402,9 @@ def new(
 
     logger.info(f"EventID: {event_id}")
 
+    if not contents:
+        contents = pick_up_contents()
     if contents:
-        # allow index selector
-        contents_list = list(IntelligenceContents)
-        for i, content_type in enumerate(contents_list):
-            typer.echo(f'{i}: {content_type}')
-        items = typer.prompt('Choose contents to be include', "0,1")
-        indices = [int(i) for i in items.split(',') if i.isdecimal()]
-        for i in indices:
-            if i <= len(contents_list):
-                contents.append(IntelligenceContents(contents_list[i]))
         # deduplication
         contents_set = set(contents)
         display_contents = [formal_contents[x.value] for x in contents_set]
@@ -412,7 +423,7 @@ def new(
     # run "kedro new --config workflow.yml"
     if answer:
         create_workflow(event_id, formal_category[category], display_contents)
-        #TODO: manage the project id on workspace directory
+        # TODO: manage the project id on workspace directory
         config = ctx.meta['config']
         config.set('general', 'project', event_id)
         write_config(config, CONFIG_FILE_PATH)
