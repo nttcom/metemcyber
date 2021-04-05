@@ -20,13 +20,16 @@ import sys
 from signal import SIGINT
 from subprocess import Popen
 from time import sleep
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 from urllib.request import Request, urlopen
 
 from eth_typing import ChecksumAddress
 from psutil import NoSuchProcess, Process
 from werkzeug.datastructures import EnvironHeaders
 
+from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.ether import Ether
+from metemcyber.core.bc.operator import Operator
 from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import SIGNATURE_HEADER
@@ -38,6 +41,7 @@ LOGGER = get_logger(name='seeker', file_prefix='core')
 CONFIG_SECTION = 'seeker'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
+        'endpoint_url': 'https://rpc.metemcyber.ntt.com',
         'downloaded_cti_path': './download',
         'listen_address': '127.0.0.1',
         'listen_port': '0',
@@ -81,39 +85,54 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
 
 
 class Resolver(WebhookReceiver):
-    def __init__(self, listen_address: str, listen_port: int, download_path: str):
+    def __init__(self, listen_address: str, listen_port: int,
+                 download_path: str, endpoint_url: str, operator_address: ChecksumAddress):
         super().__init__(listen_address, listen_port)
         self.download_path = download_path
+        self.endpoint_url = endpoint_url
+        self.operator_address = operator_address
 
     def resolve_request(self, headers: EnvironHeaders, body: str):
         sign = headers.get(SIGNATURE_HEADER)
         if sign is None:
-            LOGGER.error(f'Received request without signature. headers={headers}, body={body}.')
+            LOGGER.error(f'Received request without signature.')
             return
-        try:
-            LOGGER.debug(f'Received request. headers={headers}, body={body}.')
-            signer = verify_message(body, sign)
-            LOGGER.debug(f'Calculated signer is {signer}.')
-        except Exception as err:
-            LOGGER.exception(err)
-            LOGGER.error('Verify message failed')
+        LOGGER.debug(f'Received request. headers={headers}, body={body}.')
         try:
             jdata = json.loads(body)
-            download_url = jdata['download_url']
-            token_address = jdata['token_address']
-            assert download_url
-            assert token_address
+            if jdata['from'] != verify_message(body, sign):
+                raise Exception('Signer mismatch.')
+            operator = Operator(Account(Ether(self.endpoint_url))).get(self.operator_address)
+            task = None
+            limit_atonce = 16
+            offset = 0
+            while True:
+                tasks = operator.history(jdata['token_address'], None, limit_atonce, offset)
+                tmp = [item for item in tasks if item[0] == int(jdata['task_id'])]
+                if tmp:
+                    task = tmp[0]
+                    break
+                if len(tasks) < limit_atonce:
+                    break
+                offset += limit_atonce
 
-            #
-            # FIXME: check signer is the owner of this token.
-            #
-
+            if task is None:
+                LOGGER.error(f'No such task id: {jdata["task_id"]}')
+                return
+            _, t_addr, t_solver, _, _ = task
+            if t_addr != jdata['token_address'] or t_solver != jdata['from']:
+                raise Exception('Task info mismatch')
+        except KeyError as err:
+            LOGGER.error(f'Missing parameter: {err}')
+            return
         except Exception as err:
             LOGGER.exception(err)
-            LOGGER.error('Decoding request body failed.')
+            LOGGER.error(f'Failed verifying data from solver: {err}')
             return
-        LOGGER.info(f'Received download_url for token({token_address}): {download_url}')
-        download_json(download_url, token_address, self.download_path)
+
+        LOGGER.info(f'Trying download_url for task {jdata["task_id"]} - '
+                    f'token({jdata["token_address"]}): {jdata["download_url"]}')
+        download_json(jdata['download_url'], jdata['token_address'], self.download_path)
 
 
 class Seeker():
@@ -125,12 +144,15 @@ class Seeker():
             self.config[CONFIG_SECTION]['listen_address'],
             self.config[CONFIG_SECTION]['listen_port'],
             self.app_dir,
+            self.operator_address,
         ]
         if self.config_path:
             args += [self.config_path]
         return args
 
-    def __init__(self, app_dir: str, config_path: Optional[str] = None) -> None:
+    def __init__(self, app_dir: str, operator_address: ChecksumAddress,
+                 config_path: Optional[str] = None
+                 ) -> None:
         self.app_dir = app_dir
         self.config_path = config_path
         self.config = merge_config(config_path, DEFAULT_CONFIGS)
@@ -138,6 +160,7 @@ class Seeker():
         self.pid: int = pid
         self.address: Optional[str] = address
         self.port: int = port
+        self.operator_address = operator_address
 
     #                               (pid|0, listen_address, listen_port)
     def check_running(self) -> Tuple[int, Optional[str], int]:
@@ -186,12 +209,16 @@ class Seeker():
             raise Exception(f'Cannot stop webhook(pid={pid})') from err
 
 
-def main(listen_address: str, listen_port: int, app_dir: str, config_path: Optional[str]):
+def main(listen_address: str, listen_port: int, app_dir: str, operator_address: str,
+         config_path: Optional[str]
+         ):
     pid_file = seeker_pid_filepath(app_dir)
     try:
         config = merge_config(config_path, DEFAULT_CONFIGS)
         resolver = Resolver(listen_address, listen_port,
-                            config[CONFIG_SECTION]['downloaded_cti_path'])
+                            config[CONFIG_SECTION]['downloaded_cti_path'],
+                            config[CONFIG_SECTION]['endpoint_url'],
+                            cast(ChecksumAddress, operator_address))
         address, port = resolver.start()
         pid = os.getpid()
         with open(pid_file, 'w') as fout:
@@ -206,10 +233,11 @@ def main(listen_address: str, listen_port: int, app_dir: str, config_path: Optio
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 5:
         raise Exception('Not enough arguments')
     addr_ = sys.argv[1]
     port_ = sys.argv[2]
     app_dir_ = sys.argv[3]
-    config_path_ = sys.argv[4] if len(sys.argv) > 4 else None
-    main(addr_, int(port_), app_dir_, config_path_)
+    operator_address_ = sys.argv[4]
+    config_path_ = sys.argv[5] if len(sys.argv) > 5 else None
+    main(addr_, int(port_), app_dir_, operator_address_, config_path_)

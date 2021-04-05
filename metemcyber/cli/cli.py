@@ -42,6 +42,7 @@ from metemcyber.core.bc.token import Token
 from metemcyber.core.bc.util import ADDRESS0, decode_keyfile, deploy_erc1820
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
+from metemcyber.core.ngrok import NgrokMgr
 from metemcyber.core.seeker import Seeker
 
 APP_NAME = "metemcyber"
@@ -667,26 +668,41 @@ def seeker_status(ctx: typer.Context):
 
 
 @common_logging
-def _seeker_status(_ctx):
-    seeker = Seeker(APP_DIR)
+def _seeker_status(ctx):
+    seeker = Seeker(APP_DIR, _load_operator(ctx).address)
     if seeker.pid == 0:
         typer.echo(f'not running.')
     else:
         typer.echo(f'running on pid {seeker.pid}, listening {seeker.address}:{seeker.port}.')
+    ngrok_mgr = NgrokMgr(APP_DIR)
+    if ngrok_mgr.pid > 0:
+        typer.echo(f'and ngrok running on pid {ngrok_mgr.pid}, '
+                   f'with public url: {ngrok_mgr.public_url}.')
 
 
 @seeker_app.command('start')
 def seeker_start(ctx: typer.Context,
+                 ngrok: bool = typer.Option(False, help='launch ngrok with seeker.'),
                  config: Optional[str] = typer.Option(None, help='seeker config filepath')):
-    _seeker_start(ctx, config)
+    _seeker_start(ctx, ngrok, config)
 
 
 @common_logging
-def _seeker_start(_ctx, config):
-    seeker = Seeker(APP_DIR, config)
+def _seeker_start(ctx, ngrok, config):
+    seeker = Seeker(APP_DIR, _load_operator(ctx).address, config)
     seeker.start()
     typer.echo(f'seeker started on process {seeker.pid}, '
                f'listening {seeker.address}:{seeker.port}.')
+    if ngrok:
+        ngrok_mgr = NgrokMgr(APP_DIR, seeker.port, config)
+        if ngrok_mgr.pid == 0:
+            ngrok_mgr.start()
+        else:
+            typer.echo('restarging ngrok...')
+            ngrok_mgr.stop()
+            ngrok_mgr.start()
+        typer.echo(f'ngrok started on process {ngrok_mgr.pid}, '
+                   f'with public url: {ngrok_mgr.public_url}.')
 
 
 @seeker_app.command('stop')
@@ -695,10 +711,14 @@ def seeker_stop(ctx: typer.Context):
 
 
 @common_logging
-def _seeker_stop(_ctx):
-    seeker = Seeker(APP_DIR)
+def _seeker_stop(ctx):
+    seeker = Seeker(APP_DIR, _load_operator(ctx).address)
     seeker.stop()
-    typer.echo(f'seeker stopped.')
+    typer.echo('seeker stopped.')
+    ngrok_mgr = NgrokMgr(APP_DIR)
+    if ngrok_mgr.pid > 0:
+        ngrok_mgr.stop()
+        typer.echo('ngrok also stopped.')
 
 
 def _solver_client(ctx: typer.Context) -> MCSClient:
@@ -856,15 +876,23 @@ def _solver_obsolete(ctx, token_address):
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
-def ix_use(ctx: typer.Context, token_address: str, data: str = ''):
-    _ix_use(ctx, token_address, data)
+def ix_use(ctx: typer.Context, token_address: str,
+           seeker: str = typer.Option(
+               '', help='Globally accessible url which seeker is listening. '
+                        'This option overwrites --ngrok.'),
+           ngrok: bool = typer.Option(
+               True, help='Use ngrok public url bound up with seeker if launched.')):
+    _ix_use(ctx, token_address, seeker, ngrok)
 
 
 @common_logging
-def _ix_use(ctx, token_address, data):
+def _ix_use(ctx, token_address, seeker, ngrok):
     account = _load_account(ctx)
     operator = _load_operator(ctx)
     assert operator.address
+    data = seeker if seeker else (NgrokMgr(APP_DIR).public_url or '') if ngrok else ''
+    if not data:
+        raise Exception('Seeker url is not specified')
     Token(account).get(cast(ChecksumAddress, token_address)
                        ).send(operator.address, amount=1, data=data)
     typer.echo(f'Started challenge with token({token_address}).')
@@ -883,12 +911,13 @@ def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> Toke
 
 def _get_challenges(ctx: typer.Context
                     ) -> List[Tuple[int, ChecksumAddress, ChecksumAddress, ChecksumAddress, int]]:
+    account = _load_account(ctx)
     operator = _load_operator(ctx)
     raw_tasks = []
     limit_atonce = 16
     offset = 0
     while True:
-        tmp = operator.history(ADDRESS0, limit_atonce, offset)
+        tmp = operator.history(ADDRESS0, account.eoa, limit_atonce, offset)
         raw_tasks.extend(tmp)
         if len(tmp) < limit_atonce:
             break
