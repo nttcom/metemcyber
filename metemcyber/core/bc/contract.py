@@ -19,24 +19,36 @@ from __future__ import annotations
 import inspect
 import json
 import os
-from typing import Dict, Optional
+from typing import ClassVar, Dict, Optional
 
 from eth_typing import ChecksumAddress
 from web3 import Web3
 from web3.contract import Contract as Web3Contract
 
-from ..logger import get_logger
-from .account import Account
+from metemcyber.core.bc.account import Account
+from metemcyber.core.logger import get_logger
 
 LOGGER = get_logger(name='contract', file_prefix='core.bc')
 
+MINIMAL_CONTRACT_ID = 'MetemcyberMinimal.sol:MetemcyberMinimal'
+
+
+def combined_json_path(contract_id: str) -> str:
+    contract_src = contract_id.split(':')[0]
+    src_dir = os.path.dirname(os.path.abspath(__file__))
+    filepath = os.path.join(src_dir, 'contracts_data',
+                            os.path.splitext(contract_src)[0] + '.combined.json')
+    return filepath
+
 
 class Contract():
-    #                   library_address  placeholder
-    deployed_libs: Dict[ChecksumAddress, str] = {}
-    #                    abi|bin  loaded data from combined json
-    contract_interface: Dict[str, str] = {}  # overridden by sub class
-    contract_id: Optional[str] = None  # overridden by subclass
+    #                    contract_id: {address|placeholder: data}
+    deployed_libs: ClassVar[Dict[str, Dict[str, str]]] = {}
+    #                              version: abi|bin: loaded data from combined json
+    contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}  # overridden by sub class
+    contract_id: ClassVar[Optional[str]] = None  # overridden by subclass
+    __latest_version: int = -1  # overridden by subclass
+    __minimal_interface: ClassVar[Dict[str, str]] = {}
 
     def log_trace(self):
         try:
@@ -62,6 +74,7 @@ class Contract():
     def __init__(self, account: Account):
         self.account: Account = account
         self._contract: Optional[Web3Contract] = None  # initialized by get()
+        self.version: int = -1
 
     @property
     def web3(self) -> Web3:
@@ -76,6 +89,13 @@ class Contract():
     def address(self):
         return self._contract.address if self._contract else None
 
+    @classmethod
+    def latest_version(cls):
+        if cls.__latest_version < 0:
+            lnk = os.readlink(combined_json_path(cls.contract_id))
+            cls.__latest_version = int(os.path.splitext(lnk)[1][1:])
+        return cls.__latest_version
+
     def new(self, *args, **kwargs):
         # pylint: disable=protected-access
         address = self.__class__.__deploy(self.account, *args, **kwargs)
@@ -85,19 +105,28 @@ class Contract():
         assert address
         if not Web3.isChecksumAddress(address):
             raise Exception('Invalid address: {}'.format(address))
-        # pylint: disable=protected-access
-        self.__class__.__load()
-        self._contract = self.web3.eth.contract(
-            address=address, abi=self.__class__.contract_interface['abi'])
         if not id_check:
+            version = self.__class__.latest_version()
+            # pylint: disable=protected-access
+            self.__class__.__load(version)
+            self._contract = self.web3.eth.contract(
+                address=address, abi=self.__class__.contract_interface[version]['abi'])
             return self
+
+        minimal = self.web3.eth.contract(
+            address=address, abi=self.__minimal_abi())
         try:
-            tmp_id = self._contract.functions.contractId().call()
+            tmp_id = minimal.functions.contractId().call()
         except Exception:
-            tmp_id = 'UnKnown:unknown type of address'
+            tmp_id = 'unknown type of address'
         if tmp_id != self.__class__.contract_id:
             tmp_id = tmp_id.split(':', 1)[1] if ':' in tmp_id else tmp_id
             raise Exception(f'Invalid address. {address} is {tmp_id}.')
+        self.version = minimal.functions.contractVersion().call()
+        # pylint: disable=protected-access
+        self.__class__.__load(self.version)
+        self._contract = self.web3.eth.contract(
+            address=address, abi=self.__class__.contract_interface[self.version]['abi'])
         return self
 
     @classmethod
@@ -116,30 +145,28 @@ class Contract():
         LOGGER.debug(Contract.deployed_libs)
         return placeholder
 
+    @staticmethod
+    def __minimal_abi() -> str:
+        if not Contract.__minimal_interface:
+            minimal_file = combined_json_path(MINIMAL_CONTRACT_ID)
+            with open(minimal_file, 'r') as fin:
+                meta_str = json.loads(fin.read())['contracts'][MINIMAL_CONTRACT_ID]['metadata']
+            Contract.__minimal_interface['abi'] = json.loads(meta_str)['output']['abi']
+        return Contract.__minimal_interface['abi']
+
     @classmethod
-    def __load(cls):
+    def __load(cls, version: int):
+        assert version >= 0
         if not cls.contract_id:
             raise Exception('contract_id is not defined: {}'.format(cls))
-        if cls.contract_interface:
+        if cls.contract_interface.get(version):
             return
 
-        # contract_id is "<SourceFilename>:<ContractName>"
-        contract_src = cls.contract_id.split(':')[0]
-        contract_basename = os.path.splitext(contract_src)[0]
-        contract_interface = dict()
+        contract_interface = {}
         try:
-            # contractsのcombined.jsonが配置されているパス
-            work_dir = os.path.dirname(os.path.abspath(__file__))
-            contractsdata_dir = os.path.join(work_dir, 'contracts_data')
-
-            # combined.json should be generated with
-            #   % solc --combined-json bin,metadata xxx.sol \
-            #     > contracts_data/xxx.combined.json
-            combined_file = os.path.join(
-                contractsdata_dir, contract_basename + '.combined.json')
+            combined_file = combined_json_path(cls.contract_id) + f'.{version}'
             with open(combined_file, 'r') as fin:
-                combined_json = \
-                    json.loads(fin.read())['contracts'][cls.contract_id]
+                combined_json = json.loads(fin.read())['contracts'][cls.contract_id]
 
             # Metadata (json nested in json) の追加
             contract_metadata = json.loads(combined_json['metadata'])
@@ -157,13 +184,14 @@ class Contract():
         except (FileNotFoundError, KeyError) as err:
             raise Exception(
                 'Contract data load failed: {}'.format(cls.contract_id)) from err
-        cls.contract_interface = contract_interface
+        cls.contract_interface[version] = contract_interface
 
     @classmethod
     def __deploy(cls, account: Account, *args, **kwargs):
         # コントラクトのチェーンへのデプロイ
-        if not cls.contract_interface:
-            cls.__load()
+        latest = cls.latest_version()
+        if not cls.contract_interface.get(latest):
+            cls.__load(latest)
 
         LOGGER.debug('deploying %s with args=%s, kwargs=%s',
                      cls.__name__, args, kwargs)
@@ -171,13 +199,13 @@ class Contract():
         # constructorに引数が必要な場合は指定
         if args or kwargs:
             func = account.web3.eth.contract(
-                abi=cls.contract_interface['abi'],
-                bytecode=cls.contract_interface['bin']).\
+                abi=cls.contract_interface[latest]['abi'],
+                bytecode=cls.contract_interface[latest]['bin']).\
                 constructor(*args, **kwargs)
         else:
             func = account.web3.eth.contract(
-                abi=cls.contract_interface['abi'],
-                bytecode=cls.contract_interface['bin']).\
+                abi=cls.contract_interface[latest]['abi'],
+                bytecode=cls.contract_interface[latest]['bin']).\
                 constructor()
 
         tx_hash = func.transact()
