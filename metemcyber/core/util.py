@@ -15,8 +15,9 @@
 #
 
 from configparser import ConfigParser
+from pathlib import Path
 from random import randint
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 LOCAL_PORT_RANGE_FILE = '/proc/sys/net/ipv4/ip_local_port_range'
 LOCAL_PORT_MIN = 0
@@ -38,11 +39,11 @@ def get_random_local_port() -> int:
     return randint(LOCAL_PORT_MIN, LOCAL_PORT_MAX)
 
 
-def merge_config(file_path: Optional[str], defaults: Dict[str, Dict[str, str]],
+def merge_config(file_path: Union[None, Path, str], defaults: Dict[str, Dict[str, str]],
                  base_config: Optional[ConfigParser] = None) -> ConfigParser:
     config = base_config if base_config else ConfigParser()
     if file_path:
-        if file_path not in config.read(file_path):
+        if str(file_path) not in config.read(file_path):
             raise Exception(f'Load config failed: {file_path}')
     for sect, sect_item in defaults.items():
         if not config.has_section(sect):
@@ -50,4 +51,17 @@ def merge_config(file_path: Optional[str], defaults: Dict[str, Dict[str, str]],
         for key, val in sect_item.items():
             if not config[sect].get(key):
                 config.set(sect, key, val)
+            tmp = config[sect][key]
+            if tmp.startswith('~'):
+                config[sect][key] = str(Path(tmp).expanduser())
     return config
+
+
+def config2str(config: ConfigParser) -> str:
+    ret = ''
+    for sect in config.sections():
+        ret += f'[{sect}]\n'
+        for key, val in config[sect].items():
+            ret += f'{key} = {val}\n'
+        ret += '\n'
+    return ret

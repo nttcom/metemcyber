@@ -35,7 +35,7 @@ DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
         'assets_path': 'workspace/dissemination',  # FIXME
         'functions_url': 'https://exchange.metemcyber.ntt.com',
-        'functions_token': '',
+        'functions_token': 'YOUR_TOKEN_TO_UPLOAD_GCS',
     }
 }
 
@@ -48,7 +48,8 @@ class Solver(BaseSolver):
         try:
             url = self.config[CONFIG_SECTION]['functions_url']
             token = self.config[CONFIG_SECTION]['functions_token']
-            assert url and token
+            assert url and token not in (
+                None, '', DEFAULT_CONFIGS[CONFIG_SECTION]['functions_token'])
         except Exception as err:
             raise Exception('Not enough configuration to upload to GCS') from err
         self.uploader = Uploader(url, token)
