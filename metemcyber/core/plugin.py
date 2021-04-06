@@ -27,7 +27,7 @@ from .solver import BaseSolver
 
 LOGGER = get_logger(name='plugin', file_prefix='core')
 # the directory where plugins are placed
-PLUGINS_PATH = os.getenv('PLUGINS_PATH', './metemcyber/plugins')
+PLUGINS_PATH = os.getenv('PLUGINS_PATH', os.path.dirname(__file__) + '/../plugins')
 SOLVER_CLASSNAME = 'Solver'
 
 

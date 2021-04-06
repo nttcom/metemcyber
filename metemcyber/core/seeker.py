@@ -41,7 +41,6 @@ LOGGER = get_logger(name='seeker', file_prefix='core')
 CONFIG_SECTION = 'seeker'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
-        'endpoint_url': 'https://rpc.metemcyber.ntt.com',
         'downloaded_cti_path': './download',
         'listen_address': '127.0.0.1',
         'listen_port': '0',
@@ -136,7 +135,7 @@ class Resolver(WebhookReceiver):
 
 
 class Seeker():
-    cmd_args_base = ['python3', 'metemcyber/core/seeker.py']
+    cmd_args_base = ['python3', __file__]
 
     @property
     def cmd_args(self) -> List[str]:
@@ -145,12 +144,13 @@ class Seeker():
             self.config[CONFIG_SECTION]['listen_port'],
             self.app_dir,
             self.operator_address,
+            self.endpoint_url,
         ]
         if self.config_path:
             args += [self.config_path]
         return args
 
-    def __init__(self, app_dir: str, operator_address: ChecksumAddress,
+    def __init__(self, app_dir: str, operator_address: ChecksumAddress, endpoint_url: str = '',
                  config_path: Optional[str] = None
                  ) -> None:
         self.app_dir = app_dir
@@ -161,6 +161,7 @@ class Seeker():
         self.address: Optional[str] = address
         self.port: int = port
         self.operator_address = operator_address
+        self.endpoint_url = endpoint_url
 
     #                               (pid|0, listen_address, listen_port)
     def check_running(self) -> Tuple[int, Optional[str], int]:
@@ -209,15 +210,15 @@ class Seeker():
             raise Exception(f'Cannot stop webhook(pid={pid})') from err
 
 
-def main(listen_address: str, listen_port: int, app_dir: str, operator_address: str,
-         config_path: Optional[str]
-         ):
+def main(argv: List[str]):
+    listen_address, listen_port, app_dir, operator_address, endpoint_url = argv[:5]
+    config_path = argv[5] if len(argv) > 5 else None
     pid_file = seeker_pid_filepath(app_dir)
     try:
         config = merge_config(config_path, DEFAULT_CONFIGS)
-        resolver = Resolver(listen_address, listen_port,
+        resolver = Resolver(listen_address, int(listen_port),
                             config[CONFIG_SECTION]['downloaded_cti_path'],
-                            config[CONFIG_SECTION]['endpoint_url'],
+                            endpoint_url,
                             cast(ChecksumAddress, operator_address))
         address, port = resolver.start()
         pid = os.getpid()
@@ -235,9 +236,4 @@ def main(listen_address: str, listen_port: int, app_dir: str, operator_address: 
 if __name__ == '__main__':
     if len(sys.argv) < 5:
         raise Exception('Not enough arguments')
-    addr_ = sys.argv[1]
-    port_ = sys.argv[2]
-    app_dir_ = sys.argv[3]
-    operator_address_ = sys.argv[4]
-    config_path_ = sys.argv[5] if len(sys.argv) > 5 else None
-    main(addr_, int(port_), app_dir_, operator_address_, config_path_)
+    main(sys.argv[1:])
