@@ -30,10 +30,13 @@ class CTIOperator(Contract):
                 limit: int, offset: int = 0
                 #               task_id, token,       solver,          seeker_address,  state
                 ) -> List[Tuple[int, ChecksumAddress, ChecksumAddress, ChecksumAddress, int]]:
-        if seeker_address is None:
-            seeker_address = ADDRESS0
         self.log_trace()
-        func = self.contract.functions.history(token_address, seeker_address, limit, offset)
+        if self.version < 1:
+            func = self.contract.functions.history(token_address, limit, offset)
+        else:
+            if seeker_address is None:
+                seeker_address = ADDRESS0
+            func = self.contract.functions.history(token_address, seeker_address, limit, offset)
         return func.call()
 
     def set_recipient(self):

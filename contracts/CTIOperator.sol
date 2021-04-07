@@ -60,7 +60,7 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
     }
 
     string public constant contractId = CTIOperator_ContractId;
-    uint256 public constant contractVersion = 0;
+    uint256 public constant contractVersion = 1;
 
     IERC1820Registry private _erc1820 =
         IERC1820Registry(0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24);
@@ -261,6 +261,7 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
 
     function history(
         address token,
+        address seeker,
         uint limit,
         uint offset
     ) external view returns (Task[] memory) {
@@ -273,7 +274,7 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
         uint count = 0;
 
         for (uint i = _tasks.length; i > 0 && count < limit; i--) {
-            if (_tasks[i - 1].seeker == msg.sender &&
+            if ((seeker == address(0) || _tasks[i - 1].seeker == seeker) &&
                     (token == address(0) || _tasks[i - 1].token == token)) {
                 if (offset > 0) {
                     offset--;
