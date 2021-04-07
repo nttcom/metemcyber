@@ -44,6 +44,7 @@ DEFAULT_CONFIGS = {
         'downloaded_cti_path': './download',
         'listen_address': '127.0.0.1',
         'listen_port': '0',
+        'ngrok': '0',
     }
 }
 
@@ -162,6 +163,12 @@ class Seeker():
         self.port: int = port
         self.operator_address = operator_address
         self.endpoint_url = endpoint_url
+        if operator_address and endpoint_url:
+            operator = Operator(Account(Ether(endpoint_url))).get(operator_address)
+            if operator.version < 1:
+                raise Exception(
+                    f'Operator({operator_address}) is version {operator.version} and '
+                    'not support anonymous access.')
 
     #                               (pid|0, listen_address, listen_port)
     def check_running(self) -> Tuple[int, Optional[str], int]:

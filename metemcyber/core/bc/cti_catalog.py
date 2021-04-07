@@ -14,7 +14,7 @@
 #    limitations under the License.
 #
 
-from typing import Dict, List, Tuple, cast
+from typing import ClassVar, Dict, List, Tuple, cast
 from uuid import UUID
 
 from eth_typing import ChecksumAddress
@@ -23,8 +23,8 @@ from .contract import Contract
 
 
 class CTICatalog(Contract):
-    contract_interface: Dict[str, str] = {}
-    contract_id = 'CTICatalog.sol:CTICatalog'
+    contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}
+    contract_id: ClassVar[str] = 'CTICatalog.sol:CTICatalog'
 
     def get_owner(self):
         func = self.contract.functions.getOwner()
