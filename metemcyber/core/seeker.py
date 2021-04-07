@@ -44,6 +44,7 @@ DEFAULT_CONFIGS = {
         'downloaded_cti_path': './download',
         'listen_address': '127.0.0.1',
         'listen_port': '0',
+        'ngrok': '0',
     }
 }
 
