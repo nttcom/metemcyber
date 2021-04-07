@@ -14,7 +14,7 @@
 #    limitations under the License.
 #
 
-from typing import Dict, List, Optional, Tuple
+from typing import ClassVar, Dict, List, Optional, Tuple
 
 from eth_typing import ChecksumAddress
 
@@ -23,8 +23,8 @@ from metemcyber.core.bc.util import ADDRESS0
 
 
 class CTIOperator(Contract):
-    contract_interface: Dict[str, str] = {}
-    contract_id = 'CTIOperator.sol:CTIOperator'
+    contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}
+    contract_id: ClassVar[str] = 'CTIOperator.sol:CTIOperator'
 
     def history(self, token_address: ChecksumAddress, seeker_address: Optional[ChecksumAddress],
                 limit: int, offset: int = 0

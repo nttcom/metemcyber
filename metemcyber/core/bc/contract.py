@@ -43,12 +43,12 @@ def combined_json_path(contract_id: str) -> str:
 
 class Contract():
     #                    contract_id: {address|placeholder: data}
-    deployed_libs: ClassVar[Dict[str, Dict[str, str]]] = {}
+    __deployed_libs: ClassVar[Dict[str, Dict[str, str]]] = {}
+    __minimal_interface: ClassVar[Dict[str, str]] = {}
     #                              version: abi|bin: loaded data from combined json
     contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}  # overridden by sub class
     contract_id: ClassVar[Optional[str]] = None  # overridden by subclass
-    __latest_version: int = -1  # overridden by subclass
-    __minimal_interface: ClassVar[Dict[str, str]] = {}
+    _latest_version: ClassVar[int] = -1  # overridden by subclass
 
     def log_trace(self):
         try:
@@ -91,26 +91,26 @@ class Contract():
 
     @classmethod
     def latest_version(cls):
-        if cls.__latest_version < 0:
+        if cls._latest_version < 0:
             lnk = os.readlink(combined_json_path(cls.contract_id))
-            cls.__latest_version = int(os.path.splitext(lnk)[1][1:])
-        return cls.__latest_version
+            cls._latest_version = int(os.path.splitext(lnk)[1][1:])
+        return cls._latest_version
 
     def new(self, *args, **kwargs):
         # pylint: disable=protected-access
         address = self.__class__.__deploy(self.account, *args, **kwargs)
         return self.get(address, id_check=False)
 
-    def get(self, address: ChecksumAddress, id_check: bool = False):  # FIXME: make default=True
+    def get(self, address: ChecksumAddress, id_check: bool = True):
         assert address
         if not Web3.isChecksumAddress(address):
             raise Exception('Invalid address: {}'.format(address))
-        if not id_check:
-            version = self.__class__.latest_version()
+        if not id_check:  # the case called from new()
+            latest = self.__class__.latest_version()
             # pylint: disable=protected-access
-            self.__class__.__load(version)
+            self.__class__.__load(latest)
             self._contract = self.web3.eth.contract(
-                address=address, abi=self.__class__.contract_interface[version]['abi'])
+                address=address, abi=self.__class__.contract_interface[latest]['abi'])
             return self
 
         minimal = self.web3.eth.contract(
@@ -135,14 +135,14 @@ class Contract():
         #   https://solidity.readthedocs.io/en/latest/using-the-compiler.html
         assert address
         assert cls.contract_id
-        if cls.contract_id in Contract.deployed_libs.keys():
+        if cls.contract_id in Contract.__deployed_libs.keys():
             raise Exception('already registered')
         if not placeholder:
             keccak = Web3.keccak(text=cls.contract_id).hex()[2:]  # cut 0x
             placeholder = '__$' + keccak[:34] + '$__'
-        Contract.deployed_libs[cls.contract_id] = {
+        Contract.__deployed_libs[cls.contract_id] = {
             'address': address, 'placeholder': placeholder}
-        LOGGER.debug(Contract.deployed_libs)
+        LOGGER.debug(Contract.__deployed_libs)
         return placeholder
 
     @staticmethod
@@ -152,6 +152,7 @@ class Contract():
             with open(minimal_file, 'r') as fin:
                 meta_str = json.loads(fin.read())['contracts'][MINIMAL_CONTRACT_ID]['metadata']
             Contract.__minimal_interface['abi'] = json.loads(meta_str)['output']['abi']
+            # omit bytecode
         return Contract.__minimal_interface['abi']
 
     @classmethod
@@ -174,16 +175,17 @@ class Contract():
 
             # バイナリデータの追加
             bytecode = combined_json['bin']
-            for lib in Contract.deployed_libs.values():
+            for lib in Contract.__deployed_libs.values():
                 # Oops, link_code@solcx does not work well...
                 # WORKAROUND: replace placeholder with address manually.
                 bytecode = bytecode.replace(
                     lib['placeholder'], lib['address'][2:])  # cut 0x
             contract_interface['bin'] = bytecode
 
-        except (FileNotFoundError, KeyError) as err:
+        except Exception as err:
+            LOGGER.exception(err)
             raise Exception(
-                'Contract data load failed: {}'.format(cls.contract_id)) from err
+                f'Failed loading contract: {cls.contract_id} version {version}') from err
         cls.contract_interface[version] = contract_interface
 
     @classmethod

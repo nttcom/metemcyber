@@ -14,7 +14,7 @@
 #    limitations under the License.
 #
 
-from typing import Dict
+from typing import ClassVar, Dict
 
 from eth_typing import ChecksumAddress
 from web3 import Web3
@@ -23,8 +23,8 @@ from .contract import Contract
 
 
 class CTIToken(Contract):
-    contract_interface: Dict[str, str] = {}
-    contract_id = 'CTIToken.sol:CTIToken'
+    contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}
+    contract_id: ClassVar[str] = 'CTIToken.sol:CTIToken'
 
     @property
     def publisher(self) -> ChecksumAddress:

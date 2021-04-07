@@ -14,14 +14,14 @@
 #    limitations under the License.
 #
 
-from typing import Dict
+from typing import ClassVar, Dict
 
 from .contract import Contract
 
 
 class CTIBroker(Contract):
-    contract_interface: Dict[str, str] = {}
-    contract_id = 'CTIBroker.sol:CTIBroker'
+    contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}
+    contract_id: ClassVar[str] = 'CTIBroker.sol:CTIBroker'
 
     def consign_token(self, catalog, token, amount):
         self.log_trace()
