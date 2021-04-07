@@ -878,12 +878,14 @@ def solver_enable(ctx: typer.Context,
         return
 
     try:
-        solver.solver('accept_registered', token_addresses)
+        msg = solver.solver('accept_registered', token_addresses)
         acceptings = solver.solver('accepting_tokens')
         if acceptings:
             typer.echo(f'and accepting {len(acceptings)} token(s) already registered.')
         else:
             typer.echo(f'No token registered on this operator.')
+        if msg:
+            typer.echo(msg)
     except Exception as err:
         logger.exception(err)
         typer.echo(f'accepting registerd tokens failed: {err}')
@@ -912,7 +914,9 @@ def solver_support(ctx: typer.Context, token_address: str):
 def _solver_support(ctx, token_address):
     solver = _solver_client(ctx)
     solver.get_solver()
-    solver.solver('accept_challenges', [cast(ChecksumAddress, token_address)])
+    msg = solver.solver('accept_challenges', [cast(ChecksumAddress, token_address)])
+    if msg:
+        typer.echo(msg)
 
 
 @solver_app.command('obsolete',
@@ -1078,17 +1082,21 @@ def operator_create(ctx: typer.Context,
 
 @common_logging
 def _operator_create(ctx, switch):
+    try:
+        old_operator = _load_operator(ctx)
+    except Exception:
+        old_operator = None
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     operator = Operator(account).new()
     operator.set_recipient()
     typer.echo(f'deployed a new operator. address is {operator.address}.')
-    if switch:
+    if switch or old_operator is None:
         ctx.meta['operator'] = operator
         config_update_operator(ctx)
         typer.echo('configured to use the operator above.')
-
-        # TODO: need notify about plugin file.
+        if old_operator:
+            typer.echo('you should restart seeker and solver, if launched.')
 
 
 # @contract_operator_app.command('set')
@@ -1098,13 +1106,17 @@ def operator_set(ctx: typer.Context, operator_address: str):
 
 @common_logging
 def _operator_set(ctx, operator_address):
+    try:
+        old_operator = _load_operator(ctx)
+    except Exception:
+        old_operator = None
     account = _load_account(ctx)
     operator = Operator(account).get(cast(ChecksumAddress, operator_address))
     ctx.meta['operator'] = operator
     config_update_operator(ctx)
     typer.echo(f'configured to use operator({operator_address}).')
-
-    # TODO: need notify about plugin file.
+    if operator_address != old_operator:
+        typer.echo('you should restart seeker and solver, if launched.')
 
 
 @contract_catalog_app.command('show', help="Show the list of CTI catalogs")
