@@ -23,6 +23,8 @@ versioned: latest
 	@cd $(DATA_DIR) && \
 	for tgt in $(VERSIONED_FILES); do [ -L $${tgt%.*} ] && continue; \
 	    echo "refine linkage: $${tgt%.*} -> $${tgt}"; \
+	    [ -f $${tgt} -a -f $${tgt%.*} ] && (cmp -s $${tgt} $${tgt%.*} || \
+	        (mv $${tgt} $${tgt}.bak && echo "(backup) $${tgt}.bak")); \
 	    mv $${tgt%.*} $${tgt} && ln -s $${tgt} $${tgt%.*}; done
 
 $(DATA_DIR)/%.abi.json: $(SOLS_DIR)/%.sol
@@ -44,6 +46,7 @@ $(DATA_DIR)/%.combined.json: $(SOLS_DIR)/%.sol
 .PHONY: clean
 clean:
 	rm -f $(TARGET_ABIS) $(TARGET_COMBINEDS)
+	rm -f $(foreach tgt,$(TARGET_COMBINEDS),$(tgt).*.bak)
 
 .PHONY: distclean
 distclean: clean
