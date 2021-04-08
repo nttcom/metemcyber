@@ -805,27 +805,24 @@ def solver_status(ctx: typer.Context):
 @solver_app.command('start',
                     help='Start Solver process.')
 def solver_start(ctx: typer.Context):
-    logger = getLogger()
+    _solver_start(ctx)
+
+
+@common_logging
+def _solver_start(ctx):
     try:
         _solver_client(ctx)
-        typer.echo('Solver already running.')
-        return
-    except Exception:
-        pass
-    try:
-        config = _load_config(ctx)
-        endpoint_url = config['general']['endpoint_url']
-    except Exception:
-        typer.echo('Configuration error: missing general.endpoint_url.')
-    try:
-        solv_cli_py = os.path.dirname(__file__) + '/../core/multi_solver_cli.py'
-        subprocess.Popen(
-            ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server'],
-            shell=False)
-        typer.echo('Solver started as a subprocess.')
+        raise Exception('Solver already running.')
     except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+        if not str(err).startswith('Socket not found.'):
+            raise
+    config = _load_config(ctx)
+    endpoint_url = config['general']['endpoint_url']
+    solv_cli_py = os.path.dirname(__file__) + '/../core/multi_solver_cli.py'
+    subprocess.Popen(
+        ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server', '-w', APP_DIR],
+        shell=False)
+    typer.echo('Solver started as a subprocess.')
 
 
 @solver_app.command('stop',
@@ -907,6 +904,7 @@ def _solver_disable(ctx):
     solver = _solver_client(ctx)
     solver.get_solver()
     solver.purge_solver()
+    typer.echo('Solver is now running without your operator.')
 
 
 @solver_app.command('support',

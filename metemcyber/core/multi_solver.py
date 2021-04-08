@@ -42,12 +42,15 @@ from metemcyber.core.solver import BaseSolver
 SERVERLOG = get_logger(name='solv_server', file_prefix='core')
 CLIENTLOG = get_logger(name='solv_client', file_prefix='core')
 
-SOCKET_FILE = './mcs.sock'  # FIXME
 NUM_THREADS = 4
 BUFSIZ = 4096
 
 ARGS_DELIMITER = '\t'   # for command line input
 EOM = '\v'  # End of Message
+
+
+def socket_filepath(work_dir: str) -> str:
+    return f'{work_dir}/mcs.sock'
 
 
 def tracelog(logger, *args, **kwargs):
@@ -151,20 +154,13 @@ class SolverManager():
     """ Class to manage Solver instances
     """
 
-    def __init__(self, endpoint_url: str, _eoaa: Optional[ChecksumAddress], _pkey: str,
-                 _operator_address: Optional[ChecksumAddress], _pluginfile: Optional[str]
-                 ) -> None:
+    def __init__(self, endpoint_url: str) -> None:
         self.endpoint_url = endpoint_url
         self.plugin = PluginManager()
         self.plugin.load()
         self.plugin.set_default_solverclass('gcs_solver.py')
-        self.fernet_key: Optional[bytes] = None
         #                  eoaa:            {account: x, solver: x}
         self.solvers: Dict[ChecksumAddress, Dict[str, Any]] = {}
-
-        # FIXME: activate by commandline option. (pkey is not encrypted)
-        # if eoaa and pkey and operator_address:
-        #     self.new_solver(eoaa, pkey, operator_address, pluginfile)
 
     def destroy(self):
         for solver in [v['solver'] for v in self.solvers.values()]:
@@ -428,9 +424,10 @@ class MCSServer():
     """ Class as a service
     """
 
-    def __init__(self, mgr: SolverManager):
+    def __init__(self, mgr: SolverManager, work_dir: str):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.mgr = mgr
+        self.work_dir = work_dir
         self.threadlist: List[SolverThread] = []  # all threads
         self.threadpool: List[SolverThread] = []  # non-active threads
         self.shutdown = False
@@ -449,8 +446,9 @@ class MCSServer():
         self.threadpool.clear()  # accept no more
 
     def run(self):
+        socket_file = socket_filepath(self.work_dir)
         try:
-            self.sock.bind(SOCKET_FILE)
+            self.sock.bind(socket_file)
             self.sock.listen()
             self.sock.settimeout(1)
             while True:
@@ -472,7 +470,7 @@ class MCSServer():
                 sol_thr.destroy()
             if self.mgr:
                 self.mgr.destroy()
-            os.remove(SOCKET_FILE)
+            os.remove(socket_file)
         tracelog(SERVERLOG, 'MCSServer shutted down')
 
 
@@ -480,7 +478,7 @@ class MCSClient():
     """ Class as a client
     """
 
-    def __init__(self, account: Account, work_dir: str = '.'):
+    def __init__(self, account: Account, work_dir: str):
         self.account = account
         self.work_dir = work_dir
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -495,7 +493,7 @@ class MCSClient():
 
     def connect(self):
         try:
-            self.sock.connect(SOCKET_FILE)
+            self.sock.connect(socket_filepath(self.work_dir))
         except FileNotFoundError as err:
             raise Exception('Socket not found. Solver daemon may be down.') from err
         except OSError as err:
@@ -613,11 +611,11 @@ class MCSClient():
         raise MCSError(code=cast(MCSErrno, resp.code), msg=resp.kwargs.get('data'))
 
 
-def mcs_console(eoaa, pkey):
+def mcs_console(account, work_dir):
     """ Simple CUI to use MCSClient
     """
 
-    client = MCSClient(eoaa, pkey)
+    client = MCSClient(account, work_dir)
     try:
         client.connect()
     except Exception as err:
