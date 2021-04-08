@@ -725,13 +725,13 @@ def seeker_start(ctx: typer.Context,
                           'of ngrok in seeker section.'),
                  config: Optional[str] = typer.Option(
                      CONFIG_FILE_PATH, help='seeker config filepath')):
-    if ngrok is None:
-        ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
     _seeker_start(ctx, ngrok, config)
 
 
 @common_logging
 def _seeker_start(ctx, ngrok, config):
+    if ngrok is None:
+        ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
     endpoint_url = _load_config(ctx)['general']['endpoint_url']
     if not endpoint_url:
         raise Exception('Missing configuration: endpoint_url')
