@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 from configparser import ConfigParser
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from shutil import copyfile
@@ -27,6 +28,7 @@ from subprocess import CalledProcessError
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 from uuid import UUID, uuid4
 
+import eth_account
 import typer
 import yaml
 from eth_typing import ChecksumAddress
@@ -1287,6 +1289,52 @@ def _account_show(ctx):
                 balance = token.balance_of(account.eoa)
                 if balance > 0:
                     typer.echo(f'  {tinfo.token_id}: {balance}: {taddr}')
+
+
+@account_app.command("create", help="Create New Account.")
+def account_create(ctx: typer.Context):
+    _account_create(ctx)
+
+
+@common_logging
+def _account_create(ctx: typer.Context):
+    # Ref: https://github.com/ethereum/go-ethereum/blob/v1.10.1/cmd/geth/accountcmd.go
+    print('Your new account is locked with a password. Please give a password.')
+    acct = eth_account.Account.create('')
+
+    # https://pages.nist.gov/800-63-3/sp800-63b.html
+    # 5.1.1.1 Memorized Secret Authenticators
+    # Memorized secrets SHALL be at least 8 characters in length if chosen by the subscriber.
+    password = ''
+    while len(password) < 8:
+        print('Do not forget this password. The password must contain at least 8 characters.')
+        password = typer.prompt("Password", hide_input=True)
+
+    repeat_password = typer.prompt("Repeat password", hide_input=True)
+    if password == repeat_password:
+        encrypted = eth_account.Account().encrypt(acct.key, password)
+    else:
+        raise typer.Abort('Passwords do not match.')
+
+    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+    keyfile_name = f'UTC--{now}--{acct.address}'
+    keyfile_path = Path(APP_DIR) / keyfile_name
+    with open(keyfile_path, mode='w') as fout:
+        json.dump(encrypted, fout)
+
+    typer.echo(f'- Public address of the key:\t{acct.address}')
+    typer.echo(f'- Path of the secret key file:\t{keyfile_path}')
+
+    typer.echo('* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *')
+    typer.echo('* You must BACKUP your key file & REMEMBER your password! *')
+    typer.echo('* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *')
+
+    config = _load_config(ctx)
+    current_keyfile = config.get('general', 'keyfile')
+    if not current_keyfile or current_keyfile == '/PATH/TO/YOUR/KEYFILE':
+        config.set('general', 'keyfile', str(keyfile_path))
+        _save_config(config)
+        typer.echo('Update your config file.')
 
 
 @config_app.command('show', help="Show your config file of metemctl")
