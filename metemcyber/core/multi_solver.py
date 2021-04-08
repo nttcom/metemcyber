@@ -34,7 +34,7 @@ from web3 import Web3
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.cti_operator import CTIOperator
 from metemcyber.core.bc.ether import Ether
-from metemcyber.core.bc.util import sign_message, verify_message
+from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
 from metemcyber.core.plugin import PluginManager
 from metemcyber.core.solver import BaseSolver
@@ -100,9 +100,8 @@ class DataPack:
             'sign': self.sign,
         })
 
-    def sign_message(self, pkey) -> DataPack:
-        if pkey:
-            self.sign = sign_message(str(self), pkey)
+    def sign_message(self, sign_func: Callable[[str], str]) -> DataPack:
+        self.sign = sign_func(str(self))
         return self  # for DataPack(...).sign_message(pkey).send(conn)
 
     def verify(self) -> bool:
@@ -189,9 +188,10 @@ class SolverManager():
         if solver_plugin and not self.plugin.is_pluginfile(solver_plugin):
             raise MCSError(MCSErrno.EINVAL, 'Invalid pluginfile')
 
-        fnt = Fernet(cache['fernet_key'])
-        pkey: str = fnt.decrypt(encrypted_pkey.encode('utf-8')).decode()
-        cache['fernet_key'] = None
+        fnt_key = cache['fernet_key']
+        cache['fernet_key'] = None  # remove immediately
+        with open(encrypted_pkey, 'rb') as fin:
+            pkey: str = Fernet(fnt_key).decrypt(fin.read()).decode()
         account = Account(Ether(self.endpoint_url), eoaa, pkey)
 
         if not operator_address:  # deploy a new contract
@@ -480,12 +480,11 @@ class MCSClient():
     """ Class as a client
     """
 
-    def __init__(self, eoaa, pkey):
-        self.eoaa = eoaa
-        self.sign_message = lambda x: sign_message(x, pkey)
-        self.pkey = pkey  # XXX
+    def __init__(self, account: Account, work_dir: str = '.'):
+        self.account = account
+        self.work_dir = work_dir
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.operator_address = None
+        self.operator_address: Optional[ChecksumAddress] = None
         self.solver_class = None
         self.disconnecting = False
         self.buffer = ''
@@ -498,8 +497,7 @@ class MCSClient():
         try:
             self.sock.connect(SOCKET_FILE)
         except FileNotFoundError as err:
-            raise Exception('Socket not found. Solver daemon may be down.') \
-                from err
+            raise Exception('Socket not found. Solver daemon may be down.') from err
         except OSError as err:
             if err.errno != 106:  # ignore EISCONN (already connected)
                 raise
@@ -517,9 +515,8 @@ class MCSClient():
         self.send_query('shutdown')
 
     def send_query(self, func, *args, **kwargs):
-        dpk = DataPack(func, self.eoaa, *args, **kwargs)
-        if self.pkey:
-            dpk.sign_message(self.pkey)
+        dpk = DataPack(func, self.account.eoa, *args, **kwargs)
+        dpk.sign_message(self.account.sign_message)
         tracelog(CLIENTLOG, str(dpk))
         if dpk.send(self.sock) == 0:
             self.disconnecting = True
@@ -552,21 +549,29 @@ class MCSClient():
     def login(self):
         self._simple_query('login')
 
-    def new_solver(self, operator_address: Optional[ChecksumAddress],
+    def new_solver(self, operator_address: ChecksumAddress, pkey: str,
                    pluginfile: Optional[str] = None, configfile: Optional[str] = None,
                    ) -> ChecksumAddress:
-        fnt = Fernet(self._get_fernet_key())
-        enc_pkey = fnt.encrypt(self.pkey.encode('utf-8')).decode()
-        kwargs = {
-            'encrypted_pkey': enc_pkey,
-            'operator_address': operator_address,
-            'solver_plugin': pluginfile,
-            'solver_config': configfile,
-        }
-        self.send_query('new_solver', **kwargs)
-        resp = self.wait_response()
+        fnt_key = self._get_fernet_key()
+        tmp_filepath = f'{self.work_dir}/{fnt_key.decode()}'
+        if os.path.exists(tmp_filepath):
+            raise Exception(f'temporal filepath already exists: {tmp_filepath}')
+        try:
+            with open(tmp_filepath, 'wb') as fout:
+                fout.write(Fernet(fnt_key).encrypt(pkey.encode('utf-8')))
+            kwargs = {
+                'encrypted_pkey': tmp_filepath,
+                'operator_address': operator_address,
+                'solver_plugin': pluginfile,
+                'solver_config': configfile,
+            }
+            self.send_query('new_solver', **kwargs)
+            resp = self.wait_response()
+        finally:
+            os.unlink(tmp_filepath)
         if resp.code == MCSErrno.OK:
-            self.operator_address = resp.kwargs['operator_address']
+            assert operator_address == resp.kwargs['operator_address']
+            self.operator_address = operator_address
             self.solver_class = resp.kwargs['solver_class']
             return self.operator_address
         raise MCSError(code=cast(MCSErrno, resp.code), msg=resp.kwargs.get('data'))
@@ -587,6 +592,8 @@ class MCSClient():
                 self.operator_address = resp.kwargs.get('operator_address')
                 self.solver_class = resp.kwargs.get('solver_class')
                 return self.operator_address
+            self.operator_address = None
+            self.solver_class = None
             return None
         raise MCSError(code=cast(MCSErrno, resp.code), msg=resp.kwargs.get('data'))
 

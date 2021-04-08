@@ -189,9 +189,6 @@ def _load_account(ctx: typer.Context) -> Account:
     eoa, pkey = decode_keyfile(config['general']['keyfile'], _get_keyfile_password)
     account = Account(ether, eoa, pkey)
     ctx.meta['account'] = account
-
-    ctx.meta['xxx_pkey'] = pkey  # FIXME: TODO: XXX
-
     return account
 
 
@@ -767,11 +764,11 @@ def _seeker_stop(ctx):
         typer.echo('ngrok also stopped.')
 
 
-def _solver_client(ctx: typer.Context) -> MCSClient:
+def _solver_client(ctx: typer.Context, account: Optional[Account] = None) -> MCSClient:
     if 'solver_client' in ctx.meta.keys():
         return ctx.meta['solver_client']
-    account = _load_account(ctx)
-    solver = MCSClient(account.eoa, ctx.meta.get('xxx_pkey'))
+    account = account if account else _load_account(ctx)
+    solver = MCSClient(account, APP_DIR)
     solver.connect()
     solver.login()
     ctx.meta['solver_client'] = solver
@@ -857,9 +854,17 @@ def solver_enable(ctx: typer.Context,
     logger = getLogger()
     try:
         plugin = plugin if plugin else _load_config(ctx)['solver']['plugin']
+
+        # exceptional case not to use _load_account: private key is required by new_solver().
+        eoaa, pkey = decode_keyfile(_load_config(ctx)['general']['keyfile'], _get_keyfile_password)
+        account = Account(Ether(_load_config(ctx)['general']['endpoint_url']), eoaa, pkey)
+        if not ctx.meta.get('account'):
+            ctx.meta['account'] = account
         operator = _load_operator(ctx)
-        solver = _solver_client(ctx)
-        applied = solver.new_solver(operator.address, pluginfile=plugin, configfile=str(config))
+        solver = _solver_client(ctx, account=account)
+        applied = solver.new_solver(
+            operator.address, pkey, pluginfile=plugin, configfile=str(config))
+
         assert applied == operator.address
         typer.echo(f'Solver is now running with your operator({applied}).')
     except Exception as err:
