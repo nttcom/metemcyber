@@ -1,22 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components'
-import { Alert, Button, Card, CardTitle, CardBody, CardGroup, CardImg, Col, Container, Form, FormFeedback, FormGroup, Label, Input, InputGroup, InputGroupAddon, InputGroupText, Media, Modal, ModalHeader, ModalBody, ModalFooter, Spinner, Row } from 'reactstrap';
+import { Button, Card, CardBody, CardGroup, CardImg, Col, Container, Input, InputGroup, InputGroupAddon, Modal, ModalHeader, ModalBody, ModalFooter, Spinner, Row } from 'reactstrap';
+import { useDropzone } from 'react-dropzone';
 
 function Login(props) {
     const { ipcRenderer } = window
     const [pass, setPass] = useState('');
     const [loading, setLoading] = useState(false);
+    const [currentKeyName, setCurrentKeyName] = useState('');
+    const [selectedKey, setSelectedKey] = useState({});
+    const [modalToggle, setModalToggle] = useState(false);
+    const [passModalToggle, setPassModalToggle] = useState(false);
+    const [setup, setSetup] = useState(true);
 
     const handleChange = (e) => {
         setPass(e.target.value)
     }
 
     const handleSubmit = () => {
+
         setLoading(true);
         ipcRenderer.on('login', (event, arg) => {
-            console.log(arg) 
+            console.log(arg)
             props.history.push('/contents')
         });
+
+        //props.history.push('/contents')
         ipcRenderer.send('login', pass)
     }
 
@@ -24,37 +33,156 @@ function Login(props) {
         console.log(arg);
     });
 
+    const toggle = (e) => {
+        setSelectedKey({});
+        setModalToggle(!modalToggle);
+    }
+    const handleOk = (e) => {
+        ipcRenderer.sendSync('set-key', { name: selectedKey.name, path: selectedKey.path });
+        setCurrentKeyName(selectedKey.name);
+        setModalToggle(false);
+    }
+    const sendPassword = () => {
+        setPassModalToggle(false);
+        ipcRenderer.send('set-password', pass);
+        setPass('');
+    }
+
+    useEffect(() => {
+        sessionStorage.setItem('imageDir', `${ipcRenderer.sendSync('get-imagedir')}metemcyber_logo.png`);
+        console.log(__dirname)
+        setCurrentKeyName(ipcRenderer.sendSync('get-key'));
+        if (sessionStorage.getItem('init') === null) {
+            ipcRenderer.send('exec-init');
+            ipcRenderer.on('get-password', (event, arg) => {
+                setPassModalToggle(true);
+            });
+            ipcRenderer.on('finish-init', (event, arg) => {
+                sessionStorage.setItem('init', true);
+                setSetup(false);
+            });
+        } else {
+            setSetup(false);
+        }
+
+    }, []);
+
+    const onDrop = useCallback(acceptedFiles => {
+        console.log(acceptedFiles);
+        setSelectedKey(acceptedFiles[0]);
+
+    }, []);
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
+
     return (
         <div className="app flex-row align-items-center">
-            <Container>
-                <LoginRow className="justify-content-center">
-                    <Col md="4">
-                        <CardGroup>
-                            <LoginCard className="p-4">
-                                <CardImg top width="100%" src="./metemcyber_logo.png" alt="Metemcyber UI" />
-                                <CardBody>
-                                    <InputGroup style={{marginBottom: "10px"}}>
-                                        <InputGroupAddon addonType="prepend">
-                                        </InputGroupAddon>
-                                        <Input placeholder="Enter your pass" type="password" value={pass} onChange={handleChange} />
-                                    </InputGroup>
-                                    <Button outline color="secondary" size="md" onClick={handleSubmit} block>Login{loading && <Spinner color="primary" />}</Button>
-                                </CardBody>
-                            </LoginCard>
-                        </CardGroup>
-                    </Col>
-                </LoginRow>
-            </Container>
+        {setup ?
+            <>
+                初期設定中
+                <Spinner color="primary" />
+                <Modal isOpen={passModalToggle} >
+                        <ModalBody>
+                            <InputGroup style={{ marginBottom: "10px" }}>
+                                <InputGroupAddon addonType="prepend">
+                                </InputGroupAddon>
+                                <Input placeholder="Enter your sudo pass" type="password" value={pass} onChange={handleChange} />
+                            </InputGroup>
+                        </ModalBody>
+                        <ModalFooter>
+                            <Button color="primary" onClick={sendPassword}>OK</Button>{' '}
+                        </ModalFooter>
+                    </Modal>
+            </>
+        :
+            <>
+                <Header className="clearfix">
+                    <Button className="float-right" onClick={toggle} size="sm">Import Key File</Button>
+                </Header>
+                <Container>
+                    <LoginRow className="justify-content-center">
+                        <Col md="8">
+                            <CardGroup>
+                                <LoginCard className="p-6">
+                                    <CardImg top width="100%" src={sessionStorage.getItem('imageDir')} alt="Metemcyber UI" />
+                                    <CardBody>
+                                        <Container>
+                                            <Row>
+                                                <Col md={{ size: 12 }} className="text-center">
+                                                    <p className="text-muted">Your key file</p>
+                                                    <KeyFile style={{ fontSize: "12px" }} className="text-muted">{currentKeyName}</KeyFile>
+                                                </Col>
+                                            </Row>
+                                            <Row>
+                                                <Col md={{ size: 4, offset: 4 }}>
+                                                    <InputGroup>
+                                                        <Input placeholder="Enter your pass" type="password" value={pass} onChange={handleChange} />
+                                                        <Button outline color="secondary" size="md" onClick={handleSubmit} block disabled={loading} style={{marginTop: "10px"}}>{loading ? <Spinner color="primary" /> : "Login"}</Button>
+                                                    </InputGroup>
+                                                </Col>
+                                            </Row>
+                                        </Container>
+                                    </CardBody>
+                                </LoginCard>
+                            </CardGroup>
+                        </Col>
+                    </LoginRow>
+                </Container>
+                </>
+            }
+            <KeyModal isOpen={modalToggle} toggle={toggle} >
+                <ModalHeader toggle={toggle}>Import Key File</ModalHeader>
+                <ModalBody>
+                    <DropArea {...getRootProps({ className: 'dropzone' })}>
+                        <input {...getInputProps()} />
+                        {
+                            isDragActive ?
+                                <p>Drop the files here ...</p> :
+                                <p>Drag 'n' drop some files here, or click to select files</p>
+                        }
+                    </DropArea>
+                    <SelectedFile>Selected file:{selectedKey.name}</SelectedFile>
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="primary" onClick={handleOk}>OK</Button>{' '}
+                    <Button color="secondary" onClick={toggle}>Cancel</Button>
+                </ModalFooter>
+            </KeyModal>
         </div>
     );
 }
 
 export default Login;
 
+const Header = styled.div`
+    padding: .5rem;
+`;
+
 const LoginRow = styled(Row)`
-    margin-top: 10px;
+    margin-top: 50px;
 `;
 
 const LoginCard = styled(Card)`
     border: 0;
+`;
+
+const KeyFile = styled.p`
+    font-size: 12px;
+`
+const KeyModal = styled(Modal)`
+    max-width: 850px;
+`;
+
+const DropArea = styled.div`
+    width: 100%;
+    height: 200px;
+    border: 5px dashed #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+`;
+
+const SelectedFile = styled.p`
+    display: block;
+    margin-top: 25px;
+    margin-left: 5px;
 `;

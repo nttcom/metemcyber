@@ -2,23 +2,24 @@
   "name": "Metemcyber",
   "version": "0.1.1",
   "private": true,
-  "main": "build/electron.js",
+  "main": "public/electron.js",
   "homepage": "./",
   "dependencies": {
     "@testing-library/jest-dom": "^5.11.4",
     "@testing-library/react": "^11.1.0",
     "@testing-library/user-event": "^12.1.10",
+    "bootstrap": "^4.6.0",
     "electron-is-dev": "^1.2.0",
+    "ngrok": "^3.4.0",
     "node-pty": "^0.10.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
-    "react-scripts": "4.0.2",
-    "web-vitals": "^1.0.1",
-    "reactstrap": "^8.9.0",
-    "bootstrap": "^4.6.0",
-    "ngrok": "^3.4.0",
+    "react-dropzone": "^11.3.1",
     "react-router-dom": "^5.2.0",
-    "styled-components": "^5.2.1"
+    "react-scripts": "4.0.2",
+    "reactstrap": "^8.9.0",
+    "styled-components": "^5.2.1",
+    "web-vitals": "^1.0.1"
   },
   "scripts": {
     "react-start": "cross-env BROWSER=none react-scripts start",
@@ -66,7 +67,13 @@
       {
         "from": "../",
         "to": "./metemcyber_contents",
-        "filter": ["!gui/*", "!.git/*", "!.gitignore", "!.gitmodules", "!.readthedocs.yml"]
+        "filter": [
+          "!gui/*",
+          "!.git/*",
+          "!.gitignore",
+          "!.gitmodules",
+          "!.readthedocs.yml"
+        ]
       },
       {
         "from": "docker-path",

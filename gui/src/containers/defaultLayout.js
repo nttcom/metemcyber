@@ -31,7 +31,7 @@ function DefaultLayout(props) {
 
     const handleLogout = () => {
         const retValue = ipcRenderer.sendSync('select-logout');
-        props.history.push('/login');
+        props.history.push('/');
     }
 
     const toastToggle = () => {

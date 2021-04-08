@@ -6,7 +6,7 @@ const pty = require('node-pty');
 const ngrok = require('ngrok');
 const fs = require('fs');
 
-let proc = [];
+let proc = null;
 let addr = "";
 
 let menu = 0;
@@ -19,6 +19,16 @@ let challangeStatus = {
 };
 let successGetChallange = false;
 
+const keyFilePath = isDev ? "../keyfile" : path.join(__dirname, '../../../metemcyber_contents/keyfile');
+const ctlPath = isDev ? path.join(__dirname, '../../metemcyber_ctl.sh') : path.join(__dirname, '../../../metemcyber_contents/metemcyber_ctl.sh');
+const workDir = isDev ? '../' : path.join(__dirname, '../../../metemcyber_contents/')
+
+const nodePtyConfig = {
+  cols: 1500,
+  rows: 1500,
+  cwd: workDir
+};
+
 async function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1600,
@@ -27,6 +37,10 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     }
   })
+
+  mainWindow.on('close', function () { //   <---- Catch close event
+    console.log("close")
+  });
 
   // and load the index.html of the app.
   mainWindow.loadURL(
@@ -365,51 +379,23 @@ async function getOutput(input, endStr, replaces = []) {
 }
 
 ipcMain.on('select-logout', async (event, arg) => {
-  proc.on('data', () => { });
-  if (menu !== 0) {
-    proc.write('b' + "\n");
-  }
-  proc.write('0' + "\n");
+  execLogout();
   event.returnValue = "logout";
 });
 
 ipcMain.on('login', async (event, arg) => {
-  const exec = require('util').promisify(require('child_process').exec);
-
-  const dockerPath = fs.readFileSync(isDev ? "./docker-path" : path.join(__dirname, '../../../docker-path'), 'utf8').toString().split('¥n');
-  process.env.PATH = `${dockerPath}:${process.env.PATH}`;
-
-  const echoRes = await exec('echo $PATH');
-  event.reply('send-log', "echo result");
-  event.reply('send-log', echoRes.stdout);
-
-  const whichRes = await exec('which docker');
-  event.reply('send-log', "which result");
-  event.reply('send-log', whichRes.stdout);
-
-  let keyfileName = '';
   // Get keyfile name.
-  fs.readdir(isDev ? "../keyfile" : path.join(__dirname, '../../../metemcyber_contents/keyfile'), (err, files) => {
-    if (err) throw err;
-    keyfileName = files[0];
-  });
-
-  addr = await ngrok.connect(isDev ? 51004 : { addr: 51004, binPath: path => path.replace('app.asar', 'app.asar.unpacked') });
+  const keyfileName = fs.readdirSync(keyFilePath);
 
   // Create the browser window.
   proc = pty.spawn('bash', [
-    isDev ? '../metemcyber_ctl.sh' : path.join(__dirname, '../../../metemcyber_contents/metemcyber_ctl.sh'),
+    ctlPath,
     "-",
     "client",
-    `-f  keyfile/${keyfileName}`,
+    `-f  keyfile/${keyfileName[0]}`,
     `-w  ${addr}`
   ],
-    {
-      cols: 1500,
-      rows: 1500,
-      cwd: isDev ? "./" : '../',
-      env: process.env
-    }
+    nodePtyConfig
   );
 
   await new Promise((resolve) => {
@@ -432,6 +418,92 @@ ipcMain.on('login', async (event, arg) => {
 
   })
   event.reply('login', 'success');
+});
+
+ipcMain.on('get-key', async (event, arg) => {
+  fs.readdir(keyFilePath, (err, files) => {
+    if (err) {
+      console.error(err);
+    };
+
+    if (files.length === 0) {
+      event.returnValue = "Key file does not exist";
+    }
+    event.returnValue = files[0];
+  });
+});
+
+ipcMain.on('exec-init', async (event, arg) => {
+  const exec = require('util').promisify(require('child_process').exec);
+
+  const dockerPath = fs.readFileSync(isDev ? "./docker-path" : path.join(__dirname, '../../../docker-path'), 'utf8').toString().split('¥n');
+  process.env.PATH = `${dockerPath}:${process.env.PATH}`;
+
+  event.reply('send-log', "__dirname");
+  event.reply('send-log', __dirname);
+
+  const echoRes = await exec('echo $PATH');
+  event.reply('send-log', "echo result");
+  event.reply('send-log', echoRes.stdout);
+
+  const whichRes = await exec('which docker');
+  event.reply('send-log', "which result");
+  event.reply('send-log', whichRes.stdout);
+
+  addr = await ngrok.connect(isDev ? 51004 : { addr: 51004, binPath: path => path.replace('app.asar', 'app.asar.unpacked') });
+
+  // Create the browser window.
+  proc = pty.spawn('bash', [
+    ctlPath,
+    "pricom",
+    "init",
+  ],
+    nodePtyConfig
+  );
+
+  await new Promise((resolve) => {
+    proc.on('data', function (data) {
+      data.split("\r\n").map((val) => {
+        event.reply('send-log', val);
+        console.log(val);
+        switch (val) {
+          case 'Password:':
+            event.reply('get-password');
+            break;
+          case 'connection ok.':
+            resolve();
+            break;
+          default:
+            break;
+        }
+      })
+    });
+  });
+  event.reply('finish-init');
+});
+
+ipcMain.on('set-password', async (event, arg) => {
+  proc.write(arg + "\n");
+});
+
+ipcMain.on('get-imagedir', async (event, arg) => {
+  event.returnValue = isDev ? './' : `file://${path.join(__dirname, "../build/")}`;
+});
+
+ipcMain.on('set-key', async (event, arg) => {
+  console.log(arg);
+  const fileNames = fs.readdirSync(keyFilePath);
+  event.reply('send-log', fileNames);
+  for (let file in fileNames) {
+    fs.unlinkSync(path.join(keyFilePath, fileNames[file]));
+  }
+  event.reply('send-log', path.join(__dirname, `../../../metemcyber_contents/keyfile/${arg.name}`));
+  try {
+    fs.copyFileSync(arg.path, isDev ? `../keyfile/${arg.name}` : path.join(__dirname, `../../../metemcyber_contents/keyfile/${arg.name}`));
+  } catch (e) {
+    event.reply('send-log', e)
+  }
+  event.returnValue = "success";
 });
 
 function callbackChallange(data) {
@@ -461,3 +533,12 @@ function setChallangeStatus(val) {
   }
   return status;
 }
+
+function execLogout() {
+  proc.on('data', () => { });
+  if (menu !== 0) {
+    proc.write('b' + "\n");
+  }
+  proc.write('0' + "\n");
+  proc.kill();
+};
