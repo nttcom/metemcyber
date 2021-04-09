@@ -1308,13 +1308,9 @@ def _account_create(ctx: typer.Context):
     password = ''
     while len(password) < 8:
         print('Do not forget this password. The password must contain at least 8 characters.')
-        password = typer.prompt("Password", hide_input=True)
+        password = typer.prompt("Password", hide_input=True, confirmation_prompt=True,)
 
-    repeat_password = typer.prompt("Repeat password", hide_input=True)
-    if password == repeat_password:
-        encrypted = eth_account.Account().encrypt(acct.key, password)
-    else:
-        raise typer.Abort('Passwords do not match.')
+    encrypted = eth_account.Account().encrypt(acct.key, password)
 
     now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     keyfile_name = f'UTC--{now}--{acct.address}'
