@@ -1316,8 +1316,9 @@ def _account_create(ctx: typer.Context):
     else:
         raise typer.Abort('Passwords do not match.')
 
-    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    keyfile_name = f'UTC--{now}--{acct.address}'
+    # Use the Geth keyfile name format
+    created_time = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S.%f000Z')
+    keyfile_name = f'UTC--{created_time}--{int(acct.address, 16):x}'
     keyfile_path = Path(APP_DIR) / keyfile_name
     with open(keyfile_path, mode='w') as fout:
         json.dump(encrypted, fout)
