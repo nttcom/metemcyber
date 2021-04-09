@@ -17,8 +17,8 @@
 import argparse
 from typing import List, Tuple
 
-from web3 import Web3
-
+from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.util import decode_keyfile
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSServer, SolverManager, mcs_console
@@ -27,27 +27,16 @@ LOGGER = get_logger(name='solver_client', file_prefix='core')
 
 
 def main(args):
-    if args.keyfile:
-        eoaa, pkey = decode_keyfile(args.keyfile)
-    else:
-        eoaa, pkey = args.name, args.pkey
-        if eoaa:
-            eoaa = Web3.toChecksumAddress(eoaa)
-    if args.operator:
-        if '@' in args.operator:
-            operator_address, pluginfile = args.operator.split('@', 1)
-        else:
-            operator_address = args.operator
-            pluginfile = ''
-    else:
-        operator_address = pluginfile = None
-
     if args.mode == 'server':
-        mgr = SolverManager(args.endpoint_url, eoaa, pkey, operator_address, pluginfile)
-        server = MCSServer(mgr)
+        mgr = SolverManager(args.endpoint_url)
+        server = MCSServer(mgr, args.work_dir)
         server.run()
     else:
-        mcs_console(eoaa, pkey)
+        if args.keyfile:
+            eoaa, pkey = decode_keyfile(args.keyfile)
+        else:
+            eoaa, pkey = args.name, args.pkey
+        mcs_console(Account(Ether(args.endpoint_url), eoaa, pkey), args.work_dir)
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
@@ -64,11 +53,11 @@ OPTIONS: List[Tuple[str, str, dict]] = [
         action='store', dest='pkey',
         help='プライベートキー')),
     ('-e', '--endpoint', dict(
-        action='store', dest='endpoint_url',
+        action='store', dest='endpoint_url', required=True,
         help='Ethereum Provider Endpoint URL')),
-    ('-o', '--operator', dict(
-        action='store', dest='operator',
-        help='CTIOperatorContractAddress[@SolverPluginFilename]')),
+    ('-w', '--workdir', dict(
+        action='store', dest='work_dir', required=True,
+        help='working dir where socket file is placed')),
 ]
 
 if __name__ == '__main__':

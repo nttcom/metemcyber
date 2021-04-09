@@ -56,8 +56,7 @@ class Solver(BaseSolver):
 
     def notify_first_accept(self):
         url = self.config[CONFIG_SECTION]['functions_url']
-        return 'Solver として受付を開始しました。\n' + \
-               f'チャレンジ結果は中継点( {url} )にアップロードされます'
+        return f'Caution: solved challenge data will be uploaded onto {url}.'
 
     def process_challenge(self, token_address, event):
         LOGGER.info('GCSSolver: callback: %s', token_address)

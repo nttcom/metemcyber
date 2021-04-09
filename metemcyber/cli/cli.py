@@ -32,6 +32,7 @@ import eth_account
 import typer
 import yaml
 from eth_typing import ChecksumAddress
+from web3 import Web3
 
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
@@ -189,9 +190,6 @@ def _load_account(ctx: typer.Context) -> Account:
     eoa, pkey = decode_keyfile(config['general']['keyfile'], _get_keyfile_password)
     account = Account(ether, eoa, pkey)
     ctx.meta['account'] = account
-
-    ctx.meta['xxx_pkey'] = pkey  # FIXME: TODO: XXX
-
     return account
 
 
@@ -584,19 +582,66 @@ def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only)
                 ('' if tinfo.balance == 0 else f' (you have {tinfo.balance})'))
 
 
-def _ix_parse_token_index(ctx: typer.Context, token_index: str
-                          ) -> Tuple[ChecksumAddress, ChecksumAddress]:
-    try:
-        catalog_part, token_part = token_index.split('-', 1)
-        catalog_idx = int(catalog_part)
-        token_idx = int(token_part)
-    except Exception as err:
-        raise Exception(f'Invalid index: {token_index}') from err
-    account = _load_account(ctx)
-    catalog_mgr = _load_catalog_manager(ctx)
-    catalog_address = catalog_mgr.id2address(catalog_idx)
-    token_address = Catalog(account).get(catalog_address).id2address(token_idx)
-    return catalog_address, token_address
+class FlexibleIndexCatalog:
+    ctx: typer.Context
+    address: ChecksumAddress
+    index: int
+
+    def __init__(self, ctx: typer.Context, id_or_addr: str):
+        try:
+            self.ctx = ctx
+            catalog_mgr = _load_catalog_manager(ctx)
+            if Web3.isChecksumAddress(id_or_addr):
+                self.address = cast(ChecksumAddress, id_or_addr)
+                self.index = catalog_mgr.address2id(self.address)
+            else:
+                self.index = int(id_or_addr)
+                self.address = catalog_mgr.id2address(self.index)
+        except Exception as err:
+            raise Exception('Invalid catalog id') from err
+
+    @property
+    def info(self) -> Catalog:  # had better to return CatalogInfo?
+        return Catalog(_load_account(self.ctx)).get(self.address)
+
+
+class FlexibleIndexToken:
+    address: ChecksumAddress
+    index: Optional[int]
+    catalog: Optional[FlexibleIndexCatalog]
+    _info: Optional[TokenInfo]
+
+    def __init__(self, ctx: typer.Context, id_or_addr: Union[List[str], str]):
+        self.ctx = ctx
+        self._info = None
+        if isinstance(id_or_addr, tuple):  # why typer gives tuple instead of list?
+            id_or_addr = list(id_or_addr)
+        if isinstance(id_or_addr, list) and len(id_or_addr) == 1:
+            id_or_addr = id_or_addr[0]
+        if isinstance(id_or_addr, list):
+            cid, tid = cast(list, id_or_addr)
+        elif '-' in id_or_addr:
+            cid, tid = cast(str, id_or_addr).split('-', 1)
+        else:
+            cid, tid = None, id_or_addr
+        self.catalog = FlexibleIndexCatalog(ctx, cid) if cid else None
+        if Web3.isChecksumAddress(tid):
+            tid = cast(ChecksumAddress, tid)
+            self.address = tid
+            self.index = self.catalog.info.get_tokeninfo(tid).token_id if self.catalog else None
+        else:
+            if self.catalog is None:
+                raise Exception('Token index is valid only with catalog')
+            self.index = int(tid)
+            self.address = self.catalog.info.id2address(self.index)
+
+    @property
+    def info(self) -> TokenInfo:
+        if not self._info:
+            if not self.catalog:
+                raise Exception('Internal error: initialized without catalog info')
+            self._info = self.catalog.info.get_tokeninfo(self.address)
+        return self._info
 
 
 @ix_app.command('search', help="Show CTI tokens on the active list of CTI catalogs.")
@@ -618,40 +663,43 @@ def _ix_search(ctx, mine, mine_only, soldout, own, own_only):
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
-def ix_buy(ctx: typer.Context, token_index: str):
-    _ix_buy(ctx, token_index)
+def ix_buy(ctx: typer.Context, catalog_and_token: List[str]):
+    _ix_buy(ctx, catalog_and_token)
 
 
 @common_logging
-def _ix_buy(ctx, token_index):
-    account = _load_account(ctx)
+def _ix_buy(ctx, catalog_and_token):
+    flx = FlexibleIndexToken(ctx, catalog_and_token)
     broker = _load_broker(ctx)
-    catalog, token = _ix_parse_token_index(ctx, token_index)
-    price = Catalog(account).get(catalog).get_tokeninfo(token).price
-    broker.buy(catalog, token, price, allow_cheaper=False)
-    typer.echo(f'bought token {token_index} for {price} pts.')
+    broker.buy(flx.catalog.address, flx.address, flx.info.price, allow_cheaper=False)
+    typer.echo(f'bought token {flx.catalog.index}-{flx.index} for {flx.info.price} pts.')
 
 
 @contract_broker_app.command('serve', help="Pass your tokens to the broker for disseminate.")
-def broker_serve(ctx: typer.Context, token_index: str, amount: int):
-    _broker_serve(ctx, token_index, amount)
+def broker_serve(ctx: typer.Context, catalog_and_token: List[str], amount: int):
+    _broker_serve(ctx, catalog_and_token, amount)
 
 
 @common_logging
-def _broker_serve(ctx, token_index, amount):
+def _broker_serve(ctx, catalog_and_token, amount):
     if amount <= 0:
         raise Exception(f'Invalid amount: {amount}')
+    if len(catalog_and_token) > 2:
+        raise Exception('Redundant arguments for CATALOG_AND_TOKEN')
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    if not flx_token.catalog:
+        raise Exception('Missing catalog information')
+
     account = _load_account(ctx)
-    catalog_address, token_address = _ix_parse_token_index(ctx, token_index)
-    tinfo = Catalog(account).get(catalog_address).get_tokeninfo(token_address)
-    if tinfo.owner != account.eoa:
+    token = Token(account).get(flx_token.address)
+    if token.publisher != account.eoa:
         raise Exception(f'Not a token published by you')
-    balance = Token(account).get(token_address).balance_of(account.eoa)
+    balance = token.balance_of(account.eoa)
     if balance < amount:
         raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
     broker = _load_broker(ctx)
-    broker.consign(catalog_address, token_address, amount)
-    typer.echo(f'consigned {amount} of token({token_address}) to broker({broker.address}).')
+    broker.consign(flx_token.catalog.address, flx_token.address, amount)
+    typer.echo(f'consigned {amount} of token({flx_token.address}) to broker({broker.address}).')
 
 
 @contract_token_app.command('create')
@@ -670,33 +718,35 @@ def _token_create(ctx, initial_supply):
 
 
 @contract_token_app.command('mint')
-def token_mint(ctx: typer.Context, token_address: str, amount: int,
+def token_mint(ctx: typer.Context, token: str, amount: int,
                dest: Optional[str] = typer.Option(
                    None, help='Account EOA minted tokens are given to, instead of you. '
                    'Do not assign Broker, it does not mean serving.')):
-    _token_mint(ctx, token_address, amount, dest)
+    _token_mint(ctx, token, amount, dest)
 
 
 @common_logging
-def _token_mint(ctx, token_address, amount, dest):
+def _token_mint(ctx, token, amount, dest):
     account = _load_account(ctx)
     dest = dest if dest else account.eoa
-    Token(account).get(token_address).mint(amount, dest=cast(ChecksumAddress, dest))
-    typer.echo(f'minted {amount} of token({token_address}) for account({dest}).')
+    flx = FlexibleIndexToken(ctx, token)
+    Token(account).get(flx.address).mint(amount, dest=cast(ChecksumAddress, dest))
+    typer.echo(f'minted {amount} of token({flx.address}) for account({dest}).')
 
 
 @contract_token_app.command('burn')
-def token_burn(ctx: typer.Context, token_address: str, amount: int, data: str = ''):
-    _token_burn(ctx, token_address, amount, data)
+def token_burn(ctx: typer.Context, token: str, amount: int, data: str = ''):
+    _token_burn(ctx, token, amount, data)
 
 
 @common_logging
-def _token_burn(ctx, token_address, amount, data):
+def _token_burn(ctx, token, amount, data):
     if amount <= 0:
         raise Exception(f'Invalid amount: {amount}.')
     account = _load_account(ctx)
-    Token(account).get(token_address).burn(amount, data)
-    typer.echo(f'burned {amount} of token({token_address}).')
+    flx = FlexibleIndexToken(ctx, token)
+    Token(account).get(flx.address).burn(amount, data)
+    typer.echo(f'burned {amount} of token({flx.address}).')
 
 
 @seeker_app.command('status')
@@ -725,13 +775,13 @@ def seeker_start(ctx: typer.Context,
                           'of ngrok in seeker section.'),
                  config: Optional[str] = typer.Option(
                      CONFIG_FILE_PATH, help='seeker config filepath')):
-    if ngrok is None:
-        ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
     _seeker_start(ctx, ngrok, config)
 
 
 @common_logging
 def _seeker_start(ctx, ngrok, config):
+    if ngrok is None:
+        ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
     endpoint_url = _load_config(ctx)['general']['endpoint_url']
     if not endpoint_url:
         raise Exception('Missing configuration: endpoint_url')
@@ -767,11 +817,11 @@ def _seeker_stop(ctx):
         typer.echo('ngrok also stopped.')
 
 
-def _solver_client(ctx: typer.Context) -> MCSClient:
+def _solver_client(ctx: typer.Context, account: Optional[Account] = None) -> MCSClient:
     if 'solver_client' in ctx.meta.keys():
         return ctx.meta['solver_client']
-    account = _load_account(ctx)
-    solver = MCSClient(account.eoa, ctx.meta.get('xxx_pkey'))
+    account = account if account else _load_account(ctx)
+    solver = MCSClient(account, APP_DIR)
     solver.connect()
     solver.login()
     ctx.meta['solver_client'] = solver
@@ -808,27 +858,24 @@ def solver_status(ctx: typer.Context):
 @solver_app.command('start',
                     help='Start Solver process.')
 def solver_start(ctx: typer.Context):
-    logger = getLogger()
+    _solver_start(ctx)
+
+
+@common_logging
+def _solver_start(ctx):
     try:
         _solver_client(ctx)
-        typer.echo('Solver already running.')
-        return
-    except Exception:
-        pass
-    try:
-        config = _load_config(ctx)
-        endpoint_url = config['general']['endpoint_url']
-    except Exception:
-        typer.echo('Configuration error: missing general.endpoint_url.')
-    try:
-        solv_cli_py = os.path.dirname(__file__) + '/../core/multi_solver_cli.py'
-        subprocess.Popen(
-            ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server'],
-            shell=False)
-        typer.echo('Solver started as a subprocess.')
+        raise Exception('Solver already running.')
     except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
+        if not str(err).startswith('Socket not found.'):
+            raise
+    config = _load_config(ctx)
+    endpoint_url = config['general']['endpoint_url']
+    solv_cli_py = os.path.dirname(__file__) + '/../core/multi_solver_cli.py'
+    subprocess.Popen(
+        ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server', '-w', APP_DIR],
+        shell=False)
+    typer.echo('Solver started as a subprocess.')
 
 
 @solver_app.command('stop',
@@ -857,9 +904,17 @@ def solver_enable(ctx: typer.Context,
     logger = getLogger()
     try:
         plugin = plugin if plugin else _load_config(ctx)['solver']['plugin']
+
+        # exceptional case not to use _load_account: private key is required by new_solver().
+        eoaa, pkey = decode_keyfile(_load_config(ctx)['general']['keyfile'], _get_keyfile_password)
+        account = Account(Ether(_load_config(ctx)['general']['endpoint_url']), eoaa, pkey)
+        if not ctx.meta.get('account'):
+            ctx.meta['account'] = account
         operator = _load_operator(ctx)
-        solver = _solver_client(ctx)
-        applied = solver.new_solver(operator.address, pluginfile=plugin, configfile=str(config))
+        solver = _solver_client(ctx, account=account)
+        applied = solver.new_solver(
+            operator.address, pkey, pluginfile=plugin, configfile=str(config))
+
         assert applied == operator.address
         typer.echo(f'Solver is now running with your operator({applied}).')
     except Exception as err:
@@ -878,12 +933,14 @@ def solver_enable(ctx: typer.Context,
         return
 
     try:
-        solver.solver('accept_registered', token_addresses)
+        msg = solver.solver('accept_registered', token_addresses)
         acceptings = solver.solver('accepting_tokens')
         if acceptings:
             typer.echo(f'and accepting {len(acceptings)} token(s) already registered.')
         else:
             typer.echo(f'No token registered on this operator.')
+        if msg:
+            typer.echo(msg)
     except Exception as err:
         logger.exception(err)
         typer.echo(f'accepting registerd tokens failed: {err}')
@@ -900,55 +957,60 @@ def _solver_disable(ctx):
     solver = _solver_client(ctx)
     solver.get_solver()
     solver.purge_solver()
+    typer.echo('Solver is now running without your operator.')
 
 
 @solver_app.command('support',
                     help='Register token to accept challenge.')
-def solver_support(ctx: typer.Context, token_address: str):
-    _solver_support(ctx, token_address)
+def solver_support(ctx: typer.Context, token: str):
+    _solver_support(ctx, token)
 
 
 @common_logging
-def _solver_support(ctx, token_address):
+def _solver_support(ctx, token):
+    flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
-    solver.solver('accept_challenges', [cast(ChecksumAddress, token_address)])
+    msg = solver.solver('accept_challenges', [flx.address])
+    if msg:
+        typer.echo(msg)
 
 
 @solver_app.command('obsolete',
                     help='Unregister token not to accept challenge.')
-def solver_obsolete(ctx: typer.Context, token_address: str):
-    _solver_obsolete(ctx, token_address)
+def solver_obsolete(ctx: typer.Context, token: str):
+    _solver_obsolete(ctx, token)
 
 
 @common_logging
-def _solver_obsolete(ctx, token_address):
+def _solver_obsolete(ctx, token):
+    flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
-    solver.solver('refuse_challenges', [cast(ChecksumAddress, token_address)])
+    solver.solver('refuse_challenges', [flx.address])
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
-def ix_use(ctx: typer.Context, token_address: str,
+def ix_use(ctx: typer.Context, token: str,
            seeker: str = typer.Option(
                '', help='Globally accessible url which seeker is listening. '
                         'This option overwrites --ngrok.'),
            ngrok: bool = typer.Option(
                True, help='Use ngrok public url bound up with seeker if launched.')):
-    _ix_use(ctx, token_address, seeker, ngrok)
+    _ix_use(ctx, token, seeker, ngrok)
 
 
 @common_logging
-def _ix_use(ctx, token_address, seeker, ngrok):
+def _ix_use(ctx, token, seeker, ngrok):
+    flx = FlexibleIndexToken(ctx, token)
     account = _load_account(ctx)
     operator = _load_operator(ctx)
     assert operator.address
     data = seeker if seeker else (NgrokMgr(APP_DIR).public_url or '') if ngrok else ''
     if not data:
         raise Exception('Seeker url is not specified')
-    Token(account).get(cast(ChecksumAddress, token_address)
-                       ).send(operator.address, amount=1, data=data)
-    typer.echo(f'Started challenge with token({token_address}).')
+    Token(account).get(flx.address).send(operator.address, amount=1, data=data)
+    typer.echo(f'Started challenge with token({flx.address}).')
 
 
 def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> TokenInfo:
@@ -1078,17 +1140,21 @@ def operator_create(ctx: typer.Context,
 
 @common_logging
 def _operator_create(ctx, switch):
+    try:
+        old_operator = _load_operator(ctx)
+    except Exception:
+        old_operator = None
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     operator = Operator(account).new()
     operator.set_recipient()
     typer.echo(f'deployed a new operator. address is {operator.address}.')
-    if switch:
+    if switch or old_operator is None:
         ctx.meta['operator'] = operator
         config_update_operator(ctx)
         typer.echo('configured to use the operator above.')
-
-        # TODO: need notify about plugin file.
+        if old_operator:
+            typer.echo('you should restart seeker and solver, if launched.')
 
 
 # @contract_operator_app.command('set')
@@ -1098,13 +1164,17 @@ def operator_set(ctx: typer.Context, operator_address: str):
 
 @common_logging
 def _operator_set(ctx, operator_address):
+    try:
+        old_operator = _load_operator(ctx)
+    except Exception:
+        old_operator = None
     account = _load_account(ctx)
     operator = Operator(account).get(cast(ChecksumAddress, operator_address))
     ctx.meta['operator'] = operator
     config_update_operator(ctx)
     typer.echo(f'configured to use operator({operator_address}).')
-
-    # TODO: need notify about plugin file.
+    if operator_address != old_operator:
+        typer.echo('you should restart seeker and solver, if launched.')
 
 
 @contract_catalog_app.command('show', help="Show the list of CTI catalogs")
@@ -1156,34 +1226,30 @@ def _catalog_create(ctx, private, activate):
 
 @common_logging
 def _catalog_ctrl(
-        act: str, ctx: typer.Context, catalog_address: ChecksumAddress, by_id: bool):
+        act: str, ctx: typer.Context, catalog: str):
     catalog_mgr = _load_catalog_manager(ctx)
-    if by_id:
-        catalog_address = catalog_mgr.id2address(int(catalog_address))
     if act not in ('remove', 'activate', 'deactivate'):
         raise Exception('Invalid act: ' + act)
+    flx = FlexibleIndexCatalog(ctx, catalog)
     func: Callable[[List[ChecksumAddress]], None] = getattr(catalog_mgr, act)
-    func([catalog_address])
+    func([flx.address])
     config_update_catalog(ctx)
     catalog_show(ctx)
 
 
 # @contract_catalog_app.command('remove', help="Remove the CTI catalog from the list.")
-def catalog_remove(ctx: typer.Context, catalog_address: str,
-                   by_id: bool = typer.Option(False, help='select by catalog id')):
-    _catalog_ctrl('remove', ctx, cast(ChecksumAddress, catalog_address), by_id)
+def catalog_remove(ctx: typer.Context, catalog: str):
+    _catalog_ctrl('remove', ctx, catalog)
 
 
 @ix_catalog_app.command('enable', help="Activate the CTI catalog on the list.")
-def ix_catalog_enable(ctx: typer.Context, catalog_address: str,
-                      by_id: bool = typer.Option(False, help='select by catalog id')):
-    _catalog_ctrl('activate', ctx, cast(ChecksumAddress, catalog_address), by_id)
+def ix_catalog_enable(ctx: typer.Context, catalog: str):
+    _catalog_ctrl('activate', ctx, catalog)
 
 
 @ix_catalog_app.command('disable', help="Deactivate the CTI catalog on the list.")
-def ix_catalog_desable(ctx: typer.Context, catalog_address: str,
-                       by_id: bool = typer.Option(False, help='select by catalog id')):
-    _catalog_ctrl('deactivate', ctx, cast(ChecksumAddress, catalog_address), by_id)
+def ix_catalog_desable(ctx: typer.Context, catalog: str):
+    _catalog_ctrl('deactivate', ctx, catalog)
 
 
 @app.command()
@@ -1237,28 +1303,22 @@ def check(ctx: typer.Context, viz: bool = typer.Option(
 
 
 @app.command(help="Deploy the CTI token to disseminate CTI.")
-def publish(ctx: typer.Context, catalog_address: str, token_address: str,
-            uuid: UUID, title: str, price: int,
-            by_id: bool = typer.Option(False, help='select catalog by id')):
-    _publish(ctx, catalog_address, token_address, uuid, title, price, by_id)
+def publish(ctx: typer.Context, catalog: str,
+            token_address: str, uuid: UUID, title: str, price: int):
+    _publish(ctx, catalog, token_address, uuid, title, price)
 
 
 @common_logging
-def _publish(ctx, catalog_address, token_address, uuid, title, price, by_id):
+def _publish(ctx, catalog, token_address, uuid, title, price):
     if len(title) == 0:
         raise Exception(f'Invalid(empty) title')
     if price < 0:
         raise Exception(f'Invalid price: {price}')
     account = _load_account(ctx)
-    catalog_mgr = _load_catalog_manager(ctx)
-    if by_id:
-        catalog_address = catalog_mgr.id2address(int(catalog_address))
-    catalog = Catalog(account).get(cast(ChecksumAddress, catalog_address))
+    catalog = Catalog(account).get(FlexibleIndexCatalog(ctx, catalog).address)
     catalog.register_cti(cast(ChecksumAddress, token_address), uuid, title, price)
-    typer.echo(f'registered token({token_address}) onto catalog({catalog_address}).')
-    producer = account.eoa
-    catalog = Catalog(account).get(cast(ChecksumAddress, catalog_address))
-    catalog.publish_cti(producer, cast(ChecksumAddress, token_address))
+    typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
+    catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
     typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
 
 
