@@ -78,3 +78,6 @@ class CatalogManager():
             raise Exception('No such catalog id: ' + str(catalog_id))
         assert len(tmp) == 1
         return tmp[0]
+
+    def address2id(self, address: ChecksumAddress) -> int:
+        return self.catalogs[address]
