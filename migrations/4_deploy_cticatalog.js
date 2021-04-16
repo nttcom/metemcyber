@@ -20,5 +20,5 @@ const CTICatalog = artifacts.require("CTICatalog");
 module.exports = function (deployer) {
   deployer.deploy(MetemcyberUtil);
   deployer.link(MetemcyberUtil, CTICatalog);
-  deployer.deploy(CTICatalog);
+  deployer.deploy(CTICatalog, false);
 };
