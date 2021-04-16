@@ -16,11 +16,10 @@
 
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.7.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC777/IERC777Recipient.sol";
-import "@openzeppelin/contracts/introspection/IERC1820Registry.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC1820Registry.sol";
 import "./CTIToken.sol";
 import "./CTICatalog.sol";
 

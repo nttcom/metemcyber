@@ -16,15 +16,14 @@
 
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.7.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity >=0.8.0 <0.9.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import {CTIToken, CTIToken_ContractId} from "./CTIToken.sol";
 import {MetemcyberUtil} from "./MetemcyberUtil.sol";
 
-contract CTICatalog is ERC721 {
+contract CTICatalog is ERC721URIStorage {
     using Counters for Counters.Counter;
 
     event CtiInfo(

@@ -16,8 +16,7 @@
 
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.7.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity >=0.8.0 <0.9.0;
 
 string constant MetemcyberUtil_ContractId = "MetemcyberUtil.sol:MetemcyberUtil";
 
@@ -44,7 +43,7 @@ library MetemcyberUtil {
         bytes memory bstr = bytes(str); // low-level bytes of UTF8
         uint8 offset = 0;
         uint8 max = 40; // address is 20 byte, 40 letters.
-        uint256 ret = 0;
+        uint160 ret = 0;
 
         if (bstr.length == 42) {
             require(bstr[0] == _b1_0 && (bstr[1] == _b1_x || bstr[1] == _b1_X),
