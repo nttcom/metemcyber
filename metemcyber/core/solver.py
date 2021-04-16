@@ -15,7 +15,10 @@
 #
 
 import json
+from collections import deque
 from configparser import ConfigParser
+from threading import Condition, Thread
+from time import sleep
 from typing import Any, Callable, Dict, List, Optional
 from urllib.request import Request, urlopen
 
@@ -31,25 +34,73 @@ from metemcyber.core.logger import get_logger
 from metemcyber.core.util import merge_config
 
 SIGNATURE_HEADER = 'Metemcyber-Signature'
+QUEUE_DELAY_SEC = 2
 
 LOGGER = get_logger(name='solver', file_prefix='core.bc')
+
+
+class QueuedExecutor:
+    queue: deque
+
+    def __init__(self):
+        self.queue = deque()  # deque is thread-safe
+        self.cond = Condition()
+        self.thread = Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+    def destroy(self):
+        self.queue = None
+        self.cond.acquire()
+        self.cond.notify_all()
+        self.cond.release()
+
+    def enqueue(self, callback, *args, **kwargs) -> None:
+        self.cond.acquire()
+        self.queue.append((callback, args, kwargs))
+        self.cond.notify()
+        self.cond.release()
+
+    def run(self):
+        LOGGER.info(f'starting {self.__class__.__name__}.')
+        while True:
+            try:
+                callback, args, kwargs = self.queue.popleft()
+                callback(*args, **kwargs)
+                sleep(QUEUE_DELAY_SEC)
+                continue
+            except IndexError:
+                pass
+            except Exception as err:
+                LOGGER.exception(err)
+                continue
+            self.cond.acquire()
+            self.cond.wait()
+            self.cond.release()
+            if self.queue is None:
+                break
+        LOGGER.info(f'destructing {self.__class__.__name__}.')
 
 
 class ChallengeListener(BasicEventListener):
     def __init__(self, account: Account, operator: ChecksumAddress, event_name: str) -> None:
         super().__init__(str(self))
         #                    token_address:   callback(token_address,    event)
+        self.executor = QueuedExecutor()
         self.accepting: Dict[ChecksumAddress, Callable[[ChecksumAddress, AttributeDict[Any, Any]],
                                                        None]] = {}
         event_filter = CTIOperator(account).get(
             operator).event_filter(event_name, fromBlock='latest')
         self.add_event_filter(f'{event_name}:{operator}', event_filter, self.dispatch_callback)
 
+    def destroy(self):
+        super().destroy()
+        self.executor.destroy()
+
     def dispatch_callback(self, event: AttributeDict[Any, Any]) -> None:
         token_address = event['args']['token']
         if token_address in self.accepting.keys():
             callback = self.accepting[token_address]
-            callback(token_address, event)
+            self.executor.enqueue(callback, token_address, event)
 
     def accept_tokens(self, token_addresses: List[ChecksumAddress],
                       callback: Callable[[ChecksumAddress, AttributeDict[Any, Any]], None]) -> None:
