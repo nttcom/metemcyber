@@ -26,6 +26,7 @@ from enum import Enum
 from pathlib import Path
 from shutil import copyfile, copytree
 from subprocess import CalledProcessError
+from time import sleep
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 from uuid import UUID, uuid4
 
@@ -918,12 +919,13 @@ def solver_status(ctx: typer.Context):
 
 @solver_app.command('start',
                     help='Start Solver process.')
-def solver_start(ctx: typer.Context):
-    _solver_start(ctx)
+def solver_start(ctx: typer.Context,
+                 enable: bool = typer.Option(False, help='auto enable with default config.')):
+    _solver_start(ctx, enable)
 
 
 @common_logging
-def _solver_start(ctx):
+def _solver_start(ctx, enable):
     try:
         _solver_client(ctx)
         raise Exception('Solver already running.')
@@ -937,6 +939,10 @@ def _solver_start(ctx):
         ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server', '-w', APP_DIR],
         shell=False)
     typer.echo('Solver started as a subprocess.')
+    if enable:
+        typer.echo('Enabling your operator.')
+        sleep(2)
+        _solver_enable(ctx, None, CONFIG_FILE_PATH)
 
 
 @solver_app.command('stop',
@@ -962,6 +968,10 @@ def solver_enable(ctx: typer.Context,
                            'may be required by plugin.'),
                   config: Optional[str] = typer.Option(
                       CONFIG_FILE_PATH, help='solver config filepath')):
+    _solver_enable(ctx, plugin, config)
+
+
+def _solver_enable(ctx, plugin, config):
     logger = getLogger()
     try:
         plugin = plugin if plugin else _load_config(ctx)['solver']['plugin']
