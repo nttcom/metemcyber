@@ -1,4 +1,5 @@
 include README.md
 include LICENSE.md
 include requirements.txt
-recursive-include requirements *
+recursive-include metemcyber/cli *
+recursive-include metemcyber/core/bc/contracts_data *
