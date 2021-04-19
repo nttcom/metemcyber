@@ -19,6 +19,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
+from time import sleep
 from typing import ClassVar, Dict, Optional
 
 from eth_typing import ChecksumAddress
@@ -29,8 +30,9 @@ from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 
 LOGGER = get_logger(name='contract', file_prefix='core.bc')
-
 MINIMAL_CONTRACT_ID = 'MetemcyberMinimal.sol:MetemcyberMinimal'
+TX_RETRY_MAX = 10
+TX_RETRY_DELAY_SEC = 2
 
 
 def combined_json_path(contract_id: str) -> str:
@@ -39,6 +41,30 @@ def combined_json_path(contract_id: str) -> str:
     filepath = os.path.join(src_dir, 'contracts_data',
                             os.path.splitext(contract_src)[0] + '.combined.json')
     return filepath
+
+
+def retryable_contract(cls):
+    def __retryable(func):
+        def wrapper(*args, **kwargs):
+            for cnt in range(TX_RETRY_MAX):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as err:
+                    LOGGER.exception(err)
+                    sleep(TX_RETRY_DELAY_SEC)
+                    LOGGER.warning(f'retrying:{cnt}')
+                    continue
+            raise Exception(f'Transaction retry count exceeds max({TX_RETRY_MAX}).')
+        return wrapper
+
+    # exclude methods defined in baseclass.
+    excludes = [x[0] for x in inspect.getmembers(Contract)]
+    for name, func in inspect.getmembers(cls):
+        if name in excludes:
+            continue
+        if callable(getattr(cls, name)):
+            setattr(cls, name, __retryable(func))
+    return cls
 
 
 class Contract():
