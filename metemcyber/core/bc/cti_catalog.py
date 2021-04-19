@@ -19,9 +19,10 @@ from uuid import UUID
 
 from eth_typing import ChecksumAddress
 
-from .contract import Contract
+from metemcyber.core.bc.contract import Contract, retryable_contract
 
 
+@retryable_contract
 class CTICatalog(Contract):
     contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}
     contract_id: ClassVar[str] = 'CTICatalog.sol:CTICatalog'

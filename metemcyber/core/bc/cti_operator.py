@@ -18,10 +18,11 @@ from typing import ClassVar, Dict, List, Optional, Tuple
 
 from eth_typing import ChecksumAddress
 
-from metemcyber.core.bc.contract import Contract
+from metemcyber.core.bc.contract import Contract, retryable_contract
 from metemcyber.core.bc.util import ADDRESS0
 
 
+@retryable_contract
 class CTIOperator(Contract):
     contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}
     contract_id: ClassVar[str] = 'CTIOperator.sol:CTIOperator'
