@@ -117,9 +117,7 @@ class Contract():
 
     @classmethod
     def latest_version(cls):
-        if cls._latest_version < 0:
-            lnk = os.readlink(combined_json_path(cls.contract_id))
-            cls._latest_version = int(os.path.splitext(lnk)[1][1:])
+        # currently, there's no way to figure out the latest version. it's ok, maybe.
         return cls._latest_version
 
     def new(self, *args, **kwargs):
@@ -183,7 +181,6 @@ class Contract():
 
     @classmethod
     def __load(cls, version: int):
-        assert version >= 0
         if not cls.contract_id:
             raise Exception('contract_id is not defined: {}'.format(cls))
         if cls.contract_interface.get(version):
@@ -191,7 +188,8 @@ class Contract():
 
         contract_interface = {}
         try:
-            combined_file = combined_json_path(cls.contract_id) + f'.{version}'
+            combined_file = combined_json_path(cls.contract_id) + (
+                '' if version < 0 else f'.{version}')  # no suffix for latest
             with open(combined_file, 'r') as fin:
                 combined_json = json.loads(fin.read())['contracts'][cls.contract_id]
 
@@ -211,7 +209,8 @@ class Contract():
         except Exception as err:
             LOGGER.exception(err)
             raise Exception(
-                f'Failed loading contract: {cls.contract_id} version {version}') from err
+                f'Failed loading contract: {cls.contract_id} '
+                f'version {"latest" if version < 0 else version}') from err
         cls.contract_interface[version] = contract_interface
 
     @classmethod
