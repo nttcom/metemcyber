@@ -59,7 +59,7 @@ metemctl account show
 
 > ⚠️ **You must agree to [the terms of service](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u).** This is a experimental project on the enterprise ethereum of NTT Communications. **You will get a promo code if you agree to this terms.**
 
-Get a promo code, and airdrop yourself some ETH to get started:
+Get a promo code via email, and airdrop yourself some ETH to get started:
 
 ```
 metemctl account airdrop $PROMOTE_CODE_IN_THE_CONFIRMATION_MAIL
