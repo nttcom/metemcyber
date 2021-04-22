@@ -68,7 +68,7 @@ class Catalog():
 
     def get(self, address: ChecksumAddress) -> Catalog:
         self.address = address
-        self._sync_catalog()
+        self.sync_catalog()
         return self
 
     def get_by_id(self, catalog_id: int) -> Catalog:
@@ -93,10 +93,10 @@ class Catalog():
                     in Catalog.__addressed_catalogs.values()] + [0]
                    ) + 1
 
-    def _sync_catalog(self) -> None:
+    def sync_catalog(self, super_reload: bool = False) -> None:
         assert self.address
         cinfo = self._catalogs_by_address.get(self.address)
-        if not cinfo:
+        if not cinfo or super_reload:
             cinfo = CatalogInfo(self.address, self.catalog_id, None, None, {})
             Catalog.__addressed_catalogs[self.address] = cinfo
             cti_catalog = CTICatalog(self.account).get(self.address)
