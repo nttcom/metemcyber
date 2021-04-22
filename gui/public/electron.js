@@ -10,6 +10,7 @@ let proc = null;
 let addr = "";
 
 let menu = 0;
+let ptyStatus = '';
 
 let challangeStatus = {
   url: '',
@@ -39,7 +40,8 @@ async function createWindow() {
   })
 
   mainWindow.on('close', function () { //   <---- Catch close event
-    console.log("close")
+    console.log("close");
+    execLogout();
   });
 
   // and load the index.html of the app.
@@ -349,27 +351,24 @@ function extractOutputToken(output) {
   return returnVal;
 }
 
+let outputText = "";
+let endText = "";
 async function getOutput(input, endStr, replaces = []) {
-  let returnVal = "";
+  ptyStatus = 'getOutput'
+  endText = endStr;
   await new Promise((resolve) => {
-    proc.on('data', function (data) {
-      data.split("\r\n").map((val) => {
-        if (!setChallangeStatus(val)) {
-          switch (val) {
-            case endStr:
-              resolve();
-              break;
-            default:
-              returnVal += val;
-              break;
-          }
-        }
-      })
-    });
+    const intervalId = setInterval(() => {
+      if (ptyStatus === 'finishOutput') {
+        resolve();
+      }
+    }, 100);
     proc.write(input + "\n");
-  })
-  proc.on('data', (data) => { callbackChallange(data) });
-  console.log(returnVal);
+  });
+  ptyStatus = 'waitChallange';
+  let returnVal = outputText;
+  outputText = "";
+  endText = "";
+
   replaces.map((val) => {
     returnVal = returnVal.replace(val[0], val[1]);
   })
@@ -386,7 +385,7 @@ ipcMain.on('select-logout', async (event, arg) => {
 ipcMain.on('login', async (event, arg) => {
   // Get keyfile name.
   const keyfileName = fs.readdirSync(keyFilePath);
-
+  ptyStatus = 'login';
   // Create the browser window.
   proc = pty.spawn('bash', [
     ctlPath,
@@ -398,26 +397,48 @@ ipcMain.on('login', async (event, arg) => {
     nodePtyConfig
   );
 
-  await new Promise((resolve) => {
-    proc.on('data', function (data) {
-      data.split("\r\n").map((val) => {
-        event.reply('send-log', val);
-        console.log(val)
-        switch (val) {
-          case 'Enter password for keyfile:':
-            proc.write(arg + "\n");
-            break;
-          case 'コマンドを入力してください':
-            resolve();
-            break;
-          default:
-            break;
-        }
-      })
-    });
+  proc.on('data', (data) => {
+    switch (ptyStatus) {
+      case 'login':
+        data.split("\r\n").map((val) => {
+          event.reply('send-log', val);
+          console.log(val)
+          switch (val) {
+            case 'Enter password for keyfile:':
+              proc.write(arg + "\n");
+              break;
+            case 'コマンドを入力してください':
+              event.reply('login', 'success');
+              break;
+            default:
+              break;
+          }
+        })
+        break;
+      case 'getOutput':
+        data.split("\r\n").map((val) => {
+          if (!setChallangeStatus(val)) {
+            switch (val) {
+              case endText:
+                ptyStatus = 'finishOutput'
+                break;
+              default:
+                outputText += val;
+                break;
+            }
+          }
+        })
+        break;
+      case 'waitChallange':
+        callbackChallange(data);
+        break;
+      default:
+        console.log("default")
+        break;
+    }
+  });
 
-  })
-  event.reply('login', 'success');
+
 });
 
 ipcMain.on('get-key', async (event, arg) => {
@@ -451,7 +472,7 @@ ipcMain.on('exec-init', async (event, arg) => {
   event.reply('send-log', whichRes.stdout);
 
   addr = await ngrok.connect(isDev ? 51004 : { addr: 51004, binPath: path => path.replace('app.asar', 'app.asar.unpacked') });
-
+  event.reply('send-log', "ngrok");
   // Create the browser window.
   proc = pty.spawn('bash', [
     ctlPath,
@@ -535,7 +556,7 @@ function setChallangeStatus(val) {
 }
 
 function execLogout() {
-  proc.on('data', () => { });
+  ptyStatus = 'logout';
   if (menu !== 0) {
     proc.write('b' + "\n");
   }

@@ -3,8 +3,13 @@ import styled from 'styled-components'
 import { Button, Card, CardBody, CardGroup, CardImg, Col, Container, Input, InputGroup, InputGroupAddon, Modal, ModalHeader, ModalBody, ModalFooter, Spinner, Row } from 'reactstrap';
 import { useDropzone } from 'react-dropzone';
 
+const { ipcRenderer } = window
+
+ipcRenderer.on('send-log', (event, arg) => {
+    console.log(arg);
+});
+
 function Login(props) {
-    const { ipcRenderer } = window
     const [pass, setPass] = useState('');
     const [loading, setLoading] = useState(false);
     const [currentKeyName, setCurrentKeyName] = useState('');
@@ -20,18 +25,13 @@ function Login(props) {
     const handleSubmit = () => {
 
         setLoading(true);
-        ipcRenderer.on('login', (event, arg) => {
+        ipcRenderer.once('login', (event, arg) => {
             console.log(arg)
             props.history.push('/contents')
         });
 
-        //props.history.push('/contents')
-        ipcRenderer.send('login', pass)
+        ipcRenderer.send('login', pass);
     }
-
-    ipcRenderer.on('send-log', (event, arg) => {
-        console.log(arg);
-    });
 
     const toggle = (e) => {
         setSelectedKey({});
@@ -54,10 +54,10 @@ function Login(props) {
         setCurrentKeyName(ipcRenderer.sendSync('get-key'));
         if (sessionStorage.getItem('init') === null) {
             ipcRenderer.send('exec-init');
-            ipcRenderer.on('get-password', (event, arg) => {
+            ipcRenderer.once('get-password', (event, arg) => {
                 setPassModalToggle(true);
             });
-            ipcRenderer.on('finish-init', (event, arg) => {
+            ipcRenderer.once('finish-init', (event, arg) => {
                 sessionStorage.setItem('init', true);
                 setSetup(false);
             });
