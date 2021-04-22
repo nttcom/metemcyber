@@ -14,11 +14,11 @@
 #    limitations under the License.
 #
 
-from typing import Dict
+from typing import ClassVar, Dict
 
 from .contract import Contract
 
 
 class MetemcyberUtil(Contract):
-    contract_interface: Dict[str, str] = {}
-    contract_id = 'MetemcyberUtil.sol:MetemcyberUtil'
+    contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}
+    contract_id: ClassVar[str] = 'MetemcyberUtil.sol:MetemcyberUtil'

@@ -16,7 +16,7 @@
 
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.7.0 <0.8.0;
+pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC777/ERC777.sol";
 
@@ -26,7 +26,7 @@ contract CTIToken is ERC777 {
 
     string public constant contractId = CTIToken_ContractId;
     uint256 public constant contractVersion = 0;
-    address public publisher;
+    address public immutable publisher;
 
     constructor(
         uint256 initialSupply,

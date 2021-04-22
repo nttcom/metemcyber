@@ -16,13 +16,12 @@
 
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.7.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC777/IERC777.sol";
 import "@openzeppelin/contracts/token/ERC777/IERC777Recipient.sol";
-import "@openzeppelin/contracts/introspection/IERC1820Registry.sol";
-import "@openzeppelin/contracts/introspection/ERC1820Implementer.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC1820Registry.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC1820Implementer.sol";
 import "./MetemcyberUtil.sol";
 import {CTIToken, CTIToken_ContractId} from "./CTIToken.sol";
 
@@ -60,7 +59,7 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
     }
 
     string public constant contractId = CTIOperator_ContractId;
-    uint256 public constant contractVersion = 0;
+    uint256 public constant contractVersion = 1;
 
     IERC1820Registry private _erc1820 =
         IERC1820Registry(0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24);
@@ -261,6 +260,7 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
 
     function history(
         address token,
+        address seeker,
         uint limit,
         uint offset
     ) external view returns (Task[] memory) {
@@ -273,7 +273,7 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
         uint count = 0;
 
         for (uint i = _tasks.length; i > 0 && count < limit; i--) {
-            if (_tasks[i - 1].seeker == msg.sender &&
+            if ((seeker == address(0) || _tasks[i - 1].seeker == seeker) &&
                     (token == address(0) || _tasks[i - 1].token == token)) {
                 if (offset > 0) {
                     offset--;

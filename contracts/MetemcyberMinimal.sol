@@ -1,5 +1,5 @@
 /*
- *    Copyright 2020, NTT Communications Corp.
+ *    Copyright 2021, NTT Communications Corp.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -16,20 +16,9 @@
 
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.6.0 <0.9.0;
+pragma solidity >=0.8.0 <0.9.0;
 
-import "truffle/Assert.sol";
-import "truffle/DeployedAddresses.sol";
-import "../contracts/CTIToken.sol";
-
-contract TestCTIToken {
-    function testInitialSupply() public {
-        address tokenHolder = tx.origin; // FIXME
-        CTIToken token = CTIToken(DeployedAddresses.CTIToken());
-
-        uint256 fact = token.balanceOf(tokenHolder);
-        uint256 expected = 10; // see migrations/*_deploy_ctitoken.js
-
-        Assert.equal(fact, expected, "initialSupply mismatch!");
-    }
+contract MetemcyberMinimal {
+    string public constant contractId = "MetemcyberMinimal.sol:MetemcyberMinimal";
+    uint256 public constant contractVersion = 0;
 }

@@ -16,9 +16,11 @@
 
 const MetemcyberUtil = artifacts.require("MetemcyberUtil");
 const CTICatalog = artifacts.require("CTICatalog");
+const { BN, constants, expectEvent, expectRevert, singletons } = require('@openzeppelin/test-helpers');
+const { ZERO_ADDRESS } = constants;
 
 module.exports = function (deployer) {
   deployer.deploy(MetemcyberUtil);
   deployer.link(MetemcyberUtil, CTICatalog);
-  deployer.deploy(CTICatalog);
+  deployer.deploy(CTICatalog, ZERO_ADDRESS);
 };

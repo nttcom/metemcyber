@@ -35,7 +35,7 @@ DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
         'assets_path': 'workspace/dissemination',  # FIXME
         'functions_url': 'https://exchange.metemcyber.ntt.com',
-        'functions_token': '',
+        'functions_token': 'YOUR_TOKEN_TO_UPLOAD_GCS',
     }
 }
 
@@ -48,15 +48,15 @@ class Solver(BaseSolver):
         try:
             url = self.config[CONFIG_SECTION]['functions_url']
             token = self.config[CONFIG_SECTION]['functions_token']
-            assert url and token
+            assert url and token not in (
+                None, '', DEFAULT_CONFIGS[CONFIG_SECTION]['functions_token'])
         except Exception as err:
             raise Exception('Not enough configuration to upload to GCS') from err
         self.uploader = Uploader(url, token)
 
     def notify_first_accept(self):
         url = self.config[CONFIG_SECTION]['functions_url']
-        return 'Solver として受付を開始しました。\n' + \
-               f'チャレンジ結果は中継点( {url} )にアップロードされます'
+        return f'Caution: solved challenge data will be uploaded onto {url}.'
 
     def process_challenge(self, token_address, event):
         LOGGER.info('GCSSolver: callback: %s', token_address)
@@ -75,13 +75,13 @@ class Solver(BaseSolver):
         try:
             try:
                 download_url = self.upload_to_storage(token_address)
-                url = Web3.toText(event['args']['data'])
+                webhook_url = Web3.toText(event['args']['data'])
             except Exception:
                 data = 'Challenge failed by solver side error'
                 raise
             try:
                 # return answer via webhook
-                self.webhook(url, download_url, token_address)
+                self.webhook(webhook_url, download_url, challenge_seeker, task_id, token_address)
             except Exception as err:
                 data = 'cannot sendback result via webhook: ' + str(err)
                 raise
