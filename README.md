@@ -8,7 +8,6 @@
 
 > Decentralized Cyber Threat Intelligence Kaizen Framework. https://metemcyber.ntt.com
 
-
 [![CI](https://github.com/nttcom/metemcyber/actions/workflows/main.yml/badge.svg)](https://github.com/nttcom/metemcyber/actions/workflows/main.yml)
 [![Documentation Status](https://readthedocs.org/projects/metemcyber/badge/?version=latest)](https://metemcyber.readthedocs.io/ja/latest/?badge=latest)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/nttcom/metemcyber)
@@ -16,10 +15,11 @@
 [![Twitter](https://img.shields.io/twitter/follow/metemcyber?label=Follow&style=social)](https://twitter.com/metemcyber)
 <!-- ![GitHub Release](https://img.shields.io/github/v/release/nttcom/metemcyber.svg?style=flat) -->
 
-
 ## 💡 Overview
 
 Metemcyber™ enables security collaboration and assessment all the across organization through the intelligence cycle successful.
+
+- 📖 [**Metemcyber User Documentation**](https://metemcyber.readthedocs.io/)
 
 ## ✨ Features
 
@@ -32,7 +32,7 @@ Metemcyber™ enables security collaboration and assessment all the across organ
 - Transparency for Trust
     - Monitoring the trading activity of CTIs
     - Unlocking achievements based on your contribution.
-- MISP friendly
+- MISP-friendly 🤗
 
 ## 🚅 QuickStart
 
@@ -77,7 +77,7 @@ Enter the index number of the CTI token to be purchased. (Also CTI token address
 metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 ```
 
-> ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup a local Ngrok environment](https://dashboard.ngrok.com/get-started/setup).
+> ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup a local ngrok environment](https://dashboard.ngrok.com/get-started/setup).
 >
 >Open the application directory and **put the ngrok executable file there**:
 >
@@ -112,7 +112,7 @@ metemctl ix buy $INDEX_OR_ADDRESS
 ```
 
 ```
-metemctl ix use $INDEX_OR_ADDRESS --ngrok
+metemctl ix use --ngrok $INDEX_OR_ADDRESS
 
 ```
 
