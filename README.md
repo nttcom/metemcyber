@@ -17,13 +17,13 @@
 
 ## 💡 Overview
 
-Metemcyber™ enables security collaboration and assessment all the across organization through the intelligence cycle successful.
+Metemcyber™ enables security collaboration and assessment all across the organization through the intelligence cycle.
 
 - 📖 [**Metemcyber User Documentation**](https://metemcyber.readthedocs.io/)
 
 ## ✨ Features
 
-**Anyone can make the intelligence cycle successful.**
+**Anyone can make a successful intelligence cycle.**
 
 - Content-oriented Workflow
 - Fault-tolerant Collaboration
@@ -57,7 +57,7 @@ Display your account details you are currently using:
 metemctl account show
 ```
 
-> ⚠️ **You must agree to [the terms of service](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u).** This is a experimental project on the enterprise ethereum of NTT Communications. **You will get a promo code if you agree to this terms.**
+> ⚠️ **You must agree to [the terms of service](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u).** This is a experimental project on the enterprise ethereum of NTT Communications. **You will get a promo code if you agree to these terms.**
 
 Get a promo code via email, and airdrop yourself some ETH to get started:
 
@@ -71,7 +71,7 @@ Search for the CTI token you want to buy (e.g. OSINT)
 metemctl ix search 'OSINT'
 ```
 
-Enter the index number of the CTI token to be purchased. (Also CTI token address is acceptable)
+Enter the index number of the CTI token to be purchased. The CTI token address can also be accepted.
 
 ```
 metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
@@ -108,11 +108,11 @@ metemctl ix search '[ir-exercise]'
 ```
 
 ```
-metemctl ix buy $INDEX_OR_ADDRESS
+metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 ```
 
 ```
-metemctl ix use --ngrok $INDEX_OR_ADDRESS
+metemctl ix use --ngrok $TOKEN_INDEX_OR_ADDRESS
 
 ```
 
