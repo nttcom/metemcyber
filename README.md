@@ -65,7 +65,7 @@ Get a promo code, and airdrop yourself some ETH to get started:
 metemctl account airdrop $PROMOTE_CODE_IN_THE_CONFIRMATION_MAIL
 ```
 
-#### 🛒 Collect CTIs
+### 🛒 Collect CTIs
 > ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup the ngrok](https://dashboard.ngrok.com/get-started/setup) and place the ngrok executable in Application directory
 
 Open the application directory and place the ngrok executable:
@@ -133,6 +133,11 @@ metemctl publish
 ```
 
 🎉🎉🎉 Welcome to Metemcyber, Dear Awesome CTI Analyst!!!  🎉🎉🎉
+
+
+## 📖 Documentation
+
+For more information see the [documentation](https://metemcyber.readthedocs.io/).
 
 ## ⚖️ LICENSE
 ```
