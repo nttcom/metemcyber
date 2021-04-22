@@ -4,7 +4,7 @@ SOLS_DIR        = contracts
 DATA_DIR        = metemcyber/core/bc/contracts_data
 
 SOURCE_SOLS     = CTICatalog CTIOperator CTIToken CTIBroker MetemcyberUtil
-SOURCE_SOLS     += MetemcyberMinimal
+SOURCE_SOLS     += MetemcyberMinimal AddressGroup
 TARGET_ABIS     = $(SOURCE_SOLS:%=$(DATA_DIR)/%.abi.json)
 TARGET_COMBINEDS= $(SOURCE_SOLS:%=$(DATA_DIR)/%.combined.json)
 VERSIONED_FILES = $(foreach src,$(SOURCE_SOLS),$(src).combined.json.$(shell \

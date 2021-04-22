@@ -1208,18 +1208,19 @@ def _catalog_add(ctx, catalog_address, activate):
 
 @contract_catalog_app.command('create', help="Create a new CTI catalog.")
 def catalog_create(ctx: typer.Context,
-                   private: bool = typer.Option(False, help='create a private catalog'),
+                   group: Optional[str] = typer.Option(None, help='permitted user group'),
                    activate: bool = typer.Option(False, help='activate created catalog')):
-    _catalog_create(ctx, private, activate)
+    _catalog_create(ctx, group, activate)
 
 
 @common_logging
-def _catalog_create(ctx, private, activate):
+def _catalog_create(ctx, group, activate):
     _load_contract_libs(ctx)
     account = _load_account(ctx)
-    catalog: Catalog = Catalog(account).new(private)
+    group = group if group else ADDRESS0
+    catalog: Catalog = Catalog(account).new(group)
     typer.echo('deployed a new '
-               f'{"private" if private else "public"} catalog. '
+               f'{"private" if group == ADDRESS0 else "public"} catalog. '
                f'address is {catalog.address}.')
     catalog_add(ctx, str(catalog.address), activate)
 

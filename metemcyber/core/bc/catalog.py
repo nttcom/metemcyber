@@ -74,8 +74,8 @@ class Catalog():
     def get_by_id(self, catalog_id: int) -> Catalog:
         return self.get(self._catalogs_by_id()[catalog_id].address)
 
-    def new(self, private: bool) -> Catalog:
-        cti_catalog = CTICatalog(self.account).new(private)
+    def new(self, group: ChecksumAddress) -> Catalog:
+        cti_catalog = CTICatalog(self.account).new(group)
         return self.get(cti_catalog.address)
 
     def uncache(self, entire: bool = False) -> None:

@@ -26,7 +26,7 @@ contract CTIToken is ERC777 {
 
     string public constant contractId = CTIToken_ContractId;
     uint256 public constant contractVersion = 0;
-    address public publisher;
+    address public immutable publisher;
 
     constructor(
         uint256 initialSupply,

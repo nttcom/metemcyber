@@ -21,6 +21,7 @@ pragma solidity >=0.8.0 <0.9.0;
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import {CTIToken, CTIToken_ContractId} from "./CTIToken.sol";
+import {AddressGroup, AddressGroup_ContractId} from "./AddressGroup.sol";
 import {MetemcyberUtil} from "./MetemcyberUtil.sol";
 
 contract CTICatalog is ERC721URIStorage {
@@ -53,33 +54,42 @@ contract CTICatalog is ERC721URIStorage {
     }
 
     string public constant contractId = "CTICatalog.sol:CTICatalog";
-    uint256 public constant contractVersion = 0;
+    uint256 public constant contractVersion = 1;
+    address public immutable owner;
 
     Counters.Counter private _tokenIds;
-    address private _owner;
     string[] private _tokenList;
     mapping (string => Cti) private _ctiInfo; // tokenURI => Cti
     mapping (string => uint256) private _ctiIndex; // tokenURI => index
-    bool public isPrivate; // true if this is private catalog
-    mapping (address => uint256) private _authorizedUser; // address => index of _authorizedUserList (1 origin)
-    address[] private _authorizedUserList;
+    AddressGroup public members;
 
     constructor(
-        bool privateCatalog
+        address members_
     ) ERC721("CTICatalog", "CTIC") {
-        _owner = msg.sender;
-        isPrivate = privateCatalog;
+        owner = msg.sender;
+        _setMembers(members_);
     }
 
-    function getOwner() public view returns(address) {
-        assert(_owner != address(0));
-        return _owner;
+    function _setMembers(address members_) internal {
+        AddressGroup tmp = AddressGroup(members_);
+        require(
+            members_ == address(0) ||  // public mode
+            MetemcyberUtil.isSameStrings(tmp.contractId(), AddressGroup_ContractId),
+            "not an address group"
+        );
+        members = tmp;
+    }
+
+    function setMembers(address members_) public {
+        require(owner == msg.sender, "not owner");
+        _setMembers(members_);
     }
 
     function publishCti(
         address producer,
         string calldata tokenURI
     ) public returns (uint256) {
+        require(this.validatePurchase(msg.sender), "not permitted");
         string memory uri = MetemcyberUtil.toChecksumAddress(tokenURI);
         require(bytes(_ctiInfo[uri].uuid).length > 0, "not registered");
         require(producer == msg.sender, "wrong producer");
@@ -115,6 +125,7 @@ contract CTICatalog is ERC721URIStorage {
         uint256 price,
         string calldata operator
     ) public {
+        require(this.validatePurchase(msg.sender), "not permitted");
         require(bytes(tokenURI).length > 0, "invalid tokenURI");
         CTIToken token = CTIToken(MetemcyberUtil.stringToAddress(tokenURI));
         require(
@@ -156,6 +167,7 @@ contract CTICatalog is ERC721URIStorage {
         uint256 price,
         string calldata operator
     ) public {
+        require(this.validatePurchase(msg.sender), "not permitted");
         string memory uri = MetemcyberUtil.toChecksumAddress(tokenURI);
         string memory current_uuid = _ctiInfo[uri].uuid;
         require(bytes(current_uuid).length > 0, "not registered");
@@ -202,6 +214,7 @@ contract CTICatalog is ERC721URIStorage {
     }
 
     function unregisterCti(string calldata tokenURI) public {
+        require(this.validatePurchase(msg.sender), "not permitted");
         string memory uri = MetemcyberUtil.toChecksumAddress(tokenURI);
         require(bytes(_ctiInfo[uri].uuid).length > 0, "not registered");
         require(msg.sender == _ctiInfo[uri].owner, "not owner");
@@ -227,13 +240,8 @@ contract CTICatalog is ERC721URIStorage {
         return cti;
     }
 
-    function getCtiInfoByAddress(
-        address token
-    ) public view returns (Cti memory) {
-        return this.getCtiInfo(MetemcyberUtil.addressToString(token));
-    }
-
     function likeCti(string calldata tokenURI) public{
+        require(this.validatePurchase(msg.sender), "not permitted");
         string memory uri = MetemcyberUtil.toChecksumAddress(tokenURI);
         require(bytes(_ctiInfo[uri].uuid).length > 0, "not registered");
 
@@ -246,59 +254,11 @@ contract CTICatalog is ERC721URIStorage {
         );
     }
 
-    function setPrivate() public{
-        require(_owner == msg.sender, "not owner");
-        isPrivate = true;
-    }
-
-    function setPublic() public{
-        require(_owner == msg.sender, "not owner");
-        isPrivate = false;
-    }
-
-    function authorizeUser(address user) public{
-        require(_owner == msg.sender, "not owner");
-        require(isPrivate == true, "not private catalog");
-        require(_authorizedUser[user] == 0, "already registered");
-        _authorizedUser[user] = _authorizedUserList.length;
-        uint i = 0;
-        for (i = 0; i < _authorizedUserList.length; i++) {
-            if (_authorizedUserList[i] == address(0)) {
-                _authorizedUserList[i] = user;
-                _authorizedUser[user] = i + 1; //1 origin
-                break;
-            }
-        }
-        if (i == _authorizedUserList.length)
-            _authorizedUserList.push(user);
-            _authorizedUser[user] = i + 1; //1 origin
-    }
-
-    function revokeUser(address user) public{
-        require(_owner == msg.sender, "not owner");
-        require(isPrivate == true, "not private catalog");
-        require(_authorizedUser[user] >= 1, "not permitted");
-        // _authorizedUser is 1 orign
-        uint256 index = _authorizedUser[user] - 1;
-        _authorizedUserList[index] = address(0);
-        delete _authorizedUser[user];
-    }
-
-    function validatePurchase(address buyer) public view returns(bool){
-        //require(_owner == msg.sender, "not owner");
-        if (isPrivate){
-            if (_authorizedUser[buyer] == 0){
-                return false;
-            }else{
-                return true;
-            }
-        } else{
+    function validatePurchase(address buyer) public view returns(bool) {
+        if (address(members) == address(0))  // public mode
             return true;
-        }
-    }
-
-    function showAuthorizedUsers() public view returns(address[] memory){
-        require(_owner == msg.sender, "not owner");
-        return _authorizedUserList;
+        if (owner == buyer)  // owner is always available even if not a member
+            return true;
+        return members.isMember(buyer);
     }
 }

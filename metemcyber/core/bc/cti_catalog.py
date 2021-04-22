@@ -19,7 +19,9 @@ from uuid import UUID
 
 from eth_typing import ChecksumAddress
 
+from metemcyber.core.bc.address_group import AddressGroup
 from metemcyber.core.bc.contract import Contract, retryable_contract
+from metemcyber.core.bc.util import ADDRESS0
 
 
 @retryable_contract
@@ -28,7 +30,10 @@ class CTICatalog(Contract):
     contract_id: ClassVar[str] = 'CTICatalog.sol:CTICatalog'
 
     def get_owner(self):
-        func = self.contract.functions.getOwner()
+        if self.version == 0:
+            func = self.contract.functions.getOwner()
+        else:
+            func = self.contract.functions.owner()
         return func.call()
 
     def publish_cti(self, producer_address: ChecksumAddress,
@@ -111,33 +116,60 @@ class CTICatalog(Contract):
         event_logs = event_filter.get_all_entries()
         return event_logs
 
-    def is_private(self) -> None:
+    @property
+    def members(self) -> ChecksumAddress:
         self.log_trace()
+        assert self.version > 0
+        return self.contract.functions.members().call()
+
+    def is_private(self) -> bool:
+        self.log_trace()
+        if self.version > 0:
+            return self.members != ADDRESS0
         func = self.contract.functions.isPrivate()
         return func.call()
 
     def set_private(self) -> None:
         self.log_trace()
-        func = self.contract.functions.setPrivate()
+        if self.is_private():
+            return
+        if self.version == 0:
+            func = self.contract.functions.setPrivate()
+            func_str = 'setPrivate'
+        else:
+            members = AddressGroup(self.account).new()
+            func = self.contract.functions.setMembers(members.address)
+            func_str = 'setMembers'
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('setPrivate', tx_receipt)
         if tx_receipt['status'] != 1:
-            raise ValueError('Transaction failed: setPrivate')
+            raise ValueError(f'Transaction failed: {func_str}')
         self.log_success()
 
     def set_public(self) -> None:
         self.log_trace()
-        func = self.contract.functions.setPublic()
+        if not self.is_private():
+            return
+        if self.version == 0:
+            func = self.contract.functions.setPublic()
+            func_str = 'setPublic'
+        else:
+            func = self.contract.functions.setMembers(ADDRESS0)
+            func_str = 'setMembers'
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
         self.gaslog('setPublic', tx_receipt)
         if tx_receipt['status'] != 1:
-            raise ValueError('Transaction failed: setPublic')
+            raise ValueError(f'Transaction failed: {func_str}')
         self.log_success()
 
     def authorize_user(self, eoa_address: ChecksumAddress) -> None:
         self.log_trace()
+        if self.version > 0:
+            assert self.is_private()
+            AddressGroup(self.account).get(self.members).add(eoa_address)
+            return
         func = self.contract.functions.authorizeUser(eoa_address)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
@@ -148,6 +180,10 @@ class CTICatalog(Contract):
 
     def revoke_user(self, eoa_address: ChecksumAddress) -> None:
         self.log_trace()
+        if self.version > 0:
+            assert self.is_private()
+            AddressGroup(self.account).get(self.members).remove(eoa_address)
+            return
         func = self.contract.functions.revokeUser(eoa_address)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
@@ -158,5 +194,8 @@ class CTICatalog(Contract):
 
     def show_authorized_users(self) -> List[ChecksumAddress]:
         self.log_trace()
+        if self.version > 0:
+            assert self.is_private()
+            return AddressGroup(self.account).get(self.members).members
         func = self.contract.functions.showAuthorizedUsers()
         return func.call()
