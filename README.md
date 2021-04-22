@@ -66,25 +66,29 @@ metemctl account airdrop $PROMOTE_CODE_IN_THE_CONFIRMATION_MAIL
 ```
 
 ### 🛒 Collect CTIs
-> ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup the ngrok](https://dashboard.ngrok.com/get-started/setup) and place the ngrok executable in Application directory
-
-Open the application directory and place the ngrok executable:
-```
-metemctl open-app-dir
-```
-
 Search for the CTI token you want to buy (e.g. OSINT)
 ```
 metemctl ix search 'OSINT'
 ```
 
 Enter the index number of the CTI token to be purchased. (Also CTI token address is acceptable)
+
 ```
-metemctl ix buy $INDEX_OR_ADDRESS
+metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 ```
+
+> ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup a local Ngrok environment](https://dashboard.ngrok.com/get-started/setup).
+>
+>Open the application directory and **put the ngrok executable file there**:
+>
+>```
+>metemctl open-app-dir
+>```
+
 Use CTI token to receive the MISP object on your public URL of the ngrok.
+
 ```
-metemctl ix use $INDEX_OR_ADDRESS --ngrok
+metemctl ix use --ngrok $TOKEN_INDEX_OR_ADDRESS
 ```
 
 ## ♻️ Run the Intelligence Cycle
