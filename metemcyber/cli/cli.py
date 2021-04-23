@@ -1559,6 +1559,10 @@ def external_link():
 def issue():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
 
+@app.command(help="Access the Application Directoy of Metemcyber")
+def open_app_dir():
+    typer.echo(f"Open {APP_DIR}")
+    typer.launch(APP_DIR)
 
 if __name__ == "__main__":
     app()
