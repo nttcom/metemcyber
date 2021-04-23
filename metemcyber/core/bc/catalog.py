@@ -128,12 +128,12 @@ class Catalog():
         assert len(tmp) == 1
         return tmp[0]
 
-    def register_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int) -> None:
+    def register_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int, operator: ChecksumAddress) -> None:
         if price < 0:
             raise Exception(f'Invalid price: {price}')
         assert self.address
         cti_catalog = CTICatalog(self.account).get(self.address)
-        cti_catalog.register_cti(token, uuid, title, price, '')
+        cti_catalog.register_cti(token, uuid, title, price, operator)
 
     def publish_cti(self, producer: ChecksumAddress, token: ChecksumAddress) -> None:
         assert self.address
