@@ -181,12 +181,14 @@ class Seeker():
             return 0, None, 0
         try:
             proc = Process(pid)
-            if proc.cmdline()[:len(Seeker.cmd_args_base)] == Seeker.cmd_args_base:
-                return pid, address, int(str_port)
-            # found pid, but it's not a seeker. remove defunct data.
-            LOGGER.info(f'got pid({pid}) which is not a seeker. remove defunct.')
-            os.unlink(seeker_pid_filepath(self.app_dir))
-            return 0, None, 0
+            if len(proc.cmdline()[:len(Seeker.cmd_args_base)]) > 1 and len(Seeker.cmd_args_base) > 1:
+                # Python path locations are not always the same, so compare with arguments.
+                if proc.cmdline()[:len(Seeker.cmd_args_base)][1] == Seeker.cmd_args_base[1]:
+                    return pid, address, int(str_port)
+                # found pid, but it's not a seeker. remove defunct data.
+                LOGGER.info(f'got pid({pid}) which is not a seeker. remove defunct.')
+                os.unlink(seeker_pid_filepath(self.app_dir))
+                return 0, None, 0
         except NoSuchProcess:
             return 0, None, 0
 
