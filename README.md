@@ -84,6 +84,15 @@ metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 >```
 >metemctl open-app-dir
 >```
+>Make sure the ngrok *authtoken* exists after [setup](https://dashboard.ngrok.com/get-started/setup):
+>```
+>cat ~/.ngrok2/ngrok.yml
+>```
+>Start a daemon to receive data using ngrok:
+>```
+>metemctl seeker start --ngrok
+>```
+
 
 Use CTI token to receive the MISP object on your public URL of the ngrok.
 
@@ -131,6 +140,12 @@ metemctl check --viz
 ```
 
 ### 🚀 Disseminate your CTI products to everyone:
+> ⚠️ ***Solver* must be running** for the token holder to receive the data.
+>
+>```
+>metemctl solver start
+>```
+>
 
 ```
 metemctl publish
