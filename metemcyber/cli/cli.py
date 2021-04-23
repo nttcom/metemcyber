@@ -1446,7 +1446,8 @@ def external_link():
             typer.echo(f"- {hyperlink}: {service['description']}")
 
 
-def issues():
+@app.command(help="Check Metemcyber issues")
+def issue():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
 
 
