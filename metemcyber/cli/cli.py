@@ -267,7 +267,7 @@ def common_logging(func):
     def wrapper(*args, **kwargs):
         logger = getLogger()
         try:
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
         except Exception as err:
             logger.exception(err)
             typer.echo(f'failed operation: {err}')
@@ -449,11 +449,11 @@ def new(
 
     logger.info(f"Contents: {display_contents}")
 
-    typer.echo(f'{"":=<32}')
+    typer.echo(f'{"":=<64}')
     typer.echo(f'Event ID: {event_id}')
     typer.echo(f'Category: {formal_category[category]}')
     typer.echo(f'Contents: {display_contents}')
-    typer.echo(f'{"":=<32}')
+    typer.echo(f'{"":=<64}')
 
     answer = typer.confirm('Are you sure you want to create it?', abort=True)
     # run "kedro new --config workflow.yml"
@@ -708,13 +708,14 @@ def token_create(ctx: typer.Context, initial_supply: int):
 
 
 @common_logging
-def _token_create(ctx, initial_supply):
+def _token_create(ctx, initial_supply) -> Optional[ChecksumAddress]:
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     if initial_supply <= 0:
         raise Exception(f'Invalid initial-supply: {initial_supply}')
     token = Token(account).new(initial_supply, [])
-    typer.echo(f'created a new token. address is {token.address}.')
+    typer.echo(f'created a new token address is {token.address}.')
+    return token.address
 
 
 @contract_token_app.command('mint')
@@ -1303,24 +1304,132 @@ def check(ctx: typer.Context, viz: bool = typer.Option(
         typer.echo(f'An error occurred while testing the workflow. {err}')
 
 
+def parse_misp_object(filepath: Path) -> Tuple[str, str]:
+    logger = getLogger()
+    uuid = ''
+    title = ''
+    with open(filepath) as fin:
+        try:
+            misp_object = json.load(fin)
+            if 'Event' in misp_object.keys():
+                event = misp_object['Event']
+                if 'uuid' in event.keys():
+                    uuid = event['uuid']
+                if 'info' in event.keys():
+                    title = event['info']
+        except json.JSONDecodeError as err:
+            logger.exception(err)
+            typer.echo(f'An error occurred while parsing your misp object. {err}')
+    return uuid, title
+
+
 @app.command(help="Deploy the CTI token to disseminate CTI.")
-def publish(ctx: typer.Context, catalog: str,
-            token_address: str, uuid: UUID, title: str, price: int):
-    _publish(ctx, catalog, token_address, uuid, title, price)
+def publish(
+        ctx: typer.Context,
+        misp_object: str,
+        catalog: Optional[int] = typer.Option(
+            1,
+            help='A CTI catalog id/address to use for dissemination'),
+    token_address: Optional[str] = typer.Option(
+            None,
+            help='A CTI token address to use for dissemination'),
+        operator_address: Optional[str] = typer.Option(
+            None,
+            help='A CTI operator address to use for dissemination'),
+        uuid: Optional[str] = typer.Option(
+            None,
+            help='The uuid of misp object'),
+        title: Optional[str] = typer.Option(
+            None,
+            help='The title of misp object'),
+        price: Optional[int] = typer.Option(
+            10,
+            help='A price of CTI token (dissemination cost)'),
+        initial_amount: Optional[int] = typer.Option(
+            100,
+            help='An initial supply amount of CTI tokens'),
+        serve_amount: Optional[int] = typer.Option(
+            99,
+            help='An amount of CTI tokens to give CTI broker'),
+):
+    _publish(
+        ctx,
+        misp_object,
+        catalog,
+        token_address,
+        operator_address,
+        uuid,
+        title,
+        price,
+        initial_amount,
+        serve_amount)
 
 
 @common_logging
-def _publish(ctx, catalog, token_address, uuid, title, price):
+def _publish(
+        ctx,
+        misp_object,
+        catalog,
+        token_address,
+        operator_address,
+        uuid,
+        title,
+        price,
+        initial_amount,
+        serve_amount):
+
+    misp_obj_filepath = Path(os.getcwd()) / misp_object
+    typer.echo(misp_obj_filepath)
+    uuid, title = parse_misp_object(misp_obj_filepath)
+
     if len(title) == 0:
         raise Exception(f'Invalid(empty) title')
     if price < 0:
         raise Exception(f'Invalid price: {price}')
-    account = _load_account(ctx)
-    catalog = Catalog(account).get(FlexibleIndexCatalog(ctx, catalog).address)
-    catalog.register_cti(cast(ChecksumAddress, token_address), uuid, title, price)
-    typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
-    catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
-    typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
+    if initial_amount < serve_amount:
+        raise Exception(
+            f'Invalid serve amount in excess of initial supply: {serve_amount} > {initial_amount}')
+    if not operator_address:
+        config = _load_config(ctx)
+        # A Key Error exception is trapped by @common_logging
+        operator_address = config['operator']['address']
+    if token_address:
+        initial_amount = 0
+
+    typer.echo(f'{"":=<64}')
+    typer.echo(f'{title}')
+    typer.echo(f'{"":-<64}')
+    typer.echo(f' - UUID: {uuid}')
+    typer.echo(f' - Price: {price}')
+    if token_address:
+        typer.echo(f' - Charge: {serve_amount} (Token: {token_address})')
+    else:
+        typer.echo(f' - Sales Quantity: {serve_amount} (Initial Supply: {initial_amount})')
+    typer.echo(f' - Exchanger: {operator_address}')
+    typer.echo(f' - Catalog ID/Address: {catalog}')
+    typer.echo(f'{"":=<64}')
+
+    yes = typer.confirm('Are you sure you want to publish it?', abort=True)
+
+    if yes:
+        if not token_address:
+            token_address = _token_create(ctx, initial_amount)
+
+        account = _load_account(ctx)
+        catalog = Catalog(account).get(FlexibleIndexCatalog(ctx, catalog).address)
+        catalog.register_cti(
+            cast(
+                ChecksumAddress,
+                token_address),
+            uuid,
+            title,
+            price,
+            operator_address)
+        typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
+        catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
+        typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
+        catalog.sync_catalog(super_reload=True)
+        _broker_serve(ctx, [catalog.address, token_address], serve_amount)
 
 
 @account_app.command("show", help="Show the current account information.")
@@ -1446,9 +1555,14 @@ def external_link():
             typer.echo(f"- {hyperlink}: {service['description']}")
 
 
-def issues():
+@app.command(help="Check Metemcyber issues")
+def issue():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
 
+@app.command(help="Access the Application Directoy of Metemcyber")
+def open_app_dir():
+    typer.echo(f"Open {APP_DIR}")
+    typer.launch(APP_DIR)
 
 if __name__ == "__main__":
     app()
