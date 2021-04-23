@@ -128,7 +128,13 @@ class Catalog():
         assert len(tmp) == 1
         return tmp[0]
 
-    def register_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int, operator: ChecksumAddress) -> None:
+    def register_cti(
+            self,
+            token: ChecksumAddress,
+            uuid: UUID,
+            title: str,
+            price: int,
+            operator: ChecksumAddress) -> None:
         if price < 0:
             raise Exception(f'Invalid price: {price}')
         assert self.address
