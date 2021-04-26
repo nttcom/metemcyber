@@ -1611,7 +1611,7 @@ def console():
 
 @app.command(help="Show practical security services.")
 def external_link():
-    json_path = Path(__file__).with_name('external-links.json')
+    json_path = Path(APP_DIR) / 'external-links.json'
     with open(json_path) as fin:
         services = json.load(fin)
         for service in services:
