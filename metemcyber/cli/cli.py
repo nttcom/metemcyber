@@ -22,8 +22,9 @@ import subprocess
 from configparser import ConfigParser
 from datetime import datetime, timezone
 from enum import Enum
+from os.path import isdir
 from pathlib import Path
-from shutil import copyfile
+from shutil import copyfile, copytree
 from subprocess import CalledProcessError
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 from uuid import UUID, uuid4
@@ -139,6 +140,32 @@ def getLogger(name='cli'):
 
 def _workspace_confpath(ctx):
     return f'{_load_config(ctx)["general"]["workspace"]}/{WORKSPACE_CONFIG_FILENAME}'
+
+def _init_app_dir(ctx: typer.Context) -> None:
+    logger = getLogger()
+    os.makedirs(APP_DIR, exist_ok=True)
+
+    template_app_dir = Path(__file__).with_name('app_dir')
+    entries = os.listdir(template_app_dir)
+
+    for entry in entries:
+        src = Path(template_app_dir) / entry
+        dst = Path(APP_DIR) / entry
+        if os.path.isdir(src):
+            copytree(src, dst, symlinks=True)
+        else:
+            copyfile(src, dst, follow_symlinks=False)
+
+    default_workspace = Path(APP_DIR) / 'workspace.pricom-mainnet'
+    workspace = Path(APP_DIR) / 'workspace'
+    try:
+        os.symlink(default_workspace, workspace)
+    except (NotImplementedError, OSError) as err:
+        logger.warning(f'Cannot create a symbolic link: {err}')
+        copytree(default_workspace, workspace)
+
+    config = _load_config(ctx)
+    _save_config(ctx, config)
 
 
 def _load_config(ctx: typer.Context, reload: bool = False) -> ConfigParser:
@@ -291,8 +318,19 @@ def common_logging(func):
 
 
 @app.callback()
-def app_callback(_ctx: typer.Context):
-    pass
+def app_callback(ctx: typer.Context):
+    # init app directory if it does not exist
+    logger = getLogger()
+    if os.path.exists(APP_DIR):
+        if os.path.isdir(APP_DIR):
+            if not os.path.exists(CONFIG_FILE_PATH):
+                logger.info(f'Run the application directory initialize: {APP_DIR}')
+                _init_app_dir(ctx)
+        else:
+            logger.error(f'Invalid the application directory: {APP_DIR}')
+    else:
+        logger.info(f'Create the application directory: {APP_DIR}')
+        _init_app_dir(ctx)
 
 
 class IntelligenceCategory(str, Enum):
