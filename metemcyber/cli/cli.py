@@ -22,7 +22,6 @@ import subprocess
 from configparser import ConfigParser
 from datetime import datetime, timezone
 from enum import Enum
-from os.path import isdir
 from pathlib import Path
 from shutil import copyfile, copytree
 from subprocess import CalledProcessError
