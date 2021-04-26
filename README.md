@@ -45,6 +45,12 @@ pip install $PACKAGE_NAME[cli]
 
 ### 🔑 Create a new account
 
+Check the current configuration:
+
+```
+metemctl config show
+```
+
 Create a new account if no keyfile available:
 
 ```
@@ -121,7 +127,7 @@ metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 ```
 
 ```
-metemctl ix use --ngrok $TOKEN_INDEX_OR_ADDRESS
+metemctl ix use $TOKEN_INDEX_OR_ADDRESS
 
 ```
 
