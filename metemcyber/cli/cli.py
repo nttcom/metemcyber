@@ -67,9 +67,9 @@ DEFAULT_CONFIGS = {
         'misp_url': 'http://your.misp.url',
         'misp_auth_key': 'YOUR_MISP_AUTH_KEY',
         'misp_ssl_cert': '0',
-        'misp_json_dumpdir': 'fetched_misp_events',
+        'misp_json_dumpdir': APP_DIR + '/misp/download',
         'slack_webhook_url': 'SLACK_WEBHOOK_URL',
-        'endpoint_url': 'https://rpc.metemcyber.ntt.com',
+        'endpoint_url': 'YOUR_ETHEREUM_JSON_RPC_URL',
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
         'workspace': APP_DIR + '/workspace',
     },
@@ -141,32 +141,6 @@ def getLogger(name='cli'):
 def _workspace_confpath(ctx):
     return f'{_load_config(ctx)["general"]["workspace"]}/{WORKSPACE_CONFIG_FILENAME}'
 
-def _init_app_dir(ctx: typer.Context) -> None:
-    logger = getLogger()
-    os.makedirs(APP_DIR, exist_ok=True)
-
-    template_app_dir = Path(__file__).with_name('app_dir')
-    entries = os.listdir(template_app_dir)
-
-    for entry in entries:
-        src = Path(template_app_dir) / entry
-        dst = Path(APP_DIR) / entry
-        if os.path.isdir(src):
-            copytree(src, dst, symlinks=True)
-        else:
-            copyfile(src, dst, follow_symlinks=False)
-
-    default_workspace = Path(APP_DIR) / 'workspace.pricom-mainnet'
-    workspace = Path(APP_DIR) / 'workspace'
-    try:
-        os.symlink(default_workspace, workspace)
-    except (NotImplementedError, OSError) as err:
-        logger.warning(f'Cannot create a symbolic link: {err}')
-        copytree(default_workspace, workspace)
-
-    config = _load_config(ctx)
-    _save_config(ctx, config)
-
 
 def _load_config(ctx: typer.Context, reload: bool = False) -> ConfigParser:
     if 'config' in ctx.meta.keys():
@@ -208,6 +182,35 @@ def _save_config(ctx: typer.Context, config: ConfigParser) -> None:
         logger.exception(f'Cannot save configuration: {err}')
         raise
     logger.debug('updated config file')
+
+
+def _init_app_dir(ctx: typer.Context) -> None:
+    logger = getLogger()
+    os.makedirs(APP_DIR, exist_ok=True)
+
+    template_app_dir = Path(__file__).with_name('app_dir')
+    entries = os.listdir(template_app_dir)
+
+    for entry in entries:
+        src = Path(template_app_dir) / entry
+        dst = Path(APP_DIR) / entry
+        if os.path.isdir(src):
+            copytree(src, dst, symlinks=True)
+        else:
+            copyfile(src, dst, follow_symlinks=False)
+
+    config = _load_config(ctx)
+    _save_config(ctx, config)
+
+    default_workspace = Path(APP_DIR) / 'workspace.pricom-mainnet'
+    workspace = Path(APP_DIR) / 'workspace'
+    try:
+        os.symlink(default_workspace, workspace)
+    except (NotImplementedError, OSError) as err:
+        logger.warning(f'Cannot create a symbolic link: {err}')
+        copytree(default_workspace, workspace)
+
+    _load_config(ctx, reload=True)
 
 
 def _get_keyfile_password() -> str:
