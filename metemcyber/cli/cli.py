@@ -34,6 +34,7 @@ import yaml
 from eth_typing import ChecksumAddress
 from web3 import Web3
 
+from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
 from metemcyber.core.bc.catalog import Catalog, TokenInfo
@@ -53,8 +54,6 @@ from metemcyber.core.util import config2str, merge_config
 from metemcyber.plugins.gcs_solver import DEFAULT_CONFIGS as DC_SOLV_GCS
 from metemcyber.plugins.standalone_solver import DEFAULT_CONFIGS as DC_SOLV_ALN
 
-APP_NAME = "metemcyber"
-APP_DIR = typer.get_app_dir(APP_NAME)
 CONFIG_FILE_NAME = "metemctl.ini"
 CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
 WORKSPACE_CONFIG_FILENAME = 'config.ini'

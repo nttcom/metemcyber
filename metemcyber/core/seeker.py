@@ -27,7 +27,7 @@ from eth_typing import ChecksumAddress
 from psutil import NoSuchProcess, Process
 from werkzeug.datastructures import EnvironHeaders
 
-from metemcyber.cli.cli import APP_DIR
+from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.operator import Operator
