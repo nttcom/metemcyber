@@ -22,6 +22,7 @@ from typing import ClassVar, Optional
 from eth_typing import ChecksumAddress
 from web3 import Web3
 
+from metemcyber.cli.cli import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import BaseSolver
@@ -36,7 +37,7 @@ CONFIG_SECTION = 'standalone_solver'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
         'listen_address': 'localhost',
-        'contents_root': 'workspace/dissemination',  # FIXME
+        'contents_root': f'{APP_DIR}/workspace/upload',
     }
 }
 

@@ -57,6 +57,7 @@ APP_NAME = "metemcyber"
 APP_DIR = typer.get_app_dir(APP_NAME)
 CONFIG_FILE_NAME = "metemctl.ini"
 CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
+WORKSPACE_CONFIG_FILENAME = 'config.ini'
 WORKFLOW_FILE_NAME = "workflow.yml"
 DATA_FILE_NAME = "source_of_truth.yml"
 
@@ -70,6 +71,7 @@ DEFAULT_CONFIGS = {
         'slack_webhook_url': 'SLACK_WEBHOOK_URL',
         'endpoint_url': 'https://rpc.metemcyber.ntt.com',
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
+        'workspace': APP_DIR + '/workspace',
     },
     'catalog': {
         'actives': '',
@@ -136,22 +138,35 @@ def getLogger(name='cli'):
     return get_logger(name=name, app_dir=APP_DIR, file_prefix='cli')
 
 
+def _workspace_confpath(ctx):
+    return f'{_load_config(ctx)["general"]["workspace"]}/{WORKSPACE_CONFIG_FILENAME}'
+
+
 def _load_config(ctx: typer.Context, reload: bool = False) -> ConfigParser:
     if 'config' in ctx.meta.keys():
         if not reload:
             return ctx.meta['config']
         del ctx.meta['config']
+    # at first, load default config and overwrite with metemctl.ini.
     if os.path.exists(CONFIG_FILE_PATH):
         logger = getLogger()
         logger.info(f"Load config file from {CONFIG_FILE_PATH}")
         config = merge_config(CONFIG_FILE_PATH, DEFAULT_CONFIGS)
     else:
         config = merge_config(None, DEFAULT_CONFIGS)
+    # at next, overwrite with workspace/config.ini if exists.
+    tmp_workspace = config['general']['workspace']
+    work_conf_file = f'{tmp_workspace}/{WORKSPACE_CONFIG_FILENAME}'
+    if os.path.exists(work_conf_file):
+        config = merge_config(work_conf_file, {}, config)
+        if Path(tmp_workspace) != Path(config['general']['workspace']):
+            raise Exception('contradictory configuration: general.workspace.')
+    # ok. cache and return
     ctx.meta['config'] = config
     return config
 
 
-def _save_config(config: ConfigParser) -> None:
+def _save_config(ctx: typer.Context, config: ConfigParser) -> None:
     logger = getLogger()
     for sect in config.sections():
         for opt in config.options(sect):
@@ -159,7 +174,9 @@ def _save_config(config: ConfigParser) -> None:
             if val.startswith('~'):
                 config[sect][opt] = str(Path(val).expanduser())
     try:
-        with open(CONFIG_FILE_PATH, 'wt') as fout:
+        workspace_conf = _workspace_confpath(ctx)
+        filepath = workspace_conf if os.path.exists(workspace_conf) else CONFIG_FILE_PATH
+        with open(filepath, 'wt') as fout:
             config.write(fout)
     except Exception as err:
         logger.exception(f'Cannot save configuration: {err}')
@@ -211,7 +228,7 @@ def _load_contract_libs(ctx: typer.Context):
         util_ph = util.register_library(util.address)
         config.set('metemcyber_util', 'address', util.address)
         config.set('metemcyber_util', 'placeholder', util_ph)
-        _save_config(config)
+        _save_config(ctx, config)
 
 
 def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
@@ -462,7 +479,7 @@ def new(
         # TODO: manage the project id on workspace directory
         config = _load_config(ctx)
         config.set('general', 'project', event_id)
-        _save_config(config)
+        _save_config(ctx, config)
 
 
 def config_update_catalog(ctx: typer.Context):
@@ -477,7 +494,7 @@ def config_update_catalog(ctx: typer.Context):
                    ','.join(catalog_mgr.active_catalogs.keys()))
         config.set('catalog', 'reserves',
                    ','.join(catalog_mgr.reserved_catalogs.keys()))
-    _save_config(config)
+    _save_config(ctx, config)
     del ctx.meta['catalog_manager']
     Catalog(_load_account(ctx)).uncache(entire=True)
 
@@ -491,7 +508,7 @@ def config_update_broker(ctx: typer.Context):
         config.set('broker', 'address', broker.address)
     except Exception:
         config.remove_section('broker')
-    _save_config(config)
+    _save_config(ctx, config)
 
 
 def config_update_operator(ctx: typer.Context):
@@ -503,7 +520,7 @@ def config_update_operator(ctx: typer.Context):
         config.set('operator', 'address', operator.address)
     except Exception:
         config.remove_section('operator')
-    _save_config(config)
+    _save_config(ctx, config)
 
 
 class TokenInfoEx(TokenInfo):
@@ -1500,20 +1517,23 @@ def _account_create(ctx: typer.Context):
     current_keyfile = config.get('general', 'keyfile')
     if not current_keyfile or current_keyfile == '/PATH/TO/YOUR/KEYFILE':
         config.set('general', 'keyfile', str(keyfile_path))
-        _save_config(config)
+        _save_config(ctx, config)
         typer.echo('Update your config file.')
 
 
 @config_app.command('show', help="Show your config file of metemctl")
 def config_show(ctx: typer.Context,
-                raw: bool = typer.Option(False, help='omit complementing system defaults.')):
-    _config_show(ctx, raw)
+                raw: bool = typer.Option(False, help='omit complementing system defaults.'),
+                general: bool = typer.Option(
+                    False, help='show metemctl.ini instead of config.ini in workspace')):
+    _config_show(ctx, raw, general)
 
 
 @common_logging
-def _config_show(ctx, raw):
+def _config_show(ctx, raw, general):
     if raw:
-        with open(CONFIG_FILE_PATH) as fin:
+        filepath = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
+        with open(filepath) as fin:
             typer.echo(fin.read())
     else:
         typer.echo(config2str(_load_config(ctx)))
@@ -1521,22 +1541,27 @@ def _config_show(ctx, raw):
 
 @config_app.command('edit', help="Edit your config file of metemctl")
 def config_edit(ctx: typer.Context,
-                raw: bool = typer.Option(False, help='omit complementing system defaults.')):
-    _config_edit(ctx, raw)
+                raw: bool = typer.Option(False, help='omit complementing system defaults.'),
+                general: bool = typer.Option(
+                    False, help='edit metemctl.ini instead of config.ini in workspace.')):
+    _config_edit(ctx, raw, general)
 
 
 @common_logging
-def _config_edit(ctx, raw):
+def _config_edit(ctx, raw, general):
+    workspace_conf = _workspace_confpath(ctx)
     if raw:
-        typer.edit(filename=CONFIG_FILE_PATH)
+        filepath = CONFIG_FILE_PATH if general else workspace_conf
+        typer.edit(filename=filepath)
     else:
-        contents = typer.edit(config2str(_load_config(ctx)))
+        config = _load_config(ctx)
+        contents = typer.edit(config2str(config))
+        filepath = workspace_conf if os.path.exists(workspace_conf) else CONFIG_FILE_PATH
         if contents:
-            with open(CONFIG_FILE_PATH, 'w') as fout:
+            with open(filepath, 'wt') as fout:
                 fout.write(contents)
             if '~' in contents:
-                config = _load_config(ctx)
-                _save_config(config)  # expanduser
+                _save_config(ctx, config)  # expanduser
 
 
 @app.command(help="Start an interactive intelligence cycle.")
@@ -1559,10 +1584,12 @@ def external_link():
 def issue():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
 
+
 @app.command(help="Access the Application Directoy of Metemcyber")
 def open_app_dir():
     typer.echo(f"Open {APP_DIR}")
     typer.launch(APP_DIR)
+
 
 if __name__ == "__main__":
     app()

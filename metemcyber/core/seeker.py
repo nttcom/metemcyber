@@ -27,6 +27,7 @@ from eth_typing import ChecksumAddress
 from psutil import NoSuchProcess, Process
 from werkzeug.datastructures import EnvironHeaders
 
+from metemcyber.cli.cli import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.operator import Operator
@@ -41,7 +42,7 @@ LOGGER = get_logger(name='seeker', file_prefix='core')
 CONFIG_SECTION = 'seeker'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
-        'downloaded_cti_path': './download',
+        'downloaded_cti_path': f'{APP_DIR}/workspace/download',
         'listen_address': '127.0.0.1',
         'listen_port': '0',
         'ngrok': '0',
