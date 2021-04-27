@@ -19,6 +19,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
+from time import sleep
 from typing import ClassVar, Dict, Optional
 
 from eth_typing import ChecksumAddress
@@ -29,8 +30,9 @@ from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 
 LOGGER = get_logger(name='contract', file_prefix='core.bc')
-
 MINIMAL_CONTRACT_ID = 'MetemcyberMinimal.sol:MetemcyberMinimal'
+TX_RETRY_MAX = 10
+TX_RETRY_DELAY_SEC = 2
 
 
 def combined_json_path(contract_id: str) -> str:
@@ -39,6 +41,30 @@ def combined_json_path(contract_id: str) -> str:
     filepath = os.path.join(src_dir, 'contracts_data',
                             os.path.splitext(contract_src)[0] + '.combined.json')
     return filepath
+
+
+def retryable_contract(cls):
+    def __retryable(func):
+        def wrapper(*args, **kwargs):
+            for cnt in range(TX_RETRY_MAX):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as err:
+                    LOGGER.exception(err)
+                    sleep(TX_RETRY_DELAY_SEC)
+                    LOGGER.warning(f'retrying:{cnt}')
+                    continue
+            raise Exception(f'Transaction retry count exceeds max({TX_RETRY_MAX}).')
+        return wrapper
+
+    # exclude methods defined in baseclass.
+    excludes = [x[0] for x in inspect.getmembers(Contract)]
+    for name, func in inspect.getmembers(cls):
+        if name in excludes:
+            continue
+        if callable(getattr(cls, name)):
+            setattr(cls, name, __retryable(func))
+    return cls
 
 
 class Contract():
@@ -91,9 +117,7 @@ class Contract():
 
     @classmethod
     def latest_version(cls):
-        if cls._latest_version < 0:
-            lnk = os.readlink(combined_json_path(cls.contract_id))
-            cls._latest_version = int(os.path.splitext(lnk)[1][1:])
+        # currently, there's no way to figure out the latest version. it's ok, maybe.
         return cls._latest_version
 
     def new(self, *args, **kwargs):
@@ -157,7 +181,6 @@ class Contract():
 
     @classmethod
     def __load(cls, version: int):
-        assert version >= 0
         if not cls.contract_id:
             raise Exception('contract_id is not defined: {}'.format(cls))
         if cls.contract_interface.get(version):
@@ -165,7 +188,8 @@ class Contract():
 
         contract_interface = {}
         try:
-            combined_file = combined_json_path(cls.contract_id) + f'.{version}'
+            combined_file = combined_json_path(cls.contract_id) + (
+                '' if version < 0 else f'.{version}')  # no suffix for latest
             with open(combined_file, 'r') as fin:
                 combined_json = json.loads(fin.read())['contracts'][cls.contract_id]
 
@@ -185,7 +209,8 @@ class Contract():
         except Exception as err:
             LOGGER.exception(err)
             raise Exception(
-                f'Failed loading contract: {cls.contract_id} version {version}') from err
+                f'Failed loading contract: {cls.contract_id} '
+                f'version {"latest" if version < 0 else version}') from err
         cls.contract_interface[version] = contract_interface
 
     @classmethod

@@ -19,11 +19,12 @@
 import json
 import os
 import subprocess
+import urllib.request
 from configparser import ConfigParser
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from shutil import copyfile
+from shutil import copyfile, copytree
 from subprocess import CalledProcessError
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 from uuid import UUID, uuid4
@@ -34,6 +35,7 @@ import yaml
 from eth_typing import ChecksumAddress
 from web3 import Web3
 
+from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
 from metemcyber.core.bc.catalog import Catalog, TokenInfo
@@ -53,10 +55,9 @@ from metemcyber.core.util import config2str, merge_config
 from metemcyber.plugins.gcs_solver import DEFAULT_CONFIGS as DC_SOLV_GCS
 from metemcyber.plugins.standalone_solver import DEFAULT_CONFIGS as DC_SOLV_ALN
 
-APP_NAME = "metemcyber"
-APP_DIR = typer.get_app_dir(APP_NAME)
 CONFIG_FILE_NAME = "metemctl.ini"
 CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
+WORKSPACE_CONFIG_FILENAME = 'config.ini'
 WORKFLOW_FILE_NAME = "workflow.yml"
 DATA_FILE_NAME = "source_of_truth.yml"
 
@@ -66,10 +67,12 @@ DEFAULT_CONFIGS = {
         'misp_url': 'http://your.misp.url',
         'misp_auth_key': 'YOUR_MISP_AUTH_KEY',
         'misp_ssl_cert': '0',
-        'misp_json_dumpdir': 'fetched_misp_events',
+        'misp_json_dumpdir': APP_DIR + '/misp/download',
         'slack_webhook_url': 'SLACK_WEBHOOK_URL',
-        'endpoint_url': 'https://rpc.metemcyber.ntt.com',
+        'endpoint_url': 'YOUR_ETHEREUM_JSON_RPC_URL',
+        'airdrop_url': 'AIRDROP_FUNCTION_URL',
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
+        'workspace': APP_DIR + '/workspace',
     },
     'catalog': {
         'actives': '',
@@ -136,22 +139,35 @@ def getLogger(name='cli'):
     return get_logger(name=name, app_dir=APP_DIR, file_prefix='cli')
 
 
+def _workspace_confpath(ctx):
+    return f'{_load_config(ctx)["general"]["workspace"]}/{WORKSPACE_CONFIG_FILENAME}'
+
+
 def _load_config(ctx: typer.Context, reload: bool = False) -> ConfigParser:
     if 'config' in ctx.meta.keys():
         if not reload:
             return ctx.meta['config']
         del ctx.meta['config']
+    # at first, load default config and overwrite with metemctl.ini.
     if os.path.exists(CONFIG_FILE_PATH):
         logger = getLogger()
         logger.info(f"Load config file from {CONFIG_FILE_PATH}")
         config = merge_config(CONFIG_FILE_PATH, DEFAULT_CONFIGS)
     else:
         config = merge_config(None, DEFAULT_CONFIGS)
+    # at next, overwrite with workspace/config.ini if exists.
+    tmp_workspace = config['general']['workspace']
+    work_conf_file = f'{tmp_workspace}/{WORKSPACE_CONFIG_FILENAME}'
+    if os.path.exists(work_conf_file):
+        config = merge_config(work_conf_file, {}, config)
+        if Path(tmp_workspace) != Path(config['general']['workspace']):
+            raise Exception('contradictory configuration: general.workspace.')
+    # ok. cache and return
     ctx.meta['config'] = config
     return config
 
 
-def _save_config(config: ConfigParser) -> None:
+def _save_config(ctx: typer.Context, config: ConfigParser) -> None:
     logger = getLogger()
     for sect in config.sections():
         for opt in config.options(sect):
@@ -159,12 +175,43 @@ def _save_config(config: ConfigParser) -> None:
             if val.startswith('~'):
                 config[sect][opt] = str(Path(val).expanduser())
     try:
-        with open(CONFIG_FILE_PATH, 'wt') as fout:
+        workspace_conf = _workspace_confpath(ctx)
+        filepath = workspace_conf if os.path.exists(workspace_conf) else CONFIG_FILE_PATH
+        with open(filepath, 'wt') as fout:
             config.write(fout)
     except Exception as err:
         logger.exception(f'Cannot save configuration: {err}')
         raise
     logger.debug('updated config file')
+
+
+def _init_app_dir(ctx: typer.Context) -> None:
+    logger = getLogger()
+    os.makedirs(APP_DIR, exist_ok=True)
+
+    template_app_dir = Path(__file__).with_name('app_dir')
+    entries = os.listdir(template_app_dir)
+
+    for entry in entries:
+        src = Path(template_app_dir) / entry
+        dst = Path(APP_DIR) / entry
+        if os.path.isdir(src):
+            copytree(src, dst, symlinks=True)
+        else:
+            copyfile(src, dst, follow_symlinks=False)
+
+    config = _load_config(ctx)
+    _save_config(ctx, config)
+
+    default_workspace = Path(APP_DIR) / 'workspace.pricom-mainnet'
+    workspace = Path(APP_DIR) / 'workspace'
+    try:
+        os.symlink(default_workspace, workspace)
+    except (NotImplementedError, OSError) as err:
+        logger.warning(f'Cannot create a symbolic link: {err}')
+        copytree(default_workspace, workspace)
+
+    _load_config(ctx, reload=True)
 
 
 def _get_keyfile_password() -> str:
@@ -211,7 +258,7 @@ def _load_contract_libs(ctx: typer.Context):
         util_ph = util.register_library(util.address)
         config.set('metemcyber_util', 'address', util.address)
         config.set('metemcyber_util', 'placeholder', util_ph)
-        _save_config(config)
+        _save_config(ctx, config)
 
 
 def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
@@ -267,7 +314,7 @@ def common_logging(func):
     def wrapper(*args, **kwargs):
         logger = getLogger()
         try:
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
         except Exception as err:
             logger.exception(err)
             typer.echo(f'failed operation: {err}')
@@ -275,8 +322,19 @@ def common_logging(func):
 
 
 @app.callback()
-def app_callback(_ctx: typer.Context):
-    pass
+def app_callback(ctx: typer.Context):
+    # init app directory if it does not exist
+    logger = getLogger()
+    if os.path.exists(APP_DIR):
+        if os.path.isdir(APP_DIR):
+            if not os.path.exists(CONFIG_FILE_PATH):
+                logger.info(f'Run the application directory initialize: {APP_DIR}')
+                _init_app_dir(ctx)
+        else:
+            logger.error(f'Invalid the application directory: {APP_DIR}')
+    else:
+        logger.info(f'Create the application directory: {APP_DIR}')
+        _init_app_dir(ctx)
 
 
 class IntelligenceCategory(str, Enum):
@@ -449,11 +507,11 @@ def new(
 
     logger.info(f"Contents: {display_contents}")
 
-    typer.echo(f'{"":=<32}')
+    typer.echo(f'{"":=<64}')
     typer.echo(f'Event ID: {event_id}')
     typer.echo(f'Category: {formal_category[category]}')
     typer.echo(f'Contents: {display_contents}')
-    typer.echo(f'{"":=<32}')
+    typer.echo(f'{"":=<64}')
 
     answer = typer.confirm('Are you sure you want to create it?', abort=True)
     # run "kedro new --config workflow.yml"
@@ -462,7 +520,7 @@ def new(
         # TODO: manage the project id on workspace directory
         config = _load_config(ctx)
         config.set('general', 'project', event_id)
-        _save_config(config)
+        _save_config(ctx, config)
 
 
 def config_update_catalog(ctx: typer.Context):
@@ -477,7 +535,7 @@ def config_update_catalog(ctx: typer.Context):
                    ','.join(catalog_mgr.active_catalogs.keys()))
         config.set('catalog', 'reserves',
                    ','.join(catalog_mgr.reserved_catalogs.keys()))
-    _save_config(config)
+    _save_config(ctx, config)
     del ctx.meta['catalog_manager']
     Catalog(_load_account(ctx)).uncache(entire=True)
 
@@ -491,7 +549,7 @@ def config_update_broker(ctx: typer.Context):
         config.set('broker', 'address', broker.address)
     except Exception:
         config.remove_section('broker')
-    _save_config(config)
+    _save_config(ctx, config)
 
 
 def config_update_operator(ctx: typer.Context):
@@ -503,7 +561,7 @@ def config_update_operator(ctx: typer.Context):
         config.set('operator', 'address', operator.address)
     except Exception:
         config.remove_section('operator')
-    _save_config(config)
+    _save_config(ctx, config)
 
 
 class TokenInfoEx(TokenInfo):
@@ -555,7 +613,7 @@ def _get_accepting_tokens(ctx: typer.Context) -> List[ChecksumAddress]:
     return solver.solver('accepting_tokens')
 
 
-def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only):
+def _ix_list_tokens(ctx: typer.Context, keyword, mine, mine_only, soldout, own, own_only):
     account = _load_account(ctx)
     try:
         accepting = _get_accepting_tokens(ctx)
@@ -571,15 +629,16 @@ def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only)
         ctx, mine=mine, mine_only=mine_only, soldout=soldout, own=own, own_only=own_only)
     for cid, tokens in sorted(population.items(), reverse=True):
         for tinfo in tokens:
-            mrk = ('o' if tinfo.owner == account.eoa else ' ') + \
-                  ('*' if tinfo.address in accepting else ' ')
+            if keyword.lower() in tinfo.title.lower():
+                mrk = ('o' if tinfo.owner == account.eoa else ' ') + \
+                    ('*' if tinfo.address in accepting else ' ')
 
-            typer.echo(
-                f' {mrk} {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
-                f'     ├ UUID : {tinfo.uuid}' + '\n'
-                f'     ├ Addr : {tinfo.address}' + '\n'
-                f'     └ Price: {tinfo.price} pts / {tinfo.amount} tokens left' +
-                ('' if tinfo.balance == 0 else f' (you have {tinfo.balance})'))
+                typer.echo(
+                    f' {mrk} {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
+                    f'     ├ UUID : {tinfo.uuid}' + '\n'
+                    f'     ├ Addr : {tinfo.address}' + '\n'
+                    f'     └ Price: {tinfo.price} pts / {tinfo.amount} tokens left' +
+                    ('' if tinfo.balance == 0 else f' (you have {tinfo.balance})'))
 
 
 class FlexibleIndexCatalog:
@@ -646,20 +705,21 @@ class FlexibleIndexToken:
 
 @ix_app.command('search', help="Show CTI tokens on the active list of CTI catalogs.")
 def ix_search(ctx: typer.Context,
+              keyword: str,
               mine: bool = typer.Option(True, help='show tokens published by you'),
               mine_only: bool = typer.Option(False),
               soldout: bool = typer.Option(False, help='show soldout tokens'),
               own: bool = typer.Option(True, help='show tokens you own'),
               own_only: bool = typer.Option(False)):
-    _ix_search(ctx, mine, mine_only, soldout, own, own_only)
+    _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only)
 
 
 @common_logging
-def _ix_search(ctx, mine, mine_only, soldout, own, own_only):
+def _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only):
     if (mine_only and not mine) or (own_only and not own):
         typer.echo('contradictory options')
         return
-    _ix_list_tokens(ctx, mine, mine_only, soldout, own, own_only)
+    _ix_list_tokens(ctx, keyword, mine, mine_only, soldout, own, own_only)
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
@@ -708,13 +768,14 @@ def token_create(ctx: typer.Context, initial_supply: int):
 
 
 @common_logging
-def _token_create(ctx, initial_supply):
+def _token_create(ctx, initial_supply) -> Optional[ChecksumAddress]:
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     if initial_supply <= 0:
         raise Exception(f'Invalid initial-supply: {initial_supply}')
     token = Token(account).new(initial_supply, [])
-    typer.echo(f'created a new token. address is {token.address}.')
+    typer.echo(f'created a new token address is {token.address}.')
+    return token.address
 
 
 @contract_token_app.command('mint')
@@ -1208,18 +1269,19 @@ def _catalog_add(ctx, catalog_address, activate):
 
 @contract_catalog_app.command('create', help="Create a new CTI catalog.")
 def catalog_create(ctx: typer.Context,
-                   private: bool = typer.Option(False, help='create a private catalog'),
+                   group: Optional[str] = typer.Option(None, help='permitted user group'),
                    activate: bool = typer.Option(False, help='activate created catalog')):
-    _catalog_create(ctx, private, activate)
+    _catalog_create(ctx, group, activate)
 
 
 @common_logging
-def _catalog_create(ctx, private, activate):
+def _catalog_create(ctx, group, activate):
     _load_contract_libs(ctx)
     account = _load_account(ctx)
-    catalog: Catalog = Catalog(account).new(private)
+    group = group if group else ADDRESS0
+    catalog: Catalog = Catalog(account).new(group)
     typer.echo('deployed a new '
-               f'{"private" if private else "public"} catalog. '
+               f'{"private" if group == ADDRESS0 else "public"} catalog. '
                f'address is {catalog.address}.')
     catalog_add(ctx, str(catalog.address), activate)
 
@@ -1302,24 +1364,132 @@ def check(ctx: typer.Context, viz: bool = typer.Option(
         typer.echo(f'An error occurred while testing the workflow. {err}')
 
 
+def parse_misp_object(filepath: Path) -> Tuple[str, str]:
+    logger = getLogger()
+    uuid = ''
+    title = ''
+    with open(filepath) as fin:
+        try:
+            misp_object = json.load(fin)
+            if 'Event' in misp_object.keys():
+                event = misp_object['Event']
+                if 'uuid' in event.keys():
+                    uuid = event['uuid']
+                if 'info' in event.keys():
+                    title = event['info']
+        except json.JSONDecodeError as err:
+            logger.exception(err)
+            typer.echo(f'An error occurred while parsing your misp object. {err}')
+    return uuid, title
+
+
 @app.command(help="Deploy the CTI token to disseminate CTI.")
-def publish(ctx: typer.Context, catalog: str,
-            token_address: str, uuid: UUID, title: str, price: int):
-    _publish(ctx, catalog, token_address, uuid, title, price)
+def publish(
+        ctx: typer.Context,
+        misp_object: str,
+        catalog: Optional[int] = typer.Option(
+            1,
+            help='A CTI catalog id/address to use for dissemination'),
+    token_address: Optional[str] = typer.Option(
+            None,
+            help='A CTI token address to use for dissemination'),
+        operator_address: Optional[str] = typer.Option(
+            None,
+            help='A CTI operator address to use for dissemination'),
+        uuid: Optional[str] = typer.Option(
+            None,
+            help='The uuid of misp object'),
+        title: Optional[str] = typer.Option(
+            None,
+            help='The title of misp object'),
+        price: Optional[int] = typer.Option(
+            10,
+            help='A price of CTI token (dissemination cost)'),
+        initial_amount: Optional[int] = typer.Option(
+            100,
+            help='An initial supply amount of CTI tokens'),
+        serve_amount: Optional[int] = typer.Option(
+            99,
+            help='An amount of CTI tokens to give CTI broker'),
+):
+    _publish(
+        ctx,
+        misp_object,
+        catalog,
+        token_address,
+        operator_address,
+        uuid,
+        title,
+        price,
+        initial_amount,
+        serve_amount)
 
 
 @common_logging
-def _publish(ctx, catalog, token_address, uuid, title, price):
+def _publish(
+        ctx,
+        misp_object,
+        catalog,
+        token_address,
+        operator_address,
+        uuid,
+        title,
+        price,
+        initial_amount,
+        serve_amount):
+
+    misp_obj_filepath = Path(os.getcwd()) / misp_object
+    typer.echo(misp_obj_filepath)
+    uuid, title = parse_misp_object(misp_obj_filepath)
+
     if len(title) == 0:
         raise Exception(f'Invalid(empty) title')
     if price < 0:
         raise Exception(f'Invalid price: {price}')
-    account = _load_account(ctx)
-    catalog = Catalog(account).get(FlexibleIndexCatalog(ctx, catalog).address)
-    catalog.register_cti(cast(ChecksumAddress, token_address), uuid, title, price)
-    typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
-    catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
-    typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
+    if initial_amount < serve_amount:
+        raise Exception(
+            f'Invalid serve amount in excess of initial supply: {serve_amount} > {initial_amount}')
+    if not operator_address:
+        config = _load_config(ctx)
+        # A Key Error exception is trapped by @common_logging
+        operator_address = config['operator']['address']
+    if token_address:
+        initial_amount = 0
+
+    typer.echo(f'{"":=<64}')
+    typer.echo(f'{title}')
+    typer.echo(f'{"":-<64}')
+    typer.echo(f' - UUID: {uuid}')
+    typer.echo(f' - Price: {price}')
+    if token_address:
+        typer.echo(f' - Charge: {serve_amount} (Token: {token_address})')
+    else:
+        typer.echo(f' - Sales Quantity: {serve_amount} (Initial Supply: {initial_amount})')
+    typer.echo(f' - Exchanger: {operator_address}')
+    typer.echo(f' - Catalog ID/Address: {catalog}')
+    typer.echo(f'{"":=<64}')
+
+    yes = typer.confirm('Are you sure you want to publish it?', abort=True)
+
+    if yes:
+        if not token_address:
+            token_address = _token_create(ctx, initial_amount)
+
+        account = _load_account(ctx)
+        catalog = Catalog(account).get(FlexibleIndexCatalog(ctx, catalog).address)
+        catalog.register_cti(
+            cast(
+                ChecksumAddress,
+                token_address),
+            uuid,
+            title,
+            price,
+            operator_address)
+        typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
+        catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
+        typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
+        catalog.sync_catalog(super_reload=True)
+        _broker_serve(ctx, [catalog.address, token_address], serve_amount)
 
 
 @account_app.command("show", help="Show the current account information.")
@@ -1390,20 +1560,65 @@ def _account_create(ctx: typer.Context):
     current_keyfile = config.get('general', 'keyfile')
     if not current_keyfile or current_keyfile == '/PATH/TO/YOUR/KEYFILE':
         config.set('general', 'keyfile', str(keyfile_path))
-        _save_config(config)
+        _save_config(ctx, config)
         typer.echo('Update your config file.')
+
+
+@account_app.command("airdrop", help="Get some ETH from Promote Code. (for devnet)")
+def account_airdrop(ctx: typer.Context, promote_code: str):
+    _account_airdrop(ctx, promote_code)
+
+
+@common_logging
+def _account_airdrop(ctx: typer.Context, promote_code: str):
+    if len(promote_code) != 64:
+        raise typer.Abort('Invalid promote code.')
+
+    config = _load_config(ctx)
+    url = config['general']['airdrop_url']
+    if not 'http' in url:
+        raise Exception('Invalid airdrop_url:', url)
+
+    account = _load_account(ctx)
+    data = {
+        'address': account.eoa,
+    }
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {promote_code}'
+    }
+
+    req = urllib.request.Request(url, json.dumps(data).encode(), headers)
+    with urllib.request.urlopen(req) as res:
+        body = res.read()
+        content = json.loads(body.decode('utf8'))
+
+    if 'result' in content:
+        if content['result'] == 'ok':
+            typer.echo(f'Airdrop 1000 ETH to {account.eoa}')
+            # HACK: use promote code as API token
+            config['gcs_solver']['functions_token'] = promote_code
+            _save_config(ctx, config)
+            typer.echo('Let me check: metemctl account show')
+        else:
+            typer.echo('Airdrop failed.')
+    else:
+        typer.echo(f'A network error has occurred. {content}')
 
 
 @config_app.command('show', help="Show your config file of metemctl")
 def config_show(ctx: typer.Context,
-                raw: bool = typer.Option(False, help='omit complementing system defaults.')):
-    _config_show(ctx, raw)
+                raw: bool = typer.Option(False, help='omit complementing system defaults.'),
+                general: bool = typer.Option(
+                    False, help='show metemctl.ini instead of config.ini in workspace')):
+    _config_show(ctx, raw, general)
 
 
 @common_logging
-def _config_show(ctx, raw):
+def _config_show(ctx, raw, general):
     if raw:
-        with open(CONFIG_FILE_PATH) as fin:
+        filepath = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
+        with open(filepath) as fin:
             typer.echo(fin.read())
     else:
         typer.echo(config2str(_load_config(ctx)))
@@ -1411,22 +1626,27 @@ def _config_show(ctx, raw):
 
 @config_app.command('edit', help="Edit your config file of metemctl")
 def config_edit(ctx: typer.Context,
-                raw: bool = typer.Option(False, help='omit complementing system defaults.')):
-    _config_edit(ctx, raw)
+                raw: bool = typer.Option(False, help='omit complementing system defaults.'),
+                general: bool = typer.Option(
+                    False, help='edit metemctl.ini instead of config.ini in workspace.')):
+    _config_edit(ctx, raw, general)
 
 
 @common_logging
-def _config_edit(ctx, raw):
+def _config_edit(ctx, raw, general):
+    workspace_conf = _workspace_confpath(ctx)
     if raw:
-        typer.edit(filename=CONFIG_FILE_PATH)
+        filepath = CONFIG_FILE_PATH if general else workspace_conf
+        typer.edit(filename=filepath)
     else:
-        contents = typer.edit(config2str(_load_config(ctx)))
+        config = _load_config(ctx)
+        contents = typer.edit(config2str(config))
+        filepath = workspace_conf if os.path.exists(workspace_conf) else CONFIG_FILE_PATH
         if contents:
-            with open(CONFIG_FILE_PATH, 'w') as fout:
+            with open(filepath, 'wt') as fout:
                 fout.write(contents)
             if '~' in contents:
-                config = _load_config(ctx)
-                _save_config(config)  # expanduser
+                _save_config(ctx, config)  # expanduser
 
 
 @app.command(help="Start an interactive intelligence cycle.")
@@ -1436,7 +1656,7 @@ def console():
 
 @app.command(help="Show practical security services.")
 def external_link():
-    json_path = Path(__file__).with_name('external-links.json')
+    json_path = Path(APP_DIR) / 'external-links.json'
     with open(json_path) as fin:
         services = json.load(fin)
         for service in services:
@@ -1445,8 +1665,15 @@ def external_link():
             typer.echo(f"- {hyperlink}: {service['description']}")
 
 
-def issues():
+@app.command(help="Check Metemcyber issues")
+def issue():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
+
+
+@app.command(help="Access the Application Directoy of Metemcyber")
+def open_app_dir():
+    typer.echo(f"Open {APP_DIR}")
+    typer.launch(APP_DIR)
 
 
 if __name__ == "__main__":

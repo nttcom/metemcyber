@@ -16,21 +16,27 @@
 
 const CTICatalog = artifacts.require("CTICatalog");
 const CTIToken = artifacts.require("CTIToken");
+const AddressGroup = artifacts.require("AddressGroup");
 const {format} = require("util");
+const { BN, constants, expectEvent, expectRevert, singletons } = require('@openzeppelin/test-helpers');
+const { ZERO_ADDRESS } = constants;
 
-contract("Catalog Owner test", async accounts => {
+
+contract("CTICatalog", async accounts => {
   var catalog;
+  var members;
+  const owner = accounts[0];
+  const guest = accounts[1];
 
   it("Owner account should same as tx.origin", async () => {
-    catalogowner = accounts[0];
     catalog = await CTICatalog.deployed();
-    let owner = await catalog.getOwner();
-    assert.equal(owner, catalogowner);
+    let tmp = await catalog.owner();
+    assert.equal(owner, tmp);
   });
 
   it("Register Token test", async () => {
     let token = await CTIToken.deployed();
-    let balance = await token.balanceOf(catalogowner);
+    let balance = await token.balanceOf(owner);
 
     let tokenURI = token.address;
     let uuid = "19941db5-7f5f-4000-b7b0-cd8c3d5564e8"; //dummy uuid
@@ -42,7 +48,7 @@ contract("Catalog Owner test", async accounts => {
     await catalog.registerCti(tokenURI, uuid, title, price, operator);
 
     let values  = await catalog.listTokenURIs();
-    console.log(typeof values);
+    //console.log(typeof values);
     assert.equal(values[0], tokenURI, "tokenURI does not exist");
 
     let cti = await catalog.getCtiInfo(tokenURI);
@@ -53,4 +59,38 @@ contract("Catalog Owner test", async accounts => {
     assert.equal(cti.price, price, "price mismatch!");
     assert.equal(cti.operator, operator, "operator mismatch!");
   });
+
+
+  it("deploy without members", async () => {
+    catalog = await CTICatalog.new(ZERO_ADDRESS, {from: owner});
+    assert.notEqual(ZERO_ADDRESS, catalog.address);
+    assert.equal(true, await catalog.validatePurchase(owner));
+    assert.equal(true, await catalog.validatePurchase(guest));
+  });
+
+  it("set members (switch to private)", async () => {
+    members = await AddressGroup.new({from: owner});
+    await catalog.setMembers(members.address);
+    assert.equal(true, await catalog.validatePurchase(owner));
+    assert.equal(false, await catalog.validatePurchase(guest));
+  });
+
+  it("authorize guest", async () => {
+    await members.add(guest);
+    assert.equal(true, await catalog.validatePurchase(owner));
+    assert.equal(true, await catalog.validatePurchase(guest));
+  });
+
+  it("revoke guest", async () => {
+    await members.remove(guest);
+    assert.equal(true, await catalog.validatePurchase(owner));
+    assert.equal(false, await catalog.validatePurchase(guest));
+  });
+
+  it("unset address group (switch to public)", async () => {
+    await catalog.setMembers(ZERO_ADDRESS);
+    assert.equal(true, await catalog.validatePurchase(owner));
+    assert.equal(true, await catalog.validatePurchase(guest));
+  });
+
 });

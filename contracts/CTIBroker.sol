@@ -24,6 +24,7 @@ import "./CTIToken.sol";
 import "./CTICatalog.sol";
 
 string constant CTIBroker_ContractId = "CTIBroker.sol:CTIBroker";
+import {MetemcyberUtil} from "./MetemcyberUtil.sol";
 
 contract CTIBroker is IERC777Recipient {
 
@@ -69,7 +70,8 @@ contract CTIBroker is IERC777Recipient {
             "not token publisher"
         );
         CTICatalog.Cti memory cti =
-            CTICatalog(catalogAddress).getCtiInfoByAddress(tokenAddress);
+            CTICatalog(catalogAddress).getCtiInfo(
+                MetemcyberUtil.addressToString(tokenAddress));
         require(cti.tokenId > 0, "not a published token");
         require(cti.owner == tx.origin, "not owner");
 
@@ -91,7 +93,8 @@ contract CTIBroker is IERC777Recipient {
         uint256 amount
     ) public {
         CTICatalog.Cti memory cti =
-            CTICatalog(catalogAddress).getCtiInfoByAddress(tokenAddress);
+            CTICatalog(catalogAddress).getCtiInfo(
+                MetemcyberUtil.addressToString(tokenAddress));
         require(cti.owner == tx.origin, "not owner");
         require(_deposit[catalogAddress][tokenAddress] >= amount,
             "too much amount");
@@ -114,7 +117,8 @@ contract CTIBroker is IERC777Recipient {
     ) public payable {
         require(CTICatalog(catalogAddress).validatePurchase(msg.sender), "You can't access the catalog");
         CTICatalog.Cti memory cti =
-            CTICatalog(catalogAddress).getCtiInfoByAddress(tokenAddress);
+            CTICatalog(catalogAddress).getCtiInfo(
+                MetemcyberUtil.addressToString(tokenAddress));
         uint256 paid = msg.value;
         uint256 price = cti.price * 1e18;  //PTS_RATE: 1pts = ?? wei
         int256 change = int256(msg.value - price);

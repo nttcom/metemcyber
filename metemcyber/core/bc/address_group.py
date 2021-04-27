@@ -14,47 +14,58 @@
 #    limitations under the License.
 #
 
-from typing import ClassVar, Dict
+from typing import ClassVar, Dict, List
+
+from eth_typing import ChecksumAddress
 
 from metemcyber.core.bc.contract import Contract, retryable_contract
 
 
 @retryable_contract
-class CTIBroker(Contract):
+class AddressGroup(Contract):
     contract_interface: ClassVar[Dict[int, Dict[str, str]]] = {}
-    contract_id: ClassVar[str] = 'CTIBroker.sol:CTIBroker'
+    contract_id: ClassVar[str] = 'AddressGroup.sol:AddressGroup'
 
-    def consign_token(self, catalog, token, amount):
+    @property
+    def owner(self) -> ChecksumAddress:
         self.log_trace()
-        func = self.contract.functions.consignToken(catalog, token, amount)
-        tx_hash = func.transact()
-        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
-        self.gaslog('consignToken', tx_receipt)
-        if tx_receipt['status'] != 1:
-            raise ValueError('consignToken: transaction failed')
-        self.log_success()
-
-    def takeback_token(self, catalog, token, amount):
-        self.log_trace()
-        func = self.contract.functions.takebackToken(catalog, token, amount)
-        tx_hash = func.transact()
-        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
-        self.gaslog('takebackToken', tx_receipt)
-        if tx_receipt['status'] != 1:
-            raise ValueError('takebackToken: transaction failed')
-        self.log_success()
-
-    def buy_token(self, catalog, token, wei, allow_cheaper=False):
-        self.log_trace()
-        func = self.contract.functions.buyToken(catalog, token, allow_cheaper)
-        tx_hash = func.transact({'value': wei})
-        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
-        self.gaslog('buyToken', tx_receipt)
-        if tx_receipt['status'] != 1:
-            raise ValueError('buyToken: transaction failed')
-        self.log_success()
-
-    def get_amounts(self, catalog, tokens):
-        self.log_trace()
-        func = self.contract.functions.getAmounts(catalog, tokens)
+        func = self.contract.functions.owner()
         return func.call()
+
+    @property
+    def members(self) -> List[ChecksumAddress]:
+        self.log_trace()
+        func = self.contract.functions.listMembers()
+        return func.call()
+
+    def is_member(self, user: ChecksumAddress) -> bool:
+        self.log_trace()
+        func = self.contract.functions.isMember(user)
+        return func.call()
+
+    def add(self, user: ChecksumAddress) -> None:
+        self.log_trace()
+        func = self.contract.functions.add(user)
+        tx_hash = func.transact()
+        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: add')
+        self.log_success()
+
+    def remove(self, user: ChecksumAddress) -> None:
+        self.log_trace()
+        func = self.contract.functions.remove(user)
+        tx_hash = func.transact()
+        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: remove')
+        self.log_success()
+
+    def clear(self) -> None:
+        self.log_trace()
+        func = self.contract.functions.clear()
+        tx_hash = func.transact()
+        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: clear')
+        self.log_success()

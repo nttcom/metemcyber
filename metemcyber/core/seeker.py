@@ -27,6 +27,7 @@ from eth_typing import ChecksumAddress
 from psutil import NoSuchProcess, Process
 from werkzeug.datastructures import EnvironHeaders
 
+from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.operator import Operator
@@ -41,7 +42,7 @@ LOGGER = get_logger(name='seeker', file_prefix='core')
 CONFIG_SECTION = 'seeker'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
-        'downloaded_cti_path': './download',
+        'downloaded_cti_path': f'{APP_DIR}/workspace/download',
         'listen_address': '127.0.0.1',
         'listen_port': '0',
         'ngrok': '0',
@@ -181,8 +182,11 @@ class Seeker():
             return 0, None, 0
         try:
             proc = Process(pid)
-            if proc.cmdline()[:len(Seeker.cmd_args_base)] == Seeker.cmd_args_base:
-                return pid, address, int(str_port)
+            running_seeker = proc.cmdline()[:len(Seeker.cmd_args_base)]
+            if len(running_seeker) > 1 and len(Seeker.cmd_args_base) > 1:
+                # Python path locations are not always the same, so compare with arguments.
+                if running_seeker[1] == Seeker.cmd_args_base[1]:
+                    return pid, address, int(str_port)
             # found pid, but it's not a seeker. remove defunct data.
             LOGGER.info(f'got pid({pid}) which is not a seeker. remove defunct.')
             os.unlink(seeker_pid_filepath(self.app_dir))

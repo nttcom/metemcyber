@@ -68,14 +68,14 @@ class Catalog():
 
     def get(self, address: ChecksumAddress) -> Catalog:
         self.address = address
-        self._sync_catalog()
+        self.sync_catalog()
         return self
 
     def get_by_id(self, catalog_id: int) -> Catalog:
         return self.get(self._catalogs_by_id()[catalog_id].address)
 
-    def new(self, private: bool) -> Catalog:
-        cti_catalog = CTICatalog(self.account).new(private)
+    def new(self, group: ChecksumAddress) -> Catalog:
+        cti_catalog = CTICatalog(self.account).new(group)
         return self.get(cti_catalog.address)
 
     def uncache(self, entire: bool = False) -> None:
@@ -93,10 +93,10 @@ class Catalog():
                     in Catalog.__addressed_catalogs.values()] + [0]
                    ) + 1
 
-    def _sync_catalog(self) -> None:
+    def sync_catalog(self, super_reload: bool = False) -> None:
         assert self.address
         cinfo = self._catalogs_by_address.get(self.address)
-        if not cinfo:
+        if not cinfo or super_reload:
             cinfo = CatalogInfo(self.address, self.catalog_id, None, None, {})
             Catalog.__addressed_catalogs[self.address] = cinfo
             cti_catalog = CTICatalog(self.account).get(self.address)
@@ -128,12 +128,18 @@ class Catalog():
         assert len(tmp) == 1
         return tmp[0]
 
-    def register_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int) -> None:
+    def register_cti(
+            self,
+            token: ChecksumAddress,
+            uuid: UUID,
+            title: str,
+            price: int,
+            operator: ChecksumAddress) -> None:
         if price < 0:
             raise Exception(f'Invalid price: {price}')
         assert self.address
         cti_catalog = CTICatalog(self.account).get(self.address)
-        cti_catalog.register_cti(token, uuid, title, price, '')
+        cti_catalog.register_cti(token, uuid, title, price, operator)
 
     def publish_cti(self, producer: ChecksumAddress, token: ChecksumAddress) -> None:
         assert self.address
