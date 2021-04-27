@@ -50,13 +50,6 @@ def import_data_from_anyrun(source_of_truth: pd.DataFrame):
     if anyrun_url:
         log.info(f"This file exists: {anyrun_url}")
         # ここで手作業を実施する
-        print_formatted_text(
-            HTML(f"<red>{anyrun_url} にアクセスしてhtmlファイルを 02_intermediate に保存してください</red>"))
-        # log.error(f"{anyrun_url} にアクセスしてhtmlファイルを 02_intermediate に保存してください")
-        # result = yes_no_dialog(
-        #    title='Manual action required',
-        #    text=f'{anyrun_url} にアクセスしてhtmlファイルを 02_intermediate に保存してください.\n保存できたらYesを選択、中断する場合はNoを選択してください。'
-        # ).run()
         message_dialog(
             title='Manual action required',
             text=f'{anyrun_url} にアクセスして\nhtmlファイルを 02_intermediate/input.html に保存してください'
