@@ -6,42 +6,47 @@
 source_of_truth:
   type: yaml.YAMLDataSet
   filepath: data/01_raw/source_of_truth.yml
-  layer: raw
+#  layer: raw
 
 anyrun_html:
   type: text.TextDataSet
   filepath: data/02_intermediate/input.html
-  layer: intermediate
+#  layer: intermediate
 
 source_of_truth_from_anyrun:
   type: yaml.YAMLDataSet
   filepath: data/02_intermediate/source_of_truth_from_anyrun.yml
-  layer: intermediate
+#  layer: intermediate
 
-source_of_truth_from_anyrun:
+source_of_truth_with_family:
   type: yaml.YAMLDataSet
-  filepath: data/02_intermediate/source_of_truth_from_anyrun.yml
-  layer: intermediate
+  filepath: data/03_primary/source_of_truth_with_family.yml
+#  layer: intermediate
 
 target_ioc:
   type: pandas.CSVDataSet
   filepath: data/03_primary/ioc.csv
-  layer: intermediate
+#  layer: intermediate
 
 discovered_network_ioc:
   type: pandas.CSVDataSet
   filepath: data/04_feature/discovered_network_ioc.csv
-  layer: feature
+#  layer: feature
 
 discovered_endpoint_ioc:
   type: pandas.CSVDataSet
   filepath: data/04_feature/discovered_endpoint_ioc.csv
-  layer: feature
+#  layer: feature
+
+generated_report:
+  type: text.TextDataSet
+  filepath: data/08_reporting/generated_report.md
+#  layer: reporting
 
 artifact_windows_log:
   type: pandas.CSVDataSet
   filepath: data/01_raw/sysmon-log.csv
-  layer: raw
+#  layer: raw
 
 artifact_pcap:
   type: metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.extras.datasets.pcap_dataset.PcapDataSet

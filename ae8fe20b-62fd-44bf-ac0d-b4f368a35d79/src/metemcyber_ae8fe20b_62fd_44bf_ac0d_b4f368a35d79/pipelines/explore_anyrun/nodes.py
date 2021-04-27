@@ -17,9 +17,12 @@
 import urllib
 import logging
 from typing import List
+import webbrowser
 
 import pandas as pd
 from bs4 import BeautifulSoup
+from prompt_toolkit import print_formatted_text, HTML
+from prompt_toolkit.shortcuts import yes_no_dialog, message_dialog
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +50,17 @@ def import_data_from_anyrun(source_of_truth: pd.DataFrame):
     if anyrun_url:
         log.info(f"This file exists: {anyrun_url}")
         # ここで手作業を実施する
-        log.error(f"{anyrun_url} にアクセスしてhtmlファイルを 02_intermediate に保存してください")
+        print_formatted_text(
+            HTML(f"<red>{anyrun_url} にアクセスしてhtmlファイルを 02_intermediate に保存してください</red>"))
+        # log.error(f"{anyrun_url} にアクセスしてhtmlファイルを 02_intermediate に保存してください")
+        # result = yes_no_dialog(
+        #    title='Manual action required',
+        #    text=f'{anyrun_url} にアクセスしてhtmlファイルを 02_intermediate に保存してください.\n保存できたらYesを選択、中断する場合はNoを選択してください。'
+        # ).run()
+        message_dialog(
+            title='Manual action required',
+            text=f'{anyrun_url} にアクセスして\nhtmlファイルを 02_intermediate/input.html に保存してください'
+        ).run()
     else:
         log.warning(f"File not found: {sha256_hash}")
 
@@ -63,4 +76,8 @@ def extract_data_from_anyrun_html(html: str,
     source_of_truth['reports'][0]['threats'].extend(tags)
     log.info(f"source of truthの情報を更新しました。")
     log.warning(f"マルウェアのIOCを 03_primary/ioc.csv に格納してください")
+    message_dialog(
+        title='Manual action required',
+        text=f'03_primary/ioc.csv に使用するマルウェアのIOCを格納してください'
+    ).run()
     return source_of_truth
