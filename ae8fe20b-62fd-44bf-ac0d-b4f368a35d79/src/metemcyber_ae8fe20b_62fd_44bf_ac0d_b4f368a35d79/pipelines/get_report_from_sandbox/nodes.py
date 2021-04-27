@@ -134,7 +134,6 @@ def extract_data_from_anyrun_html(
                                 'md5': md5,
                                 'sha256': sha256
                             }
-                            #[pid, filename, path, extension, md5, sha256]
                         )
     report['file_activities'] = droppedfiles
 
@@ -142,8 +141,18 @@ def extract_data_from_anyrun_html(
     registry_list = []
     registry = soup.find(class_='process__registry')
     for row in registry.find_all(class_="table-row")[1:]:
-        registry_event = [div.text for div in row.find_all("div")]
-        registry_list.append(registry_event)
+        pid, process, operation, key, name, value = [
+            div.text for div in row.find_all("div")]
+        registry_list.append(
+            {
+                'pid': pid,
+                'process': process,
+                'operation': operation,
+                'key': key,
+                'name': name,
+                'value': value,
+            }
+        )
     report['registry_activities'] = registry_list
 
     source_of_truth['reports'].append(report)
