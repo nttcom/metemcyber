@@ -613,7 +613,7 @@ def _get_accepting_tokens(ctx: typer.Context) -> List[ChecksumAddress]:
     return solver.solver('accepting_tokens')
 
 
-def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only):
+def _ix_list_tokens(ctx: typer.Context, keyword, mine, mine_only, soldout, own, own_only):
     account = _load_account(ctx)
     try:
         accepting = _get_accepting_tokens(ctx)
@@ -629,15 +629,16 @@ def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only)
         ctx, mine=mine, mine_only=mine_only, soldout=soldout, own=own, own_only=own_only)
     for cid, tokens in sorted(population.items(), reverse=True):
         for tinfo in tokens:
-            mrk = ('o' if tinfo.owner == account.eoa else ' ') + \
-                  ('*' if tinfo.address in accepting else ' ')
+            if keyword.lower() in tinfo.title.lower():
+                mrk = ('o' if tinfo.owner == account.eoa else ' ') + \
+                    ('*' if tinfo.address in accepting else ' ')
 
-            typer.echo(
-                f' {mrk} {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
-                f'     ├ UUID : {tinfo.uuid}' + '\n'
-                f'     ├ Addr : {tinfo.address}' + '\n'
-                f'     └ Price: {tinfo.price} pts / {tinfo.amount} tokens left' +
-                ('' if tinfo.balance == 0 else f' (you have {tinfo.balance})'))
+                typer.echo(
+                    f' {mrk} {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
+                    f'     ├ UUID : {tinfo.uuid}' + '\n'
+                    f'     ├ Addr : {tinfo.address}' + '\n'
+                    f'     └ Price: {tinfo.price} pts / {tinfo.amount} tokens left' +
+                    ('' if tinfo.balance == 0 else f' (you have {tinfo.balance})'))
 
 
 class FlexibleIndexCatalog:
@@ -704,20 +705,21 @@ class FlexibleIndexToken:
 
 @ix_app.command('search', help="Show CTI tokens on the active list of CTI catalogs.")
 def ix_search(ctx: typer.Context,
+              keyword: str,
               mine: bool = typer.Option(True, help='show tokens published by you'),
               mine_only: bool = typer.Option(False),
               soldout: bool = typer.Option(False, help='show soldout tokens'),
               own: bool = typer.Option(True, help='show tokens you own'),
               own_only: bool = typer.Option(False)):
-    _ix_search(ctx, mine, mine_only, soldout, own, own_only)
+    _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only)
 
 
 @common_logging
-def _ix_search(ctx, mine, mine_only, soldout, own, own_only):
+def _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only):
     if (mine_only and not mine) or (own_only and not own):
         typer.echo('contradictory options')
         return
-    _ix_list_tokens(ctx, mine, mine_only, soldout, own, own_only)
+    _ix_list_tokens(ctx, keyword, mine, mine_only, soldout, own, own_only)
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
