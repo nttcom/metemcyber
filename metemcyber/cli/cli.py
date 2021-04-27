@@ -19,6 +19,7 @@
 import json
 import os
 import subprocess
+import urllib.request
 from configparser import ConfigParser
 from datetime import datetime, timezone
 from enum import Enum
@@ -69,6 +70,7 @@ DEFAULT_CONFIGS = {
         'misp_json_dumpdir': APP_DIR + '/misp/download',
         'slack_webhook_url': 'SLACK_WEBHOOK_URL',
         'endpoint_url': 'YOUR_ETHEREUM_JSON_RPC_URL',
+        'airdrop_url': 'AIRDROP_FUNCTION_URL',
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
         'workspace': APP_DIR + '/workspace',
     },
@@ -611,7 +613,7 @@ def _get_accepting_tokens(ctx: typer.Context) -> List[ChecksumAddress]:
     return solver.solver('accepting_tokens')
 
 
-def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only):
+def _ix_list_tokens(ctx: typer.Context, keyword, mine, mine_only, soldout, own, own_only):
     account = _load_account(ctx)
     try:
         accepting = _get_accepting_tokens(ctx)
@@ -627,15 +629,16 @@ def _ix_list_tokens(ctx: typer.Context, mine, mine_only, soldout, own, own_only)
         ctx, mine=mine, mine_only=mine_only, soldout=soldout, own=own, own_only=own_only)
     for cid, tokens in sorted(population.items(), reverse=True):
         for tinfo in tokens:
-            mrk = ('o' if tinfo.owner == account.eoa else ' ') + \
-                  ('*' if tinfo.address in accepting else ' ')
+            if keyword.lower() in tinfo.title.lower():
+                mrk = ('o' if tinfo.owner == account.eoa else ' ') + \
+                    ('*' if tinfo.address in accepting else ' ')
 
-            typer.echo(
-                f' {mrk} {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
-                f'     ├ UUID : {tinfo.uuid}' + '\n'
-                f'     ├ Addr : {tinfo.address}' + '\n'
-                f'     └ Price: {tinfo.price} pts / {tinfo.amount} tokens left' +
-                ('' if tinfo.balance == 0 else f' (you have {tinfo.balance})'))
+                typer.echo(
+                    f' {mrk} {cid}-{tinfo.token_id}: {tinfo.title}' + '\n'
+                    f'     ├ UUID : {tinfo.uuid}' + '\n'
+                    f'     ├ Addr : {tinfo.address}' + '\n'
+                    f'     └ Price: {tinfo.price} pts / {tinfo.amount} tokens left' +
+                    ('' if tinfo.balance == 0 else f' (you have {tinfo.balance})'))
 
 
 class FlexibleIndexCatalog:
@@ -702,20 +705,21 @@ class FlexibleIndexToken:
 
 @ix_app.command('search', help="Show CTI tokens on the active list of CTI catalogs.")
 def ix_search(ctx: typer.Context,
+              keyword: str,
               mine: bool = typer.Option(True, help='show tokens published by you'),
               mine_only: bool = typer.Option(False),
               soldout: bool = typer.Option(False, help='show soldout tokens'),
               own: bool = typer.Option(True, help='show tokens you own'),
               own_only: bool = typer.Option(False)):
-    _ix_search(ctx, mine, mine_only, soldout, own, own_only)
+    _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only)
 
 
 @common_logging
-def _ix_search(ctx, mine, mine_only, soldout, own, own_only):
+def _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only):
     if (mine_only and not mine) or (own_only and not own):
         typer.echo('contradictory options')
         return
-    _ix_list_tokens(ctx, mine, mine_only, soldout, own, own_only)
+    _ix_list_tokens(ctx, keyword, mine, mine_only, soldout, own, own_only)
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
@@ -1558,6 +1562,48 @@ def _account_create(ctx: typer.Context):
         config.set('general', 'keyfile', str(keyfile_path))
         _save_config(ctx, config)
         typer.echo('Update your config file.')
+
+
+@account_app.command("airdrop", help="Get some ETH from Promote Code. (for devnet)")
+def account_airdrop(ctx: typer.Context, promote_code: str):
+    _account_airdrop(ctx, promote_code)
+
+
+@common_logging
+def _account_airdrop(ctx: typer.Context, promote_code: str):
+    if len(promote_code) != 64:
+        raise typer.Abort('Invalid promote code.')
+
+    config = _load_config(ctx)
+    url = config['general']['airdrop_url']
+    if not 'http' in url:
+        raise Exception('Invalid airdrop_url:', url)
+
+    account = _load_account(ctx)
+    data = {
+        'address': account.eoa,
+    }
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {promote_code}'
+    }
+
+    req = urllib.request.Request(url, json.dumps(data).encode(), headers)
+    with urllib.request.urlopen(req) as res:
+        body = res.read()
+        content = json.loads(body.decode('utf8'))
+
+    if 'result' in content:
+        if content['result'] == 'ok':
+            typer.echo(f'Airdrop 1000 ETH to {account.eoa}')
+            # HACK: use promote code as API token
+            config['gcs_solver']['functions_token'] = promote_code
+            _save_config(ctx, config)
+            typer.echo('Let me check: metemctl account show')
+        else:
+            typer.echo('Airdrop failed.')
+    else:
+        typer.echo(f'A network error has occurred. {content}')
 
 
 @config_app.command('show', help="Show your config file of metemctl")
