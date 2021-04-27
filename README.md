@@ -6,7 +6,7 @@
 
 </div>
 
-> Decentralized Cyber Threat Intelligence Kaizen Framework. https://metemcyber.ntt.com
+> Decentralized Cyber Threat Intelligence Kaizen Framework. https://www.metemcyber.ntt.com
 
 [![CI](https://github.com/nttcom/metemcyber/actions/workflows/main.yml/badge.svg)](https://github.com/nttcom/metemcyber/actions/workflows/main.yml)
 [![Documentation Status](https://readthedocs.org/projects/metemcyber/badge/?version=latest)](https://metemcyber.readthedocs.io/ja/latest/?badge=latest)
