@@ -1,3 +1,0 @@
-[submodule "demo/besu-sample-networks"]
-	path = demo/besu-sample-networks
-	url = https://github.com/PegaSysEng/besu-sample-networks
