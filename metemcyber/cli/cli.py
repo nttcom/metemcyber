@@ -19,6 +19,7 @@
 import json
 import os
 import subprocess
+import urllib.request
 from configparser import ConfigParser
 from datetime import datetime, timezone
 from enum import Enum
@@ -69,6 +70,7 @@ DEFAULT_CONFIGS = {
         'misp_json_dumpdir': APP_DIR + '/misp/download',
         'slack_webhook_url': 'SLACK_WEBHOOK_URL',
         'endpoint_url': 'YOUR_ETHEREUM_JSON_RPC_URL',
+        'airdrop_url': 'AIRDROP_FUNCTION_URL',
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
         'workspace': APP_DIR + '/workspace',
     },
@@ -1558,6 +1560,48 @@ def _account_create(ctx: typer.Context):
         config.set('general', 'keyfile', str(keyfile_path))
         _save_config(ctx, config)
         typer.echo('Update your config file.')
+
+
+@account_app.command("airdrop", help="Get some ETH from Promote Code. (for devnet)")
+def account_airdrop(ctx: typer.Context, promote_code: str):
+    _account_airdrop(ctx, promote_code)
+
+
+@common_logging
+def _account_airdrop(ctx: typer.Context, promote_code: str):
+    if len(promote_code) != 64:
+        raise typer.Abort('Invalid promote code.')
+
+    config = _load_config(ctx)
+    url = config['general']['airdrop_url']
+    if not 'http' in url:
+        raise Exception('Invalid airdrop_url:', url)
+
+    account = _load_account(ctx)
+    data = {
+        'address': account.eoa,
+    }
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {promote_code}'
+    }
+
+    req = urllib.request.Request(url, json.dumps(data).encode(), headers)
+    with urllib.request.urlopen(req) as res:
+        body = res.read()
+        content = json.loads(body.decode('utf8'))
+
+    if 'result' in content:
+        if content['result'] == 'ok':
+            typer.echo(f'Airdrop 1000 ETH to {account.eoa}')
+            # HACK: use promote code as API token
+            config['gcs_solver']['functions_token'] = promote_code
+            _save_config(ctx, config)
+            typer.echo('Let me check: metemctl account show')
+        else:
+            typer.echo('Airdrop failed.')
+    else:
+        typer.echo(f'A network error has occurred. {content}')
 
 
 @config_app.command('show', help="Show your config file of metemctl")
