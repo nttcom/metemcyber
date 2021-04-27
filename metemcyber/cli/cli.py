@@ -1553,7 +1553,6 @@ def _publish(
     typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
     catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
     typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
-    catalog.sync_catalog(super_reload=True)
     _broker_serve(ctx, [catalog.address, token_address], serve_amount)
 
 
