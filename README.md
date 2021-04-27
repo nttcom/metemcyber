@@ -39,8 +39,13 @@ Metemcyber™ enables security collaboration and assessment all across the organ
 This exercise will be performed on the testnet environment.
 
 ```
-pip install $PACKAGE_NAME[cli]
+git clone -b develop https://github.com/nttcom/metemcyber
+cd metemcyber
+pip install -e .[cli]
 ```
+<!-- ```
+pip install $PACKAGE_NAME[cli]
+``` -->
 
 Check the current configuration:
 
