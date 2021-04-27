@@ -1,0 +1,7 @@
+intelligece_category: Incident Response
+intelligece_contents:
+- IOCs
+output_dir: .
+project_name: ae8fe20b-62fd-44bf-ac0d-b4f368a35d79
+python_package: metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79
+repo_name: ae8fe20b-62fd-44bf-ac0d-b4f368a35d79
