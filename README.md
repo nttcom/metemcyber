@@ -1,6 +1,6 @@
 <div align="center">
 
-[![banner](https://raw.githubusercontent.com/nttcom/metemcyber/main/banner.png)](https://metemcyber.ntt.com)
+[![banner](https://raw.githubusercontent.com/nttcom/metemcyber/main/banner.png)](https://www.metemcyber.ntt.com)
 
 # Metemcyber
 
