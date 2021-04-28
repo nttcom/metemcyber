@@ -116,7 +116,10 @@ class DataPack:
         msg = (self.signed_string + EOM).encode()
         total = 0
         while total < len(msg):
-            tmp = sock.send(msg[total:], socket.SOCK_NONBLOCK)
+            if hasattr(socket, 'SOCK_NONBLOCK'):
+                tmp = sock.send(msg[total:], socket.SOCK_NONBLOCK)
+            else:
+                tmp = sock.send(msg[total:])
             if tmp == 0:
                 raise Exception('Disconnected by peer')
             total += tmp
