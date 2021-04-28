@@ -1,6 +1,6 @@
 <div align="center">
 
-[![banner](https://raw.githubusercontent.com/nttcom/metemcyber/main/banner.png)](https://www.metemcyber.ntt.com)
+[![banner](https://raw.githubusercontent.com/nttcom/metemcyber/develop/images/banner.png)](https://www.metemcyber.ntt.com)
 
 # Metemcyber
 
@@ -17,7 +17,7 @@
 
 ## 💡 Overview
 
-Metemcyber™ enables security collaboration and assessment all across the organization through the intelligence cycle.
+Metemcyber™ enables security collaboration and assessment all across the organization through the [intelligence cycle](https://en.wikipedia.org/wiki/Intelligence_cycle).
 
 - 📖 [**Metemcyber User Documentation**](https://metemcyber.readthedocs.io/)
 
@@ -101,8 +101,8 @@ metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 >Start a daemon to receive data using ngrok:
 >```
 >metemctl seeker start --ngrok
+>metemctl seeker status
 >```
-
 
 Use CTI token to receive the MISP object on your public URL of the ngrok.
 
@@ -115,27 +115,60 @@ metemctl ix use $TOKEN_INDEX_OR_ADDRESS
 In this section, you will run the intelligence cycle using the exercise *ir-exercise* for Incident Response.
 
 ### 🤖 Create a new workflow
+
+Metemcyber can be used not only CTI dissemination but also CTI creation.
+
 ```
 metemctl new　--starter=ir-exercise
 ```
 
+Implement the analysis process into your workflow by selecting the event ID (In many cases, the same as the UUID of MISP object), the category of CTI (Fraud, Incident Response, Risk Analysis, Security Operations, Security Leadership, Vulnerability Management), and the content(IOCs, TTPs, etc.) you want to include in the CTI.
+
+This is an important piece of evidence to check the "Direction" step in the intelligence cycle.
+
+```
+Select Intelligence Category (Fraud, IR, RA, SecOps, SecLead, Vuln) [IR]:
+Input a new event_id(UUID) [70be8ba5-fa7f-4b8e-aa04-dc76e0fa8c42]:
+0: IOC
+1: TTP
+2: Workflow
+Choose contents to be include [0,1]:
+================================================================
+Event ID: 70be8ba5-fa7f-4b8e-aa04-dc76e0fa8c42
+Category: Incident Response
+Contents: ['TTPs', 'IOCs']
+================================================================
+Are you sure you want to create it? [y/N]:
+```
+
 ### 📝 Summarize the data analysis process
+
+> ⚠️ **Make sure Seeker is running** to receive the data.
+>
+>```
+>metemctl seeker status
+>```
+
+You need to use [Kedro](https://github.com/quantumblacklabs/kedro) to summarize your data analysis process into a workflow.
+
+In practice, it is difficult to clearly separate the steps of "Collection", "Processing" and "Analysis" in the intelligence cycle, which makes the data analysis process look complicated.
+
+Please keep the following two points to make the data analysis process more maintainable.
+
+- Using the Kedro pipeline to describe *Analysis Strategy*
+- Using the Kedro nodes to describe *Analysis Method*
+
+These are important pieces of evidence to check the "Processing" and "Analysis" step in the intelligence cycle.
+
+**For the success of the intelligence cycle, we are more focused on evaluating the data analysis process than on automating the CTI consumption process.**
 
 Get data for the exercise *ir-exercise*:
 ```
 metemctl ix search '[ir-exercise]'
-```
-
-```
 metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
-```
-
-```
 metemctl ix use $TOKEN_INDEX_OR_ADDRESS
 
 ```
-
-> ⚠️ In the production, you need to put together a workflow of what you have tried to analyze. By summarizing the process of data analysis, we will be able to objectively judge the usefulness of your analysis methods.
 
 Run the ir-exercise workflow:
 
@@ -149,8 +182,12 @@ Check the contents of your CTI product and the workflow:
 metemctl check --viz
 ```
 
+The `--viz` option allows you to visualize your data analysis process described by the workflow. (the same as `kedro viz`)
+
+![banner](https://raw.githubusercontent.com/nttcom/metemcyber/develop/images/tutorial_kedro_viz.png)
+
 ### 🚀 Disseminate your CTI products to everyone:
-> ⚠️ ***Solver* must be running** for the token holder to receive the data.
+> ⚠️ ***Solver* must be running** to send the data to token holders.
 >
 >```
 >metemctl solver start
@@ -161,7 +198,7 @@ metemctl check --viz
 metemctl publish
 ```
 
-🎉🎉🎉 Welcome to Metemcyber, Dear Awesome CTI Analyst!!!  🎉🎉🎉
+🎉🎉🎉 Welcome to Metemcyber! 🎉🎉🎉
 
 
 ## 📖 Documentation
