@@ -181,6 +181,9 @@ Check the contents of your CTI product and the workflow:
 ```
 metemctl check --viz
 ```
+
+The `--viz` option allows you to visualize your data analysis process described by the workflow.(the same as `kedro viz`)
+
 ![banner](https://raw.githubusercontent.com/nttcom/metemcyber/develop/images/tutorial_kedro_viz.png)
 
 ### 🚀 Disseminate your CTI products to everyone:
