@@ -442,6 +442,9 @@ ipcMain.on('login', async (event, arg) => {
 });
 
 ipcMain.on('get-key', async (event, arg) => {
+  if (!fs.existsSync(keyFilePath)){
+    fs.mkdirSync(keyFilePath);
+  }
   fs.readdir(keyFilePath, (err, files) => {
     if (err) {
       console.error(err);
