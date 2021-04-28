@@ -51,6 +51,7 @@ function Login(props) {
     useEffect(() => {
         sessionStorage.setItem('imageDir', `${ipcRenderer.sendSync('get-imagedir')}metemcyber_logo.png`);
         console.log(__dirname)
+
         setCurrentKeyName(ipcRenderer.sendSync('get-key'));
         if (sessionStorage.getItem('init') === null) {
             ipcRenderer.send('exec-init');
@@ -76,57 +77,45 @@ function Login(props) {
 
     return (
         <div className="app flex-row align-items-center">
-        {setup ?
-            <>
-                初期設定中
-                <Spinner color="primary" />
-                <Modal isOpen={passModalToggle} >
-                        <ModalBody>
-                            <InputGroup style={{ marginBottom: "10px" }}>
-                                <InputGroupAddon addonType="prepend">
-                                </InputGroupAddon>
-                                <Input placeholder="Enter your sudo pass" type="password" value={pass} onChange={handleChange} />
-                            </InputGroup>
-                        </ModalBody>
-                        <ModalFooter>
-                            <Button color="primary" onClick={sendPassword}>OK</Button>{' '}
-                        </ModalFooter>
-                    </Modal>
-            </>
-        :
-            <>
-                <Header className="clearfix">
-                    <Button className="float-right" onClick={toggle} size="sm">Import Key File</Button>
-                </Header>
-                <Container>
-                    <LoginRow className="justify-content-center">
-                        <Col md="8">
-                            <CardGroup>
-                                <LoginCard className="p-6">
-                                    <CardImg top width="100%" src={sessionStorage.getItem('imageDir')} alt="Metemcyber UI" />
-                                    <CardBody>
-                                        <Container>
-                                            <Row>
-                                                <Col md={{ size: 12 }} className="text-center">
-                                                    <p className="text-muted">Your key file</p>
-                                                    <KeyFile style={{ fontSize: "12px" }} className="text-muted">{currentKeyName}</KeyFile>
-                                                </Col>
-                                            </Row>
-                                            <Row>
-                                                <Col md={{ size: 4, offset: 4 }}>
-                                                    <InputGroup>
-                                                        <Input placeholder="Enter your pass" type="password" value={pass} onChange={handleChange} />
-                                                        <Button outline color="secondary" size="md" onClick={handleSubmit} block disabled={loading} style={{marginTop: "10px"}}>{loading ? <Spinner color="primary" /> : "Login"}</Button>
-                                                    </InputGroup>
-                                                </Col>
-                                            </Row>
-                                        </Container>
-                                    </CardBody>
-                                </LoginCard>
-                            </CardGroup>
-                        </Col>
-                    </LoginRow>
-                </Container>
+            {setup ?
+                <LoadingContents>
+                    <Spinner style={{ width: '8rem', height: '8rem' }} color="primary" />
+                    <div style={{ textAlign: "center" }}>Initial setting</div>
+                </LoadingContents>
+                :
+                <>
+                    <Header className="clearfix">
+                        <Button className="float-right" onClick={toggle} size="sm">Import Key File</Button>
+                    </Header>
+                    <Container>
+                        <LoginRow className="justify-content-center">
+                            <Col md="8">
+                                <CardGroup>
+                                    <LoginCard className="p-6">
+                                        <CardImg top width="100%" src={sessionStorage.getItem('imageDir')} alt="Metemcyber UI" />
+                                        <CardBody>
+                                            <Container>
+                                                <Row>
+                                                    <Col md={{ size: 12 }} className="text-center">
+                                                        <p className="text-muted">Your key file</p>
+                                                        <KeyFile style={{ fontSize: "12px" }} className="text-muted">{currentKeyName}</KeyFile>
+                                                    </Col>
+                                                </Row>
+                                                <Row>
+                                                    <Col md={{ size: 4, offset: 4 }}>
+                                                        <InputGroup>
+                                                            <Input placeholder="Enter your pass" type="password" value={pass} onChange={handleChange} />
+                                                            <Button outline color="secondary" size="md" onClick={handleSubmit} block disabled={loading} style={{ marginTop: "10px" }}>{loading ? <Spinner color="primary" /> : "Login"}</Button>
+                                                        </InputGroup>
+                                                    </Col>
+                                                </Row>
+                                            </Container>
+                                        </CardBody>
+                                    </LoginCard>
+                                </CardGroup>
+                            </Col>
+                        </LoginRow>
+                    </Container>
                 </>
             }
             <KeyModal isOpen={modalToggle} toggle={toggle} >
@@ -147,6 +136,18 @@ function Login(props) {
                     <Button color="secondary" onClick={toggle}>Cancel</Button>
                 </ModalFooter>
             </KeyModal>
+            <Modal isOpen={passModalToggle} >
+                <ModalBody>
+                    <InputGroup style={{ marginBottom: "10px" }}>
+                        <InputGroupAddon addonType="prepend">
+                        </InputGroupAddon>
+                        <Input placeholder="Enter your sudo pass" type="password" value={pass} onChange={handleChange} />
+                    </InputGroup>
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="primary" onClick={sendPassword}>OK</Button>{' '}
+                </ModalFooter>
+            </Modal>
         </div>
     );
 }
@@ -185,4 +186,11 @@ const SelectedFile = styled.p`
     display: block;
     margin-top: 25px;
     margin-left: 5px;
+`;
+
+const LoadingContents = styled.div`
+    position: absolute; 
+    top: 50%;
+    left: 50%;
+    transform: translateY(-50%) translateX(-50%);
 `;

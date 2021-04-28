@@ -25,48 +25,48 @@ function Account(props) {
                 :
                 <MainContent>
                     <Card>
-                        <CardHeader>アカウント情報</CardHeader>
+                        <CardHeader>Account Information</CardHeader>
                         <CardBody>
-                            <AccountCardTitle>サマリー</AccountCardTitle>
+                            <AccountCardTitle>Summary</AccountCardTitle>
                             <AccountList type="inline">
-                                <ListInlineLabel>EOAアドレス</ListInlineLabel>
+                                <ListInlineLabel>EOA address</ListInlineLabel>
                                 <ListInlineItem>{content.summary.eoa_address}</ListInlineItem>
                             </AccountList>
                             <AccountList type="inline">
-                                <ListInlineLabel>所持ETH</ListInlineLabel>
+                                <ListInlineLabel>ETH</ListInlineLabel>
                                 <ListInlineItem>{content.summary.eth_balance}</ListInlineItem>
                             </AccountList>
                             <hr />
-                            <AccountCardTitle>コントラクト</AccountCardTitle>
+                            <AccountCardTitle>Contract</AccountCardTitle>
                             <AccountList type="inline">
-                                <ListInlineLabel>カタログアドレス</ListInlineLabel>
+                                <ListInlineLabel>Catalog address</ListInlineLabel>
                                 <ListInlineItem>{content.contract.catalog_address}</ListInlineItem>
                             </AccountList>
                             <AccountList type="inline">
-                                <ListInlineLabel>ブローカーアドレス</ListInlineLabel>
+                                <ListInlineLabel>Broker address</ListInlineLabel>
                                 <ListInlineItem>{content.contract.broker_address}</ListInlineItem>
                             </AccountList>
                             <AccountList type="inline">
-                                <ListInlineLabel>オペレータアドレス</ListInlineLabel>
+                                <ListInlineLabel>Operator address</ListInlineLabel>
                                 <ListInlineItem>{content.contract.operator_address}</ListInlineItem>
                             </AccountList>
                             <hr />
-                            <AccountCardTitle>カタログ</AccountCardTitle>
+                            <AccountCardTitle>Catalog</AccountCardTitle>
                             <AccountList type="inline">
-                                <ListInlineLabel>所持ユニークCTIトークン数</ListInlineLabel>
+                                <ListInlineLabel>Number of unique CTI token</ListInlineLabel>
                                 <ListInlineItem>{content.catalog.number_of_unique_token}</ListInlineItem>
-                                <ListInlineLabel style={{marginLeft: "30px"}}>CTIトークン発行回数</ListInlineLabel>
+                                <ListInlineLabel style={{ marginLeft: "30px" }}>CTI Token issuance count</ListInlineLabel>
                                 <ListInlineItem>{content.catalog.number_of_token_issue}</ListInlineItem>
                             </AccountList>
                             <hr />
-                            <AccountCardTitle>CTIトークン</AccountCardTitle>
+                            <AccountCardTitle>CTI token</AccountCardTitle>
                             {content.tokens.map((val, idx) => {
-                                    return <AccountList type="inline" key={idx}>
-                                        <CTIListLabel>Quantity:</CTIListLabel>
-                                        <ListInlineItem>{val.quantity}</ListInlineItem>
-                                        <CTIListLabel>Addr:</CTIListLabel>
-                                        <ListInlineItem>{val.addr}</ListInlineItem>
-                                    </AccountList>
+                                return <AccountList type="inline" key={idx}>
+                                    <CTIListLabel>Quantity:</CTIListLabel>
+                                    <ListInlineItem>{val.quantity}</ListInlineItem>
+                                    <CTIListLabel>Addr:</CTIListLabel>
+                                    <ListInlineItem>{val.addr}</ListInlineItem>
+                                </AccountList>
                             })}
                         </CardBody>
                     </Card>

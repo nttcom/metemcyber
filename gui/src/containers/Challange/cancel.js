@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Badge, Button, Card, CardHeader, CardBody, Input, InputGroup, InputGroupAddon, List, ListInlineItem, Modal, ModalBody, ModalFooter } from 'reactstrap';
+import { Badge, Button, Card, CardHeader, CardBody, Col, Container, Input, InputGroup, InputGroupAddon, List, ListInlineItem, Modal, ModalBody, ModalFooter, Row } from 'reactstrap';
 import '../default.css';
 
 
@@ -12,6 +12,7 @@ function Cancel(props) {
     const [searchText, setSearchText] = useState(sessionStorage.getItem('searchText'));
     const [modalToggle, setModalToggle] = useState(false);
     const [targetId, setTargetId] = useState('');
+    const [split, setSplit] = useState('12');
 
     useEffect(() => {
         console.log(sessionStorage.getItem('searchText'));
@@ -52,6 +53,10 @@ function Cancel(props) {
         setModalToggle(!modalToggle);
     }
 
+    const handleSplit = (e) => {
+        setSplit(e.currentTarget.id);
+    }
+
     return (
         <div>
             {isLoading ?
@@ -59,44 +64,67 @@ function Cancel(props) {
                     Loading...
                 </div>
                 :
-                <MainContent>
-                    <div className="search">
-                        <InputGroup>
-                            <Input value={searchText} onChange={handleChange} />
-                            <InputGroupAddon addonType="append">
-                                <Button color="secondary" onClick={handleSearch}>検索</Button>
-                                <Button color="secondary" onClick={handleRelease}>解除</Button>
-                            </InputGroupAddon>
-                        </InputGroup>
-                    </div>
-                    <div className="content">
-                        {content.item.map((val, idx) => {
-                            return <div key={idx}>
-                                <ChallengeCard>
-                                   <ChallengeCardHeader><strong>{val.name}</strong></ChallengeCardHeader>
-                                   <ChallengeCardBody>
-                                        <TopList type="inline">
-                                            <ListInlineLabel>Addr</ListInlineLabel>
-                                            <ListInlineItem>{val.addr}</ListInlineItem>
-                                        </TopList>
-                                        <List type="inline">
-                                            <ListInlineLabel>State</ListInlineLabel>
-                                            <ListInlineItem><Badge color="warning">{val.state}</Badge></ListInlineItem>
-                                        </List>
-                                        <Button color="danger" onClick={toggle} value={val.id}>キャンセルを実行</Button>
-                                   </ChallengeCardBody>
-                                </ChallengeCard>
-                            </div>})}
-                            {content.item.length === 0 && "アイテムは存在しません"}
-                        </div>
-                </MainContent>
+                <Container>
+                    <MainContent>
+                        <Row>
+                            <Col>
+                                <div className="search">
+                                    <InputGroup>
+                                        <Input value={searchText} onChange={handleChange} />
+                                        <InputGroupAddon addonType="append">
+                                            <Button color="secondary" onClick={handleSearch}><i className="fas fa-search"></i></Button>
+                                        </InputGroupAddon>
+                                    </InputGroup>
+                                </div>
+                            </Col>
+                        </Row>
+                        <Row>
+                            <Col>
+                                <Button color="link" onClick={handleRelease}>Reset search</Button>
+                            </Col>
+                            <Col>
+                                <Button outline color="secondary float-right" onClick={handleSplit} id="12"><i className="fas fa-list"></i></Button>
+                                <Button outline color="secondary float-right" onClick={handleSplit} id="6"><i className="fas fa-table"></i></Button>
+                            </Col>
+                        </Row>
+                        <Row>
+                            <Col>
+                                <div className="content">
+                                    <Row>
+                                        {content.item.map((val, idx) => {
+                                            return <Col xs={split} key={idx}>
+                                                <div key={idx}>
+                                                    <ChallengeCard>
+                                                        <ChallengeCardHeader><strong>{val.name}</strong></ChallengeCardHeader>
+                                                        <ChallengeCardBody>
+                                                            <TopList type="inline">
+                                                                <ListInlineLabel>Addr</ListInlineLabel>
+                                                                <ListInlineItem>{val.addr.length > 50 && split === "6" ? `${val.addr.slice(50)}...` : val.addr}</ListInlineItem>
+                                                            </TopList>
+                                                            <List type="inline">
+                                                                <ListInlineLabel>State</ListInlineLabel>
+                                                                <ListInlineItem><Badge color="warning">{val.state}</Badge></ListInlineItem>
+                                                            </List>
+                                                            <Button color="danger" onClick={toggle} value={val.id}>Run cancel</Button>
+                                                        </ChallengeCardBody>
+                                                    </ChallengeCard>
+                                                </div>
+                                            </Col>
+                                        })}
+                                        {content.item.length === 0 && "Item does not exist"}
+                                    </Row>
+                                </div>
+                            </Col>
+                        </Row>
+                    </MainContent>
+                </Container>
             }
             <Modal isOpen={modalToggle} toggle={toggle} >
                 <ModalBody>
-                    タスクのキャンセルをします。よろしいでしょうか？
+                    Are you sure you want to run cancel?
                 </ModalBody>
                 <ModalFooter>
-                    <Button color="primary" onClick={handleExecution}>Execute</Button>{' '}
+                    <Button color="primary" onClick={handleExecution}>OK</Button>{' '}
                     <Button color="secondary" onClick={toggle}>Cancel</Button>
                 </ModalFooter>
             </Modal>
