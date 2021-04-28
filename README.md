@@ -122,7 +122,7 @@ Metemcyber can be used not only CTI dissemination but also CTI creation.
 metemctl new　--starter=ir-exercise
 ```
 
-Implement the analysis process into your workflow by selecting the event ID (In many cases, the same as the UUIDMISP object), the category of CTI (Fraud, Incident Response, Risk Analysis, Security Operations, Security Leadership, Vulnerability Management), and the content(IOCs, TTPs, etc.) you want to include in the CTI.
+Implement the analysis process into your workflow by selecting the event ID (In many cases, the same as the UUID of MISP object), the category of CTI (Fraud, Incident Response, Risk Analysis, Security Operations, Security Leadership, Vulnerability Management), and the content(IOCs, TTPs, etc.) you want to include in the CTI.
 
 This is an important piece of evidence to check the "Direction" step in the intelligence cycle.
 
