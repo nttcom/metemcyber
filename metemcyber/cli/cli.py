@@ -775,7 +775,7 @@ def _token_create(ctx, initial_supply) -> Optional[ChecksumAddress]:
     if initial_supply <= 0:
         raise Exception(f'Invalid initial-supply: {initial_supply}')
     token = Token(account).new(initial_supply, [])
-    typer.echo(f'created a new token address is {token.address}.')
+    typer.echo(f'created a new token. address is {token.address}.')
     return token.address
 
 
@@ -1396,7 +1396,7 @@ def parse_misp_object(filepath: Path) -> Tuple[str, str]:
 @app.command(help="Deploy the CTI token to disseminate CTI.")
 def publish(
         ctx: typer.Context,
-        misp_object: str,
+        misp_object: Optional[str] = None,
         catalog: str = typer.Option(
             '1',
             help='A CTI catalog id/address to use for dissemination'),
@@ -1431,18 +1431,26 @@ def publish(
         serve_amount)
 
 
-def _uuid_to_misp_upload_path(_ctx, uuid) -> Path:
-    return Path(f'{APP_DIR}/misp/upload/{str(UUID(uuid))}')
+def _uuid_to_misp_download_path(_ctx, uuid) -> Path:
+    return Path(f'{APP_DIR}/misp/download/{str(UUID(uuid))}')
 
 
-def _fix_misp_object(ctx, misp_object, uuid, title) -> Tuple[str, str, Path]:
+def _address_to_solver_assets_path(ctx, address) -> Path:
+    workspace = _load_config(ctx)['general']['workspace']
+    return Path(f'{workspace}/upload/{address}')
+
+
+def _fix_misp_object(ctx, misp_object, uuid, title) -> Tuple[str, str]:
     if misp_object:
-        misp_obj_filepath = Path(misp_object) if misp_object.startswith('/') else \
-            Path(os.getcwd()) / misp_object
-        typer.echo(f'loading {misp_obj_filepath}.')
-        loaded_uuid, loaded_title = parse_misp_object(misp_obj_filepath)
+        typer.echo(f'loading {misp_object}.')
+        with open(misp_object) as fin:
+            json_misp = json.load(fin)
+            if 'Event' not in json_misp.keys():
+                raise Exception('Unexpected data format: missing "Event"')
+            loaded_uuid = json_misp['Event'].get('uuid')
+            loaded_title = json_misp['Event'].get('info')
     else:
-        misp_obj_filepath = None
+        json_misp = None
         loaded_uuid = loaded_title = ''
 
     if uuid and loaded_uuid and uuid != loaded_uuid:
@@ -1453,19 +1461,28 @@ def _fix_misp_object(ctx, misp_object, uuid, title) -> Tuple[str, str, Path]:
     uuid = str(UUID(uuid))
 
     if title and loaded_title and title != loaded_title:
-        raise Exception(f'Contradictory title: {title}, {loaded_title}')
+        raise Exception(f'Contradictory title: "{title}" vs. "{loaded_title}"')
     title = title if title else loaded_title
     if not title:
         raise Exception('Missing title')
 
-    upload_filepath = _uuid_to_misp_upload_path(ctx, uuid)
-    if upload_filepath == misp_obj_filepath:
-        typer.echo(f'MISP upload file already exists: {upload_filepath}')
+    download_filepath = _uuid_to_misp_download_path(ctx, uuid)
+    if os.path.exists(download_filepath):
+        typer.echo(f'MISP download file already exists: {download_filepath}')
         try:
             typer.confirm('overwrite and continue?', abort=True)
         except Exception as err:
             raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
-    return uuid, title, upload_filepath
+    if json_misp:
+        json_misp['Event']['uuid'] = uuid
+        json_misp['Event']['info'] = title
+    else:
+        json_misp = {'Event': {'uuid': uuid, 'info': title}}
+    with open(download_filepath, 'w') as fout:
+        json.dump(json_misp, fout, ensure_ascii=False, indent=2)
+        typer.echo(f'saved MISP object as {download_filepath}')
+
+    return uuid, title
 
 
 def _fix_amounts(ctx, token_address, initial_amount, serve_amount
@@ -1476,7 +1493,7 @@ def _fix_amounts(ctx, token_address, initial_amount, serve_amount
         raise Exception(f'Invalid serve_amount: {serve_amount}')
     if initial_amount < serve_amount:
         raise Exception(
-            f'Invalid serve amount in excess of initial supply: {serve_amount} > {initial_amount}')
+            f'Serve amount is in excess of initial supply: {serve_amount} > {initial_amount}')
     if token_address:
         account = _load_account(ctx)
         token = Token(account).get(token_address)
@@ -1507,13 +1524,12 @@ def _publish(
         initial_amount,
         serve_amount):
 
-    uuid, title, upload_filepath = _fix_misp_object(ctx, misp_object, uuid, title)
-    notice_token, fix_token = _fix_amounts(ctx, token_address, initial_amount, serve_amount)
     if price < 0:
         raise Exception(f'Invalid price: {price}')
-
     operator_address = _load_operator(ctx).address
     flx_catalog = FlexibleIndexCatalog(ctx, catalog)
+    notice_token, fix_token = _fix_amounts(ctx, token_address, initial_amount, serve_amount)
+    uuid, title = _fix_misp_object(ctx, misp_object, uuid, title)
 
     typer.echo(f'{"":=<64}')
     typer.echo(f'{title}')
@@ -1539,6 +1555,9 @@ def _publish(
         token_address = _token_create(ctx, initial_amount)
     elif fix_token:
         fix_token()  # mint or burn
+    os.symlink(_uuid_to_misp_download_path(ctx, uuid),
+               _address_to_solver_assets_path(ctx, token_address))
+    typer.echo(f'created a symlink of MISP object as a solver asset for token: {token_address}.')
 
     account = _load_account(ctx)
     catalog = Catalog(account).get(flx_catalog.address)
@@ -1640,7 +1659,7 @@ def _account_airdrop(ctx: typer.Context, promote_code: str):
 
     config = _load_config(ctx)
     url = config['general']['airdrop_url']
-    if not 'http' in url:
+    if 'http' not in url:
         raise Exception('Invalid airdrop_url:', url)
 
     account = _load_account(ctx)
