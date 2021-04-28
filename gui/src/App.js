@@ -4,6 +4,9 @@ import Login from './containers/login';
 import DefaultLayout from './containers/defaultLayout';
 import { BrowserRouter, Route, Switch } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.css';
+import '@fortawesome/fontawesome-free/js/fontawesome';
+import '@fortawesome/fontawesome-free/js/solid';
+import '@fortawesome/fontawesome-free/js/regular';
 
 
 class App extends Component {
