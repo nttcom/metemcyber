@@ -37,19 +37,20 @@ CONFIG_SECTION = 'standalone_solver'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
         'listen_address': 'localhost',
-        'contents_root': f'{APP_DIR}/workspace/upload',
+        'assets_path': f'{APP_DIR}/workspace/upload',
     }
 }
+# Note: assets_path should be same with "{general.workspace}/upload".
 
 
 class SimpleHandler(SimpleHTTPRequestHandler):
-    contents_root: ClassVar[str] = ''  # Oops, is there smart way to set contents_root?
+    assets_path: ClassVar[str] = ''  # Oops, is there smart way to set contents_root?
 
     def __init__(self, *args, **kwargs):
-        assert SimpleHandler.contents_root
+        assert SimpleHandler.assets_path
         self.logpref = 'LocalHttpServer'
         SimpleHTTPRequestHandler.__init__(
-            self, *args, directory=SimpleHandler.contents_root, **kwargs)
+            self, *args, directory=SimpleHandler.assets_path, **kwargs)
 
     def do_GET(self):
         SimpleHTTPRequestHandler.do_GET(self)
@@ -68,7 +69,7 @@ class LocalHttpServer():
         self.server = None
         self.addr = addr
         self.port = 0
-        self.contents_root = root
+        self.assets_path = root
         self.handler = SimpleHandler
 
     def start(self):
@@ -78,7 +79,7 @@ class LocalHttpServer():
         self.thread.start()
 
     def run(self):
-        SimpleHandler.contents_root = self.contents_root
+        SimpleHandler.assets_path = self.assets_path
         for _count in range(GET_RANDOM_RETRY_MAX):
             try:
                 self.port = get_random_local_port()
@@ -115,7 +116,7 @@ class Solver(BaseSolver):
         self.fileserver = LocalHttpServer(
             self.account.eoa,
             self.config[CONFIG_SECTION]['listen_address'],
-            self.config[CONFIG_SECTION]['contents_root'])
+            self.config[CONFIG_SECTION]['assets_path'])
         self.fileserver.start()
 
     def destroy(self):
