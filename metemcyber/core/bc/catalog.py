@@ -68,7 +68,7 @@ class Catalog():
 
     def get(self, address: ChecksumAddress) -> Catalog:
         self.address = address
-        self.sync_catalog()
+        self._sync_catalog()
         return self
 
     def get_by_id(self, catalog_id: int) -> Catalog:
@@ -93,10 +93,10 @@ class Catalog():
                     in Catalog.__addressed_catalogs.values()] + [0]
                    ) + 1
 
-    def sync_catalog(self, super_reload: bool = False) -> None:
+    def _sync_catalog(self) -> None:
         assert self.address
         cinfo = self._catalogs_by_address.get(self.address)
-        if not cinfo or super_reload:
+        if not cinfo:
             cinfo = CatalogInfo(self.address, self.catalog_id, None, None, {})
             Catalog.__addressed_catalogs[self.address] = cinfo
             cti_catalog = CTICatalog(self.account).get(self.address)
@@ -140,11 +140,13 @@ class Catalog():
         assert self.address
         cti_catalog = CTICatalog(self.account).get(self.address)
         cti_catalog.register_cti(token, uuid, title, price, operator)
+        self.uncache()
 
     def publish_cti(self, producer: ChecksumAddress, token: ChecksumAddress) -> None:
         assert self.address
         cti_catalog = CTICatalog(self.account).get(self.address)
         cti_catalog.publish_cti(producer, token)
+        self.uncache()
 
     def modify_cti(self, token: ChecksumAddress, uuid: UUID, title: str, price: int) -> None:
         if price < 0:
@@ -152,8 +154,10 @@ class Catalog():
         assert self.address
         cti_catalog = CTICatalog(self.account).get(self.address)
         cti_catalog.modify_cti(token, uuid, title, price, '')
+        self.uncache()
 
     def unregister_cti(self, token: ChecksumAddress) -> None:
         assert self.address
         cti_catalog = CTICatalog(self.account).get(self.address)
         cti_catalog.unregister_cti(token)
+        self.uncache()
