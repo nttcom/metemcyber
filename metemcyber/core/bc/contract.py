@@ -189,7 +189,7 @@ class Contract():
         contract_interface = {}
         try:
             combined_file = combined_json_path(cls.contract_id) + (
-                '' if version < 0 else f'.{version}')  # no suffix for latest
+                '' if version < 0 else f'-{version}')  # no suffix for latest
             with open(combined_file, 'r') as fin:
                 combined_json = json.loads(fin.read())['contracts'][cls.contract_id]
 
