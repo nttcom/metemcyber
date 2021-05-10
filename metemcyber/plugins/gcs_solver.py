@@ -39,6 +39,7 @@ DEFAULT_CONFIGS = {
         'functions_token': 'YOUR_TOKEN_TO_UPLOAD_GCS',
     }
 }
+# Note: assets_path should be same with "{general.workspace}/upload".
 
 
 class Solver(BaseSolver):

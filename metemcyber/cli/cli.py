@@ -26,6 +26,7 @@ from enum import Enum
 from pathlib import Path
 from shutil import copyfile, copytree
 from subprocess import CalledProcessError
+from time import sleep
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 from uuid import UUID, uuid4
 
@@ -774,7 +775,7 @@ def _token_create(ctx, initial_supply) -> Optional[ChecksumAddress]:
     if initial_supply <= 0:
         raise Exception(f'Invalid initial-supply: {initial_supply}')
     token = Token(account).new(initial_supply, [])
-    typer.echo(f'created a new token address is {token.address}.')
+    typer.echo(f'created a new token. address is {token.address}.')
     return token.address
 
 
@@ -918,12 +919,13 @@ def solver_status(ctx: typer.Context):
 
 @solver_app.command('start',
                     help='Start Solver process.')
-def solver_start(ctx: typer.Context):
-    _solver_start(ctx)
+def solver_start(ctx: typer.Context,
+                 enable: bool = typer.Option(False, help='auto enable with default config.')):
+    _solver_start(ctx, enable)
 
 
 @common_logging
-def _solver_start(ctx):
+def _solver_start(ctx, enable):
     try:
         _solver_client(ctx)
         raise Exception('Solver already running.')
@@ -937,6 +939,10 @@ def _solver_start(ctx):
         ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server', '-w', APP_DIR],
         shell=False)
     typer.echo('Solver started as a subprocess.')
+    if enable:
+        typer.echo('Enabling your operator.')
+        sleep(2)
+        _solver_enable(ctx, None, CONFIG_FILE_PATH)
 
 
 @solver_app.command('stop',
@@ -962,6 +968,10 @@ def solver_enable(ctx: typer.Context,
                            'may be required by plugin.'),
                   config: Optional[str] = typer.Option(
                       CONFIG_FILE_PATH, help='solver config filepath')):
+    _solver_enable(ctx, plugin, config)
+
+
+def _solver_enable(ctx, plugin, config):
     logger = getLogger()
     try:
         plugin = plugin if plugin else _load_config(ctx)['solver']['plugin']
@@ -1379,36 +1389,33 @@ def parse_misp_object(filepath: Path) -> Tuple[str, str]:
                     title = event['info']
         except json.JSONDecodeError as err:
             logger.exception(err)
-            typer.echo(f'An error occurred while parsing your misp object. {err}')
+            raise Exception(f'An error occurred while parsing your misp object. {err}') from err
     return uuid, title
 
 
 @app.command(help="Deploy the CTI token to disseminate CTI.")
 def publish(
         ctx: typer.Context,
-        misp_object: str,
-        catalog: Optional[int] = typer.Option(
-            1,
+        misp_object: Optional[str] = None,
+        catalog: str = typer.Option(
+            '1',
             help='A CTI catalog id/address to use for dissemination'),
-    token_address: Optional[str] = typer.Option(
+        token_address: Optional[str] = typer.Option(
             None,
             help='A CTI token address to use for dissemination'),
-        operator_address: Optional[str] = typer.Option(
-            None,
-            help='A CTI operator address to use for dissemination'),
         uuid: Optional[str] = typer.Option(
             None,
             help='The uuid of misp object'),
         title: Optional[str] = typer.Option(
             None,
             help='The title of misp object'),
-        price: Optional[int] = typer.Option(
+        price: int = typer.Option(
             10,
             help='A price of CTI token (dissemination cost)'),
-        initial_amount: Optional[int] = typer.Option(
+        initial_amount: int = typer.Option(
             100,
             help='An initial supply amount of CTI tokens'),
-        serve_amount: Optional[int] = typer.Option(
+        serve_amount: int = typer.Option(
             99,
             help='An amount of CTI tokens to give CTI broker'),
 ):
@@ -1417,12 +1424,92 @@ def publish(
         misp_object,
         catalog,
         token_address,
-        operator_address,
         uuid,
         title,
         price,
         initial_amount,
         serve_amount)
+
+
+def _uuid_to_misp_download_path(_ctx, uuid) -> Path:
+    return Path(f'{APP_DIR}/misp/download/{str(UUID(uuid))}')
+
+
+def _address_to_solver_assets_path(ctx, address) -> Path:
+    workspace = _load_config(ctx)['general']['workspace']
+    return Path(f'{workspace}/upload/{address}')
+
+
+def _fix_misp_object(ctx, misp_object, uuid, title) -> Tuple[str, str]:
+    if misp_object:
+        typer.echo(f'loading {misp_object}.')
+        with open(misp_object) as fin:
+            json_misp = json.load(fin)
+            if 'Event' not in json_misp.keys():
+                raise Exception('Unexpected data format: missing "Event"')
+            loaded_uuid = json_misp['Event'].get('uuid')
+            loaded_title = json_misp['Event'].get('info')
+    else:
+        json_misp = None
+        loaded_uuid = loaded_title = ''
+
+    if uuid and loaded_uuid and uuid != loaded_uuid:
+        raise Exception(f'Contradicory uuid: {uuid}, {loaded_uuid}')
+    uuid = uuid if uuid else loaded_uuid
+    if not uuid:
+        raise Exception('Missing uuid')
+    uuid = str(UUID(uuid))
+
+    if title and loaded_title and title != loaded_title:
+        raise Exception(f'Contradictory title: "{title}" vs. "{loaded_title}"')
+    title = title if title else loaded_title
+    if not title:
+        raise Exception('Missing title')
+
+    download_filepath = _uuid_to_misp_download_path(ctx, uuid)
+    if os.path.exists(download_filepath):
+        typer.echo(f'MISP download file already exists: {download_filepath}')
+        try:
+            typer.confirm('overwrite and continue?', abort=True)
+        except Exception as err:
+            raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
+    if json_misp:
+        json_misp['Event']['uuid'] = uuid
+        json_misp['Event']['info'] = title
+    else:
+        json_misp = {'Event': {'uuid': uuid, 'info': title}}
+    with open(download_filepath, 'w') as fout:
+        json.dump(json_misp, fout, ensure_ascii=False, indent=2)
+        typer.echo(f'saved MISP object as {download_filepath}')
+
+    return uuid, title
+
+
+def _fix_amounts(ctx, token_address, initial_amount, serve_amount
+                 ) -> Tuple[Optional[str], Optional[Callable[[], None]]]:
+    if initial_amount <= 0:
+        raise Exception(f'Invalid initial_amount: {initial_amount}')
+    if serve_amount < 0:
+        raise Exception(f'Invalid serve_amount: {serve_amount}')
+    if initial_amount < serve_amount:
+        raise Exception(
+            f'Serve amount is in excess of initial supply: {serve_amount} > {initial_amount}')
+    if token_address:
+        account = _load_account(ctx)
+        token = Token(account).get(token_address)
+        balance = token.balance_of(account.eoa)
+        diff = balance - initial_amount
+        if diff < 0:
+            return (
+                f'You only have {balance} tokens. {-diff} tokens will be minted.',
+                lambda: token.mint(-diff, account.eoa)
+            )
+        if diff > 0:
+            return (
+                f'You already have {balance} tokens. {diff} tokens will be burned.',
+                lambda: token.burn(diff, '')
+            )
+    return None, None
 
 
 @common_logging
@@ -1431,30 +1518,18 @@ def _publish(
         misp_object,
         catalog,
         token_address,
-        operator_address,
         uuid,
         title,
         price,
         initial_amount,
         serve_amount):
 
-    misp_obj_filepath = Path(os.getcwd()) / misp_object
-    typer.echo(misp_obj_filepath)
-    uuid, title = parse_misp_object(misp_obj_filepath)
-
-    if len(title) == 0:
-        raise Exception(f'Invalid(empty) title')
     if price < 0:
         raise Exception(f'Invalid price: {price}')
-    if initial_amount < serve_amount:
-        raise Exception(
-            f'Invalid serve amount in excess of initial supply: {serve_amount} > {initial_amount}')
-    if not operator_address:
-        config = _load_config(ctx)
-        # A Key Error exception is trapped by @common_logging
-        operator_address = config['operator']['address']
-    if token_address:
-        initial_amount = 0
+    operator_address = _load_operator(ctx).address
+    flx_catalog = FlexibleIndexCatalog(ctx, catalog)
+    notice_token, fix_token = _fix_amounts(ctx, token_address, initial_amount, serve_amount)
+    uuid, title = _fix_misp_object(ctx, misp_object, uuid, title)
 
     typer.echo(f'{"":=<64}')
     typer.echo(f'{title}')
@@ -1463,33 +1538,41 @@ def _publish(
     typer.echo(f' - Price: {price}')
     if token_address:
         typer.echo(f' - Charge: {serve_amount} (Token: {token_address})')
+        if notice_token:
+            typer.echo(f'           <!> {notice_token} <!>')
     else:
         typer.echo(f' - Sales Quantity: {serve_amount} (Initial Supply: {initial_amount})')
     typer.echo(f' - Exchanger: {operator_address}')
-    typer.echo(f' - Catalog ID/Address: {catalog}')
+    typer.echo(f' - Catalog: {flx_catalog.index}: {flx_catalog.address}')
     typer.echo(f'{"":=<64}')
 
-    yes = typer.confirm('Are you sure you want to publish it?', abort=True)
+    try:
+        typer.confirm('Are you sure you want to publish it?', abort=True)
+    except Exception as err:
+        raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
 
-    if yes:
-        if not token_address:
-            token_address = _token_create(ctx, initial_amount)
+    if not token_address:
+        token_address = _token_create(ctx, initial_amount)
+    elif fix_token:
+        fix_token()  # mint or burn
+    os.symlink(_uuid_to_misp_download_path(ctx, uuid),
+               _address_to_solver_assets_path(ctx, token_address))
+    typer.echo(f'created a symlink of MISP object as a solver asset for token: {token_address}.')
 
-        account = _load_account(ctx)
-        catalog = Catalog(account).get(FlexibleIndexCatalog(ctx, catalog).address)
-        catalog.register_cti(
-            cast(
-                ChecksumAddress,
-                token_address),
-            uuid,
-            title,
-            price,
-            operator_address)
-        typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
-        catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
-        typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
-        catalog.sync_catalog(super_reload=True)
-        _broker_serve(ctx, [catalog.address, token_address], serve_amount)
+    account = _load_account(ctx)
+    catalog = Catalog(account).get(flx_catalog.address)
+    catalog.register_cti(
+        cast(
+            ChecksumAddress,
+            token_address),
+        uuid,
+        title,
+        price,
+        operator_address)
+    typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
+    catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
+    typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
+    _broker_serve(ctx, [catalog.address, token_address], serve_amount)
 
 
 @account_app.command("show", help="Show the current account information.")
@@ -1576,7 +1659,7 @@ def _account_airdrop(ctx: typer.Context, promote_code: str):
 
     config = _load_config(ctx)
     url = config['general']['airdrop_url']
-    if not 'http' in url:
+    if 'http' not in url:
         raise Exception('Invalid airdrop_url:', url)
 
     account = _load_account(ctx)
