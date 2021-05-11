@@ -45,7 +45,7 @@ from kedro.framework.context import KedroContext
 @pytest.fixture
 def project_context():
     return KedroContext(
-        package_name="metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79", project_path=Path.cwd()
+        package_name="{{ cookiecutter.python_package }}", project_path=Path.cwd()
     )
 
 
@@ -54,4 +54,4 @@ def project_context():
 # functionality
 class TestProjectContext:
     def test_package_name(self, project_context):
-        assert project_context.package_name == "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79"
+        assert project_context.package_name == "{{ cookiecutter.python_package }}"

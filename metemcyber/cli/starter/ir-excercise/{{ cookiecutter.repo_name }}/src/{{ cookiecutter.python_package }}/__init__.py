@@ -25,20 +25,7 @@
 #
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""ae8fe20b-62fd-44bf-ac0d-b4f368a35d79 file for ensuring the package is executable
-as `ae8fe20b-62fd-44bf-ac0d-b4f368a35d79` and `python -m metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79`
+"""{{ cookiecutter.project_name }}
 """
-from pathlib import Path
 
-from kedro.framework.project import configure_project
-
-from .cli import run
-
-
-def main():
-    configure_project(Path(__file__).parent.name)
-    run()
-
-
-if __name__ == "__main__":
-    main()
+__version__ = "0.1"

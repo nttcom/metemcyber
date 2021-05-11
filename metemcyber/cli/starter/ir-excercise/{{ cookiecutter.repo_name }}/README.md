@@ -1,8 +1,8 @@
-# ae8fe20b-62fd-44bf-ac0d-b4f368a35d79
+# {{ cookiecutter.project_name }}
 
 ## Overview
 
-This is your new Kedro project, which was generated using `Kedro 0.17.2`.
+This is your new Kedro project, which was generated using `Kedro {{ cookiecutter.kedro_version }}`.
 
 Take a look at the [Kedro documentation](https://kedro.readthedocs.io) to get started.
 

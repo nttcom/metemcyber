@@ -29,7 +29,7 @@
 from setuptools import find_packages, setup
 
 entry_point = (
-    "ae8fe20b-62fd-44bf-ac0d-b4f368a35d79 = metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.__main__:main"
+    "{{ cookiecutter.repo_name }} = {{ cookiecutter.python_package }}.__main__:main"
 )
 
 
@@ -45,7 +45,7 @@ with open("requirements.txt", "r", encoding="utf-8") as f:
             requires.append(req)
 
 setup(
-    name="metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79",
+    name="{{ cookiecutter.python_package }}",
     version="0.1",
     packages=find_packages(exclude=["tests"]),
     entry_points={"console_scripts": [entry_point]},

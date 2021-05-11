@@ -44,7 +44,7 @@ artifact_windows_log:
 #  layer: raw
 
 artifact_pcap:
-  type: metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.extras.datasets.pcap_dataset.PcapDataSet
+  type: {{cookiecutter.python_package}}.extras.datasets.pcap_dataset.PcapDataSet
   filepath: data/01_raw/network.pcap
 
 report_template:

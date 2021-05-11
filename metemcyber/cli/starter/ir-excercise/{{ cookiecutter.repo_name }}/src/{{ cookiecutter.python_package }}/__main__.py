@@ -25,27 +25,20 @@
 #
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""{{ cookiecutter.project_name }} file for ensuring the package is executable
+as `{{ cookiecutter.repo_name }}` and `python -m {{ cookiecutter.python_package }}`
+"""
+from pathlib import Path
 
-"""Project settings."""
-from metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.hooks import ProjectHooks
+from kedro.framework.project import configure_project
 
-# Instantiate and list your project hooks here
-HOOKS = (ProjectHooks(),)
+from .cli import run
 
-# List the installed plugins for which to disable auto-registry
-# DISABLE_HOOKS_FOR_PLUGINS = ("kedro-viz",)
 
-# Define where to store data from a KedroSession. Defaults to BaseSessionStore.
-# from kedro.framework.session.store import ShelveStore
-# SESSION_STORE_CLASS = ShelveStore
+def main():
+    configure_project(Path(__file__).parent.name)
+    run()
 
-# Define keyword arguments to be passed to `SESSION_STORE_CLASS` constructor
-# SESSION_STORE_ARGS = {
-#     "path": "./sessions"
-# }
 
-# Define custom context class. Defaults to `KedroContext`
-# CONTEXT_CLASS = KedroContext
-
-# Define the configuration folder. Defaults to `conf`
-# CONF_ROOT = "conf"
+if __name__ == "__main__":
+    main()
