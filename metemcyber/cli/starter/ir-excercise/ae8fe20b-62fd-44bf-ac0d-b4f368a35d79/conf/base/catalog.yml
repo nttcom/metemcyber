@@ -38,11 +38,6 @@ discovered_endpoint_ioc:
   filepath: data/04_feature/discovered_endpoint_ioc.csv
 #  layer: feature
 
-generated_report:
-  type: text.TextDataSet
-  filepath: data/08_reporting/generated_report.md
-#  layer: reporting
-
 artifact_windows_log:
   type: pandas.CSVDataSet
   filepath: data/01_raw/sysmon-log.csv
@@ -51,3 +46,17 @@ artifact_windows_log:
 artifact_pcap:
   type: metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.extras.datasets.pcap_dataset.PcapDataSet
   filepath: data/01_raw/network.pcap
+
+report_template:
+  type: text.TextDataSet
+  filepath: data/01_raw/report_template.j2
+#  layer: intermediate
+
+generated_report:
+  type: text.TextDataSet
+  filepath: data/08_reporting/generated_report.md
+#  layer: reporting
+
+misp_json:
+  type: json.JSONDataSet
+  filepath: data/08_reporting/misp_event.json

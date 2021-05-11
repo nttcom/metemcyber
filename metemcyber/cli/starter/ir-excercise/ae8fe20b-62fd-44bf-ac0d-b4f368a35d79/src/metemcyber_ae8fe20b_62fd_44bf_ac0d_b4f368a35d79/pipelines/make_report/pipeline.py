@@ -15,15 +15,26 @@
 #
 
 from kedro.pipeline import Pipeline, node
-from .nodes import make_report_template
+from .nodes import make_report, make_misp_json
 
 
 def create_pipeline(**kwargs):
-    return Pipeline([node(func=make_report_template,
-                          inputs=["discovered_network_ioc",
-                                  "discovered_endpoint_ioc",
-                                  "source_of_truth_with_family"],
-                          outputs="generated_report",
-                          name="make_report_template",
-                          ),
-                     ])
+    return Pipeline([
+        node(
+            func=make_report,
+            inputs=["discovered_network_ioc",
+                    "discovered_endpoint_ioc",
+                    "source_of_truth_with_family",
+                    "report_template"],
+            outputs="generated_report",
+            name="make_report",
+        ),
+        node(
+            func=make_misp_json,
+            inputs=["discovered_network_ioc",
+                    "discovered_endpoint_ioc",
+                    "source_of_truth_with_family"],
+            outputs="misp_json",
+            name="make_misp_json",
+        ),
+    ])

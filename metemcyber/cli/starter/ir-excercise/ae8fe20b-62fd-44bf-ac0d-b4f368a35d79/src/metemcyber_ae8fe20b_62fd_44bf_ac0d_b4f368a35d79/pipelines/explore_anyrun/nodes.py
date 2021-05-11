@@ -16,7 +16,7 @@
 
 import urllib
 import logging
-from typing import List
+from typing import List, Dict, Any
 import webbrowser
 
 import pandas as pd
@@ -59,7 +59,7 @@ def import_data_from_anyrun(source_of_truth: pd.DataFrame):
 
 
 def extract_data_from_anyrun_html(html: str,
-                                  source_of_truth: pd.DataFrame) -> List[str]:
+                                  source_of_truth: Dict[str, Any]) -> Dict[str, Any]:
     soup = BeautifulSoup(html, "html.parser")
     tags = []
     for info_tag in soup.find('div', class_="info__tags").find_all('a'):
