@@ -19,9 +19,9 @@ logs/**
 # also keep all .gitkeep files
 !.gitkeep
 
-# also keep the example dataset
-!data/01_raw/iris.csv
-
+# also keep the example data
+!data/01_raw/report_template.j2
+!data/01_raw/source_of_truth.yml
 
 ##########################
 # Common files
