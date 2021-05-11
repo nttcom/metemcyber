@@ -398,7 +398,7 @@ def create_data_for_workflow(yml_filepath: Path):
                 copyfile(template, data_file_path)
 
 
-def create_workflow(event_id, category, contents):
+def create_workflow(event_id, category, contents, starter):
     logger = getLogger()
     logger.info(f"Create the workflow: {event_id}")
     # find current directory
@@ -425,7 +425,14 @@ def create_workflow(event_id, category, contents):
     if os.path.isfile(dist_yml_filepath):
         logger.info(f"Run command: kedro new --config {dist_yml_filepath}")
         try:
-            subprocess.run(['kedro', 'new', '--config', dist_yml_filepath], check=True)
+            if starter:
+                starter_path = Path(__file__).parent / 'starter' / starter
+                subprocess.run(['kedro', 'new', '--config',
+                                dist_yml_filepath,
+                                '--starter', starter_path], check=True)
+            else:
+                subprocess.run(['kedro', 'new', '--config',
+                                dist_yml_filepath], check=True)
             create_data_for_workflow(dist_yml_filepath)
         except CalledProcessError as err:
             logger.exception(err)
@@ -466,7 +473,11 @@ def new(
     contents: Optional[List[IntelligenceContents]] = typer.Option(
         None,
         case_sensitive=False,
-        help='Pick up all workflow products (Indicator of Compomise, etc.)',)
+        help='Pick up all workflow products (Indicator of Compomise, etc.)',),
+    starter: Optional[str] = typer.Option(
+        None,
+        case_sensitive=False,
+        help="Enter starter's name when using starter (ir-excercise, etc.)")
 ):
     logger = getLogger()
     # TODO: Use Enum names
@@ -517,7 +528,11 @@ def new(
     answer = typer.confirm('Are you sure you want to create it?', abort=True)
     # run "kedro new --config workflow.yml"
     if answer:
-        create_workflow(event_id, formal_category[category], display_contents)
+        create_workflow(
+            event_id,
+            formal_category[category],
+            display_contents,
+            starter)
         # TODO: manage the project id on workspace directory
         config = _load_config(ctx)
         config.set('general', 'project', event_id)

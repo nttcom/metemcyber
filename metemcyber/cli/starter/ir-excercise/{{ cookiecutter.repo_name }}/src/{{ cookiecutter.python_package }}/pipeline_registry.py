@@ -3,7 +3,7 @@ from typing import Dict
 
 from kedro.pipeline import Pipeline
 
-from metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.pipelines import (
+from {{cookiecutter.python_package}}.pipelines import (
     get_report_from_sandbox as grfs,
     detect_malware_category as dmc,
     export_malware_specific_ioc as emsi,

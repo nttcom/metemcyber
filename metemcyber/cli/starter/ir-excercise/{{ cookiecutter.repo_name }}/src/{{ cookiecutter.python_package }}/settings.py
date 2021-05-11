@@ -27,7 +27,7 @@
 # limitations under the License.
 
 """Project settings."""
-from metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.hooks import ProjectHooks
+from {{cookiecutter.python_package}}.hooks import ProjectHooks
 
 # Instantiate and list your project hooks here
 HOOKS = (ProjectHooks(),)

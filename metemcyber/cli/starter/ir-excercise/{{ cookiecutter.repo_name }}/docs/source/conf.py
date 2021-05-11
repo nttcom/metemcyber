@@ -29,7 +29,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79 documentation build
+# {{ cookiecutter.python_package }} documentation build
 # configuration file, created by sphinx-quickstart.
 #
 # This file is execfile()d with the current directory set to its
@@ -50,11 +50,11 @@ import re
 from kedro.framework.cli.utils import find_stylesheets
 from recommonmark.transform import AutoStructify
 
-from metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79 import __version__ as release
+from {{cookiecutter.python_package}} import __version__ as release
 
 # -- Project information -----------------------------------------------------
 
-project = "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79"
+project = "{{ cookiecutter.python_package }}"
 copyright = "2021, QuantumBlack Visual Analytics Limited"
 author = "QuantumBlack"
 
@@ -149,7 +149,7 @@ html_show_sourcelink = False
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79doc"
+htmlhelp_basename = "{{ cookiecutter.python_package }}"
 
 # -- Options for LaTeX output ------------------------------------------------
 
@@ -177,8 +177,8 @@ latex_elements = {
 latex_documents = [
     (
         master_doc,
-        "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.tex",
-        "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79 Documentation",
+        "{{ cookiecutter.python_package }}.tex",
+        "{{ cookiecutter.python_package }} Documentation",
         "QuantumBlack",
         "manual",
     )
@@ -191,8 +191,8 @@ latex_documents = [
 man_pages = [
     (
         master_doc,
-        "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79",
-        "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79 Documentation",
+        "{{ cookiecutter.python_package }}",
+        "{{ cookiecutter.python_package }} Documentation",
         [author],
         1,
     )
@@ -206,11 +206,11 @@ man_pages = [
 texinfo_documents = [
     (
         master_doc,
-        "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79",
-        "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79 Documentation",
+        "{{ cookiecutter.python_package }}",
+        "{{ cookiecutter.python_package }} Documentation",
         author,
-        "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79",
-        "Project metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79 codebase.",
+        "{{ cookiecutter.python_package }}",
+        "Project {{ cookiecutter.python_package }} codebase.",
         "Data-Science",
     )
 ]

@@ -25,33 +25,20 @@
 #
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+"""{{ cookiecutter.project_name }} file for ensuring the package is executable
+as `{{ cookiecutter.repo_name }}` and `python -m {{ cookiecutter.python_package }}`
 """
-This module contains an example test.
-
-Tests should be placed in ``src/tests``, in modules that mirror your
-project's structure, and in files named test_*.py. They are simply functions
-named ``test_*`` which test a unit of logic.
-
-To run the tests, run ``kedro test`` from the project root directory.
-"""
-
 from pathlib import Path
 
-import pytest
-from kedro.framework.context import KedroContext
+from kedro.framework.project import configure_project
+
+from .cli import run
 
 
-@pytest.fixture
-def project_context():
-    return KedroContext(
-        package_name="metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79", project_path=Path.cwd()
-    )
+def main():
+    configure_project(Path(__file__).parent.name)
+    run()
 
 
-# The tests below are here for the demonstration purpose
-# and should be replaced with the ones testing the project
-# functionality
-class TestProjectContext:
-    def test_package_name(self, project_context):
-        assert project_context.package_name == "metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79"
+if __name__ == "__main__":
+    main()
