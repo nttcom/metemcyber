@@ -157,6 +157,4 @@ def extract_data_from_anyrun_html(
 
     source_of_truth['reports'].append(report)
 
-    print(report)
-
     return source_of_truth  # source_of_truthに追記した新規ファイルを作成する
