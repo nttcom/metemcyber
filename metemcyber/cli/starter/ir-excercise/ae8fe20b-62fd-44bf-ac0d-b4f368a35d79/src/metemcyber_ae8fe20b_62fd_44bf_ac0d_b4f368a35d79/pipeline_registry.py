@@ -3,8 +3,6 @@ from typing import Dict
 
 from kedro.pipeline import Pipeline
 
-#from metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.pipelines import explore_anyrun as ea
-#from metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.pipelines import search_ioc as si
 from metemcyber_ae8fe20b_62fd_44bf_ac0d_b4f368a35d79.pipelines import (
     get_report_from_sandbox as grfs,
     detect_malware_category as dmc,
@@ -37,11 +35,3 @@ def register_pipelines() -> Dict[str, Pipeline]:
         "dmi": detect_malware_infection_pipeline,
         "mr": make_report_pipeline,
     }
-
-    #explore_anyrun_pipeline = ea.create_pipeline()
-    #search_ioc_pipeline = si.create_pipeline()
-    # return {
-    #    "__default__": explore_anyrun_pipeline + search_ioc_pipeline,
-    #    "ea": explore_anyrun_pipeline,
-    #    "si": search_ioc_pipeline,
-    # }
