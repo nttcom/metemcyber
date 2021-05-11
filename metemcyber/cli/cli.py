@@ -477,7 +477,7 @@ def new(
     starter: Optional[str] = typer.Option(
         None,
         case_sensitive=False,
-        help="Enter starter's name when using starter")
+        help="Enter starter's name when using starter (ir-excercise, etc.)")
 ):
     logger = getLogger()
     # TODO: Use Enum names
