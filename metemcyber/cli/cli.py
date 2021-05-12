@@ -446,7 +446,7 @@ def pick_up_contents() -> Optional[List[IntelligenceContents]]:
     contents_selector = list(IntelligenceContents)
     for i, content_type in enumerate(contents_selector):
         typer.echo(f'{i}: {content_type}')
-    items = typer.prompt('Choose contents to be include', "0,1")
+    items = typer.prompt('Choose contents to be include', "0,1,2")
     indices = [int(i) for i in items.split(',') if i.isdecimal()]
     for i in indices:
         if i <= len(contents_selector):
