@@ -14,12 +14,13 @@
 #    limitations under the License.
 #
 
+import sys
 import logging
 import urllib
 from typing import Any, Dict, Optional
 
 from bs4 import BeautifulSoup, element
-from prompt_toolkit.shortcuts import message_dialog
+from prompt_toolkit.shortcuts import yes_no_dialog
 
 
 def search_report_from_anyrun(source_of_truth: Dict[str, Any]) -> Optional[str]:
@@ -50,19 +51,26 @@ def get_report_from_anyrun(anyrun_url: str):
     log = logging.getLogger(__name__)
     log.info("This file exists: {anyrun_url}")
     # ここで手作業を実施する
-    message_dialog(
+    result = yes_no_dialog(
         title='Manual action required',
-        text=f'{anyrun_url} にアクセスして\ntextレポートのhtmlファイルを 02_intermediate/input.html に保存してください'
-    ).run()
+        text=f'{anyrun_url} にアクセスして\ntextレポートのhtmlファイルを 02_intermediate/input.html に保存してください\n'
+        'ダウンロードしたらYesを、中断する場合はNoを選択してください。').run()
+    if not result:
+        log.warning('Abort workflow because aborting save html file')
+        sys.exit()
+    return result
 
 
 def extract_data_from_anyrun_html(
+    exist_htmlfile: bool,
     anyrun_url: str,
     html: str,
     source_of_truth: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Node for parasing anyrun text report html and extract IOC.
     """
+    if not exist_htmlfile:
+        sys.exit()
     soup = BeautifulSoup(html, "html.parser")
 
     # Create data to insert source_of_truth
