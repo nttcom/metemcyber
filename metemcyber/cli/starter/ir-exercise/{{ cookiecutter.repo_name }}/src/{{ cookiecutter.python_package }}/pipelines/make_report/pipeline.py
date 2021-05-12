@@ -15,23 +15,27 @@
 #
 
 from kedro.pipeline import Pipeline, node
-from .nodes import import_data_from_anyrun, extract_data_from_anyrun_html
+
+from .nodes import make_misp_json, make_report
 
 
 def create_pipeline(**kwargs):
-    return Pipeline(
-        [
-            node(
-                func=import_data_from_anyrun,
-                inputs="source_of_truth",
-                outputs=None,  # Save html file by yoursself
-                name="import_data_from_anyrun",
-            ),
-            node(
-                func=extract_data_from_anyrun_html,
-                inputs=["anyrun_html", "source_of_truth"],
-                outputs="source_of_truth_from_anyrun",
-                name="extract_data_from_anyrun_html",
-            ),
-        ]
-    )
+    return Pipeline([
+        node(
+            func=make_report,
+            inputs=["discovered_network_ioc",
+                    "discovered_endpoint_ioc",
+                    "source_of_truth_with_family",
+                    "report_template"],
+            outputs="generated_report",
+            name="make_report",
+        ),
+        node(
+            func=make_misp_json,
+            inputs=["discovered_network_ioc",
+                    "discovered_endpoint_ioc",
+                    "source_of_truth_with_family"],
+            outputs="misp_json",
+            name="make_misp_json",
+        ),
+    ])

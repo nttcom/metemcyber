@@ -15,17 +15,34 @@
 #
 
 from kedro.pipeline import Pipeline, node
-from .nodes import select_malware_from_threats
+
+from .nodes import (
+    extract_data_from_anyrun_html,
+    get_report_from_anyrun,
+    search_report_from_anyrun,
+)
 
 
 def create_pipeline(**kwargs):
     return Pipeline(
         [
             node(
-                func=select_malware_from_threats,
-                inputs="source_of_truth_from_anyrun",
-                outputs="source_of_truth_with_family",
-                name="select_malware_from_threats",
+                func=search_report_from_anyrun,
+                inputs="source_of_truth",
+                outputs="anyrun_url",
+                name="search_report_from_anyrun",
+            ),
+            node(
+                func=get_report_from_anyrun,
+                inputs="anyrun_url",
+                outputs=None,   # Save html file by yoursself
+                name="get_report_html"
+            ),
+            node(
+                func=extract_data_from_anyrun_html,
+                inputs=["anyrun_url", "anyrun_html", "source_of_truth"],
+                outputs="source_of_truth_from_anyrun",
+                name="extract_data_from_anyrun_html",
             ),
         ]
     )

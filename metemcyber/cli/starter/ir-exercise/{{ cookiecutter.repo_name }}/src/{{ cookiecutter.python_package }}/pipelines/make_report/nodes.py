@@ -14,16 +14,14 @@
 #    limitations under the License.
 #
 
-import re
 import json
 import logging
-from typing import Dict, List, Any, Optional
+import re
+from typing import Any, Dict
 
 import pandas as pd
-from pymisp import PyMISP, MISPEvent, MISPObject
-from jinja2 import Template, Environment, FileSystemLoader
-from prompt_toolkit import print_formatted_text, HTML
-from prompt_toolkit.shortcuts import yes_no_dialog, message_dialog
+from jinja2 import Template
+from pymisp import MISPEvent
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +31,8 @@ def make_misp_json(
     discovered_endpoint_ioc: pd.DataFrame,
     source_of_truth_with_family: pd.DataFrame,
 ) -> Dict[str, Any]:
+    """Node for creating MISP report json
+    """
     # create MISP event
     event_obj = MISPEvent()
 
@@ -70,6 +70,8 @@ def make_report(
     source_of_truth_with_family: pd.DataFrame,
     report_template: str,
 ) -> str:
+    """Node for creating Markdown report
+    """
     # 共通するパラメータの取得
     parameters = {
         'date': source_of_truth_with_family['reports'][0]['timestamp'],
