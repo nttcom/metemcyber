@@ -3,13 +3,11 @@ from typing import Dict
 
 from kedro.pipeline import Pipeline
 
-from {{cookiecutter.python_package}}.pipelines import (
-    get_report_from_sandbox as grfs,
-    detect_malware_category as dmc,
-    export_malware_specific_ioc as emsi,
-    detect_malware_infection as dmi,
-    make_report as mr
-)
+from {{cookiecutter.python_package}}.pipelines import detect_malware_category as dmc
+from {{cookiecutter.python_package}}.pipelines import detect_malware_infection as dmi
+from {{cookiecutter.python_package}}.pipelines import export_malware_specific_ioc as emsi
+from {{cookiecutter.python_package}}.pipelines import get_report_from_sandbox as grfs
+from {{cookiecutter.python_package}}.pipelines import make_report as mr
 
 
 def register_pipelines() -> Dict[str, Pipeline]:

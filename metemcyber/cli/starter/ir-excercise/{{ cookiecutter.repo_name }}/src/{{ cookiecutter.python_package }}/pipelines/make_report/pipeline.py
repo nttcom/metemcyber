@@ -15,7 +15,8 @@
 #
 
 from kedro.pipeline import Pipeline, node
-from .nodes import make_report, make_misp_json
+
+from .nodes import make_misp_json, make_report
 
 
 def create_pipeline(**kwargs):

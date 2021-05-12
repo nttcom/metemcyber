@@ -14,16 +14,14 @@
 #    limitations under the License.
 #
 
-import re
 import json
 import logging
-from typing import Dict, List, Any, Optional
+import re
+from typing import Any, Dict
 
 import pandas as pd
-from pymisp import PyMISP, MISPEvent, MISPObject
-from jinja2 import Template, Environment, FileSystemLoader
-from prompt_toolkit import print_formatted_text, HTML
-from prompt_toolkit.shortcuts import yes_no_dialog, message_dialog
+from jinja2 import Template
+from pymisp import MISPEvent
 
 log = logging.getLogger(__name__)
 

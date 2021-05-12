@@ -14,15 +14,13 @@
 #    limitations under the License.
 #
 
-import urllib
 import logging
-from typing import List, Dict, Any
-import webbrowser
+import urllib
+from typing import Any, Dict
 
 import pandas as pd
 from bs4 import BeautifulSoup
-from prompt_toolkit import print_formatted_text, HTML
-from prompt_toolkit.shortcuts import yes_no_dialog, message_dialog
+from prompt_toolkit.shortcuts import message_dialog
 
 log = logging.getLogger(__name__)
 
