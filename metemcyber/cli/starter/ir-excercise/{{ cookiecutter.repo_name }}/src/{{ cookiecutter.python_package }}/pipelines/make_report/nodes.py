@@ -31,6 +31,8 @@ def make_misp_json(
     discovered_endpoint_ioc: pd.DataFrame,
     source_of_truth_with_family: pd.DataFrame,
 ) -> Dict[str, Any]:
+    """Node for creating MISP report json
+    """
     # create MISP event
     event_obj = MISPEvent()
 
@@ -68,6 +70,8 @@ def make_report(
     source_of_truth_with_family: pd.DataFrame,
     report_template: str,
 ) -> str:
+    """Node for creating Markdown report
+    """
     # 共通するパラメータの取得
     parameters = {
         'date': source_of_truth_with_family['reports'][0]['timestamp'],

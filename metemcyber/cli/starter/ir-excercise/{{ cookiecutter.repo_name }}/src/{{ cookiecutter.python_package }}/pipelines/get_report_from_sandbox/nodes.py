@@ -21,10 +21,11 @@ from typing import Any, Dict, Optional
 from bs4 import BeautifulSoup, element
 from prompt_toolkit.shortcuts import message_dialog
 
-log = logging.getLogger(__name__)
-
 
 def search_report_from_anyrun(source_of_truth: Dict[str, Any]) -> Optional[str]:
+    """Node for searching report from anyrun
+    """
+    log = logging.getLogger(__name__)
     sha256_hash = source_of_truth['sha256']
     anyrun_url = f"https://any.run/report/{sha256_hash}"
 
@@ -44,6 +45,9 @@ def search_report_from_anyrun(source_of_truth: Dict[str, Any]) -> Optional[str]:
 
 
 def get_report_from_anyrun(anyrun_url: str):
+    """Node for getting text report from anyrun
+    """
+    log = logging.getLogger(__name__)
     log.info("This file exists: {anyrun_url}")
     # ここで手作業を実施する
     message_dialog(
@@ -57,6 +61,8 @@ def extract_data_from_anyrun_html(
     html: str,
     source_of_truth: Dict[str, Any]
 ) -> Dict[str, Any]:
+    """Node for parasing anyrun text report html and extract IOC.
+    """
     soup = BeautifulSoup(html, "html.parser")
 
     # Create data to insert source_of_truth
