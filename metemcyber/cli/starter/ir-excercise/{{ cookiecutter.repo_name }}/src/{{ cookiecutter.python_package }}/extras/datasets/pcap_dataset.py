@@ -1,4 +1,3 @@
-from copy import deepcopy
 from pathlib import PurePosixPath
 from typing import Any, Dict, List, Tuple
 
@@ -6,15 +5,14 @@ import dpkt
 import fsspec
 from kedro.io.core import (
     AbstractDataSet,
-    DataSetError,
-    get_filepath_str,
     get_protocol_and_path,
 )
 
 
 class PcapDataSet(AbstractDataSet):
     def __init__(self, filepath: str):
-        """Creates a new instance of scapy.plist.PacketList to load / save image data for given filepath.
+        """Creates a new instance of scapy.plist.PacketList to load /
+           save image data for given filepath.
 
         Args:
             filepath: The location of the image file to load / save data.

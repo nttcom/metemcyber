@@ -22,8 +22,6 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from prompt_toolkit.shortcuts import message_dialog
 
-log = logging.getLogger(__name__)
-
 
 def check_anyrun(sha256_hash: str) -> str:
     anyrun_url = f"https://any.run/report/{sha256_hash}"
@@ -40,24 +38,24 @@ def check_anyrun(sha256_hash: str) -> str:
     return None
 
 
-# def import_data_from_anyrun(model: pd.DataFrame) -> pd.DataFrame:
 def import_data_from_anyrun(source_of_truth: pd.DataFrame):
-
     sha256_hash = source_of_truth['sha256']
     anyrun_url = check_anyrun(sha256_hash)
+    log = logging.getLogger(__name__)
     if anyrun_url:
-        log.info(f"This file exists: {anyrun_url}")
+        log.info("This file exists: %s", anyrun_url)
         # ここで手作業を実施する
         message_dialog(
             title='Manual action required',
             text=f'{anyrun_url} にアクセスして\nhtmlファイルを 02_intermediate/input.html に保存してください'
         ).run()
     else:
-        log.warning(f"File not found: {sha256_hash}")
+        log.warning("File not found: %s", sha256_hash)
 
 
 def extract_data_from_anyrun_html(html: str,
                                   source_of_truth: Dict[str, Any]) -> Dict[str, Any]:
+    log = logging.getLogger(__name__)
     soup = BeautifulSoup(html, "html.parser")
     tags = []
     for info_tag in soup.find('div', class_="info__tags").find_all('a'):
@@ -65,10 +63,10 @@ def extract_data_from_anyrun_html(html: str,
     print(tags)
 
     source_of_truth['reports'][0]['threats'].extend(tags)
-    log.info(f"source of truthの情報を更新しました。")
-    log.warning(f"マルウェアのIOCを 03_primary/ioc.csv に格納してください")
+    log.info("source of truthの情報を更新しました。")
+    log.warning("マルウェアのIOCを 03_primary/ioc.csv に格納してください")
     message_dialog(
         title='Manual action required',
-        text=f'03_primary/ioc.csv に使用するマルウェアのIOCを格納してください'
+        text='03_primary/ioc.csv に使用するマルウェアのIOCを格納してください'
     ).run()
     return source_of_truth
