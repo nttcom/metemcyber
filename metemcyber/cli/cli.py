@@ -1367,6 +1367,109 @@ def misp_open(ctx: typer.Context):
         logger.error(err)
 
 
+class IAPAuth(requests.auth.AuthBase):
+
+    def __init__(self, ctx):
+        self.client_id = _load_config(ctx)['misp']['gcp_client_id']
+
+        credential_path = _load_config(ctx)['misp']['gcp_cloud_iap_cred']
+        if credential_path:
+            # Set the GOOGLE_APPLICATION_CREDENTIALS to use service account
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = str(credential_path)
+
+    def __call__(self, r):
+        open_id_connect_token = id_token.fetch_id_token(Request(), self.client_id)
+        r.headers['Proxy-Authorization'] = 'Bearer {}'.format(open_id_connect_token)
+        return r
+
+
+class MISPClient():
+    def __init__(self, url, api_key, ssl_cert=2, auth=None):
+        if ssl_cert == 0:
+            urllib3.disable_warnings()
+        self.misp = pymisp.PyMISP(url, api_key, ssl_cert == 2, auth=auth)
+
+    def get_event(self, event_id):
+        return self.misp.get_event(event_id)
+
+    def search(self, **kwargs):
+        return self.misp.search(**kwargs)
+
+    def search_index(self, **kwargs):
+        return self.misp.search_index(**kwargs)
+
+    def add_event(self, event_obj):
+        return self.misp.add_event(event_obj)
+
+    def update_event(self, event_obj):
+        return self.misp.update_event(event_obj)
+
+
+def dump_json(data, dumpdir, force=False, indent=None):
+    try:
+        uuid = data['Event']['uuid']
+        if len(uuid) == 0:
+            raise Exception('Empty UUID')
+    except Exception as err:
+        raise Exception('Unexpected data: missing Event or UUID') from err
+
+    filename = uuid + '.json'
+    fpath = Path(dumpdir) / filename
+    if os.path.isfile(fpath) and not force:
+        raise Exception(f'already exists: {fpath}')
+    with open(fpath, 'w') as fout:
+        json.dump(data, fout, indent=indent, ensure_ascii=False)
+
+    return fpath
+
+
+def build_query():
+    basequery = "search"
+    query_string = basequery + " limit=100 page=1"
+    query_array = re.split(r'\s+', query_string)
+    qname = query_array[0]
+    qargs = query_array[1:]
+    query = dict()
+    for token in qargs:
+        key, val = token.split('=')
+        query[key] = val
+
+    return qname, query
+
+
+@misp_app.command("fetch", help="Export events from your MISP instance.")
+def misp_fetch(ctx: typer.Context):
+    logger = getLogger()
+    url = _load_config(ctx)['misp']['url']
+    api_key = _load_config(ctx)['misp']['api_key']
+    ssl_cert = int(_load_config(ctx)['misp']['ssl_cert'])
+    logger.info(f"Ferch MISP: {url}")
+
+    json_dumpdir = Path(_load_config(ctx)['misp']['workspace'])
+
+    client_id = _load_config(ctx)['misp']['gcp_client_id']
+    if client_id:
+        client = MISPClient(url, api_key, ssl_cert, auth=IAPAuth(ctx))
+    else:
+        client = MISPClient(url, api_key, ssl_cert)
+
+    # send query
+    qname, query = build_query()
+    result = getattr(client, qname)(**query)
+
+    # separate json data
+    results = result if isinstance(result, list) else [result]
+
+    # store json file
+    indent = 2
+    for val in results:
+        try:
+            fpath = dump_json(val, json_dumpdir, True, indent)
+            print(f'dumped to {fpath}')
+        except OSError as err:
+            print(err)
+
+
 @app.command(help="Run the current intelligence workflow.")
 def run(ctx: typer.Context):
     logger = getLogger()
