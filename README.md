@@ -67,7 +67,7 @@ Display your account details you are currently using:
 metemctl account show
 ```
 
-> ⚠️ **You must agree to [the terms of service](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u).** This is a experimental project on the enterprise ethereum of NTT Communications. **You will get a promo code if you agree to these terms.**
+> ⚠️ **You must agree to [the terms of service](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u).** This is an experimental project on the enterprise ethereum of NTT Communications. **You will get a promo code if you agree to these terms.**
 
 Get a promo code via email, and airdrop yourself some ETH to get started:
 
@@ -116,7 +116,7 @@ In this section, you will run the intelligence cycle using the exercise *ir-exer
 
 ### 🤖 Create a new workflow
 
-Metemcyber can be used not only CTI dissemination but also CTI creation.
+Metemcyber can be used not only for CTI dissemination but also CTI creation.
 
 ```
 metemctl new　--starter=ir-exercise
