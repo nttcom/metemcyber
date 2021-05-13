@@ -1238,6 +1238,7 @@ def _operator_set(ctx, operator_address):
         typer.echo('you should restart seeker and solver, if launched.')
 
 
+@ix_catalog_app.command('show', help="Show the list of CTI catalogs")
 @contract_catalog_app.command('show', help="Show the list of CTI catalogs")
 def catalog_show(ctx: typer.Context):
     _catalog_show(ctx)
