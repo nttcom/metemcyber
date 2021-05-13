@@ -859,19 +859,18 @@ def seeker_start(ctx: typer.Context,
                  ngrok: Optional[bool] = typer.Option(
                      None,
                      help='Launch ngrok with seeker. the default depends on your configuration '
-                          'of ngrok in seeker section.'),
-                 config: Optional[str] = typer.Option(
-                     CONFIG_FILE_PATH, help='seeker config filepath')):
-    _seeker_start(ctx, ngrok, config)
+        'of ngrok in seeker section.')):
+    _seeker_start(ctx, ngrok)
 
 
 @common_logging
-def _seeker_start(ctx, ngrok, config):
+def _seeker_start(ctx, ngrok):
     if ngrok is None:
         ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
     endpoint_url = _load_config(ctx)['general']['endpoint_url']
     if not endpoint_url:
         raise Exception('Missing configuration: endpoint_url')
+    config = _workspace_confpath(ctx)
     seeker = Seeker(APP_DIR, _load_operator(ctx).address, endpoint_url, config)
     seeker.start()
     typer.echo(f'seeker started on process {seeker.pid}, '
@@ -967,7 +966,7 @@ def _solver_start(ctx, enable):
     if enable:
         typer.echo('Enabling your operator.')
         sleep(2)
-        _solver_enable(ctx, None, CONFIG_FILE_PATH)
+        _solver_enable(ctx, None)
 
 
 @solver_app.command('stop',
@@ -985,18 +984,17 @@ def _solver_stop(ctx):
 
 @solver_app.command('enable',
                     help='Solver start running with operator you configured.')
-def solver_enable(ctx: typer.Context,
+def solver_enable(
+    ctx: typer.Context,
                   plugin: Optional[str] = typer.Option(
                       None,
                       help='solver plugin filename. the default depends on your configuration of '
                            'plugin in solver section. please note that another configuration '
-                           'may be required by plugin.'),
-                  config: Optional[str] = typer.Option(
-                      CONFIG_FILE_PATH, help='solver config filepath')):
-    _solver_enable(ctx, plugin, config)
+        'may be required by plugin.')):
+    _solver_enable(ctx, plugin)
 
 
-def _solver_enable(ctx, plugin, config):
+def _solver_enable(ctx, plugin):
     logger = getLogger()
     try:
         plugin = plugin if plugin else _load_config(ctx)['solver']['plugin']
@@ -1008,6 +1006,7 @@ def _solver_enable(ctx, plugin, config):
             ctx.meta['account'] = account
         operator = _load_operator(ctx)
         solver = _solver_client(ctx, account=account)
+        config = _workspace_confpath(ctx)
         applied = solver.new_solver(
             operator.address, pkey, pluginfile=plugin, configfile=str(config))
 
