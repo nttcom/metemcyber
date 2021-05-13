@@ -26,6 +26,7 @@ Metemcyber™ enables security collaboration and assessment all across the organ
 **Anyone can make a successful intelligence cycle.**
 
 - Content-oriented Workflow
+- Comparable Data Analysis Process
 - Fault-tolerant Collaboration
 - Disclosure Control of CTIs
 - Measuring the Cost-Effectiveness of CTIs
