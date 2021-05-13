@@ -35,12 +35,16 @@ def create_pipeline(**kwargs):
             node(
                 func=get_report_from_anyrun,
                 inputs="anyrun_url",
-                outputs=None,   # Save html file by yoursself
+                outputs="exist_htmlfile",   # Save html file by yoursself
                 name="get_report_html"
             ),
             node(
                 func=extract_data_from_anyrun_html,
-                inputs=["anyrun_url", "anyrun_html", "source_of_truth"],
+                inputs=[
+                    "exist_htmlfile",
+                    "anyrun_url",
+                    "anyrun_html",
+                    "source_of_truth"],
                 outputs="source_of_truth_from_anyrun",
                 name="extract_data_from_anyrun_html",
             ),
