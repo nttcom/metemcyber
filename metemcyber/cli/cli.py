@@ -102,7 +102,7 @@ DEFAULT_CONFIGS = {
         'url': 'YOUR_MISP_URL',
         'api_key': 'YOUR_MISP_API_KEY',
         'ssl_cert': '2',
-        'workspace': str(Path(APP_DIR) / 'misp' / 'events'),
+        'download': str(Path(APP_DIR) / 'misp' / 'download'),
         'gcp_cloud_iap_cred': '',
         'gcp_client_id': '',
     }
@@ -1445,7 +1445,7 @@ def misp_fetch(ctx: typer.Context):
     ssl_cert = int(_load_config(ctx)['misp']['ssl_cert'])
     logger.info(f"Ferch MISP: {url}")
 
-    json_dumpdir = Path(_load_config(ctx)['misp']['workspace'])
+    json_dumpdir = Path(_load_config(ctx)['misp']['download'])
 
     client_id = _load_config(ctx)['misp']['gcp_client_id']
     if client_id:
@@ -1472,7 +1472,7 @@ def misp_fetch(ctx: typer.Context):
 
 @misp_app.command("event", help="Show exported MISP events")
 def misp_event(ctx: typer.Context):
-    json_dumpdir = Path(_load_config(ctx)['misp']['workspace'])
+    json_dumpdir = Path(_load_config(ctx)['misp']['download'])
 
     files = json_dumpdir.glob('*.json')
     for file in files:
