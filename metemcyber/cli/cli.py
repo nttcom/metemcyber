@@ -18,6 +18,7 @@
 
 import json
 import os
+import re
 import subprocess
 import urllib.request
 from configparser import ConfigParser
@@ -31,9 +32,14 @@ from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 from uuid import UUID, uuid4
 
 import eth_account
+import pymisp
+import requests
 import typer
+import urllib3
 import yaml
 from eth_typing import ChecksumAddress
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token
 from web3 import Web3
 
 from metemcyber.cli.constants import APP_DIR
@@ -65,15 +71,11 @@ DATA_FILE_NAME = "source_of_truth.yml"
 DEFAULT_CONFIGS = {
     'general': {
         'project': '00000000-0000-0000-0000-000000000000',
-        'misp_url': 'http://your.misp.url',
-        'misp_auth_key': 'YOUR_MISP_AUTH_KEY',
-        'misp_ssl_cert': '0',
-        'misp_json_dumpdir': APP_DIR + '/misp/download',
         'slack_webhook_url': 'SLACK_WEBHOOK_URL',
         'endpoint_url': 'YOUR_ETHEREUM_JSON_RPC_URL',
         'airdrop_url': 'AIRDROP_FUNCTION_URL',
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
-        'workspace': APP_DIR + '/workspace',
+        'workspace': str(Path(APP_DIR) / 'workspace'),
     },
     'catalog': {
         'actives': '',
@@ -96,6 +98,14 @@ DEFAULT_CONFIGS = {
     'ngrok': DC_NGROK['ngrok'],
     'standalone_solver': DC_SOLV_ALN['standalone_solver'],
     'gcs_solver': DC_SOLV_GCS['gcs_solver'],
+    'misp': {
+        'url': 'YOUR_MISP_URL',
+        'api_key': 'YOUR_MISP_API_KEY',
+        'ssl_cert': '2',
+        'workspace': str(Path(APP_DIR) / 'misp' / 'events'),
+        'gcp_cloud_iap_cred': '',
+        'gcp_client_id': '',
+    }
 }
 
 app = typer.Typer()
@@ -1344,11 +1354,11 @@ def misp():
     typer.echo(f"misp")
 
 
-@misp_app.command("open")
+@misp_app.command("open", help="Go to your MISP instance.")
 def misp_open(ctx: typer.Context):
     logger = getLogger()
     try:
-        misp_url = _load_config(ctx)['general']['misp_url']
+        misp_url = _load_config(ctx)['misp']['url']
         logger.info(f"Open MISP: {misp_url}")
         typer.echo(misp_url)
         typer.launch(misp_url)
