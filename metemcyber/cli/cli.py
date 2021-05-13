@@ -1470,6 +1470,16 @@ def misp_fetch(ctx: typer.Context):
             print(err)
 
 
+@misp_app.command("event", help="Show exported MISP events")
+def misp_event(ctx: typer.Context):
+    json_dumpdir = Path(_load_config(ctx)['misp']['workspace'])
+
+    files = json_dumpdir.glob('*.json')
+    for file in files:
+        uuid, title = parse_misp_object(file)
+        typer.echo(f'{uuid}: {title}')
+
+
 @app.command(help="Run the current intelligence workflow.")
 def run(ctx: typer.Context):
     logger = getLogger()
