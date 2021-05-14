@@ -1729,7 +1729,7 @@ def _publish(
             typer.echo(f'Token({token_address}) object was supported by Solver.')
             typer.echo(f'Your MISP object is now available for download.')
             return
-    typer.echo(f'Run \"mtemctl solver support PUBLISHED_TOKEN_ADDRRESS\" after running Solver')
+    typer.echo(f'Run \"mtemctl solver support {token_address}\" after enabling Solver')
 
 
 @account_app.command("show", help="Show the current account information.")
