@@ -197,7 +197,14 @@ The `--viz` option allows you to visualize your data analysis process described 
 >```
 >metemctl solver start
 >```
->
+>```
+>$ metemctl solver status
+>Solver running with operator you configured(0xe889b84a209719B8f0272376dB49946DbD177aE6).
+>```
+>Once Solver is working properly, notify the CTI Operator contract that Solver is enabled.
+>```
+>metemctl solver enable
+>```
 
 ```
 metemctl publish
