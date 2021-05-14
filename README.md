@@ -42,7 +42,8 @@ This exercise will be performed on the testnet environment.
 ```
 git clone -b develop https://github.com/nttcom/metemcyber
 cd metemcyber
-pip install -e .[cli]
+python3 -m pip install --upgrade pip
+pip3 install -e .[cli]
 ```
 <!-- ```
 pip install $PACKAGE_NAME[cli]
