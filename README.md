@@ -195,9 +195,13 @@ The `--viz` option allows you to visualize your data analysis process described 
 > ⚠️ ***Solver* must be running** to send the data to token holders.
 >
 >```
->metemctl solver start
+>metemctl solver start --enable
 >```
->
+>MISP objects can be distributed when Solver is working properly.
+>```
+>$ metemctl solver status
+>Solver running with operator you configured(0xe889b84a209719B8f0272376dB49946DbD177aE6).
+>```
 
 ```
 metemctl publish
