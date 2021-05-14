@@ -986,10 +986,10 @@ def _solver_stop(ctx):
                     help='Solver start running with operator you configured.')
 def solver_enable(
     ctx: typer.Context,
-                  plugin: Optional[str] = typer.Option(
-                      None,
-                      help='solver plugin filename. the default depends on your configuration of '
-                           'plugin in solver section. please note that another configuration '
+    plugin: Optional[str] = typer.Option(
+        None,
+        help='solver plugin filename. the default depends on your configuration of '
+        'plugin in solver section. please note that another configuration '
         'may be required by plugin.')):
     _solver_enable(ctx, plugin)
 
