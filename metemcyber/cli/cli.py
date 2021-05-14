@@ -855,10 +855,11 @@ def _seeker_status(ctx):
 
 
 @seeker_app.command('start')
-def seeker_start(ctx: typer.Context,
-                 ngrok: Optional[bool] = typer.Option(
-                     None,
-                     help='Launch ngrok with seeker. the default depends on your configuration '
+def seeker_start(
+    ctx: typer.Context,
+    ngrok: Optional[bool] = typer.Option(
+        None,
+        help='Launch ngrok with seeker. the default depends on your configuration '
         'of ngrok in seeker section.')):
     _seeker_start(ctx, ngrok)
 
