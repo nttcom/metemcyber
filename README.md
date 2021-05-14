@@ -38,12 +38,16 @@ Metemcyber™ enables security collaboration and assessment all across the organ
 ## 🚅 QuickStart
 
 This exercise will be performed on the testnet environment.
+(Currently, we recommend using the venv to install)
 
-```
+```sh
 git clone -b develop https://github.com/nttcom/metemcyber
 cd metemcyber
-python3 -m pip install --upgrade pip
-pip3 install -e .[cli]
+./init.sh
+. venv/bin/activate
+pip install -e .[cli]
+# For ZSH users
+# pip install -e .\[cli\]
 ```
 <!-- ```
 pip install $PACKAGE_NAME[cli]
@@ -51,7 +55,7 @@ pip install $PACKAGE_NAME[cli]
 
 Check the current configuration:
 
-```
+```sh
 metemctl config show
 ```
 
@@ -59,13 +63,13 @@ metemctl config show
 
 Create a new account if no keyfile available:
 
-```
+```sh
 metemctl account create
 ```
 
 Display your account details you are currently using:
 
-```
+```sh
 metemctl account show
 ```
 
@@ -73,45 +77,45 @@ metemctl account show
 
 Get a promo code via email, and airdrop yourself some ETH to get started:
 
-```
+```sh
 metemctl account airdrop $PROMOTE_CODE_IN_THE_CONFIRMATION_MAIL
 ```
 
 ### 🛒 Collect CTIs
 Search for the CTI token you want to buy (e.g. OSINT)
-```
+```sh
 metemctl ix search 'OSINT'
 ```
 
 Enter the index number of the CTI token to be purchased. The CTI token address can also be accepted.
 
-```
+```sh
 metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 ```
 
 > ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup a local ngrok environment](https://dashboard.ngrok.com/get-started/setup).
 >Download [ngrok](https://dashboard.ngrok.com/) and extract it.
 >Open the application directory to **put the ngrok executable file there**:
->```
+>```sh
 >metemctl open-app-dir
 >```
->```
+>```sh
 >$ ls "$(metemctl open-app-dir --dry-run)"
 >external-links.json             metemctl.ini                    ngrok                           ...
 >```
 >**Ngrok need to connect your ngrok account.** Make sure the ngrok *authtoken* exists after [ngrok setup](https://dashboard.ngrok.com/get-started/setup):
->```
+>```sh
 >cat ~/.ngrok2/ngrok.yml
 >```
 >Start a daemon to receive data using ngrok:
->```
+>```sh
 >metemctl seeker start --ngrok
 >metemctl seeker status
 >```
 
 Use CTI token to receive the MISP object on your public URL of the ngrok.
 
-```
+```sh
 metemctl ix use $TOKEN_INDEX_OR_ADDRESS
 ```
 
@@ -123,7 +127,7 @@ In this section, you will run the intelligence cycle using the exercise *ir-exer
 
 Metemcyber can be used not only for CTI dissemination but also CTI creation.
 
-```
+```sh
 metemctl new　--starter=ir-exercise
 ```
 
@@ -131,7 +135,7 @@ Implement the analysis process into your workflow by selecting the event ID (In 
 
 This is an important piece of evidence to check the "Direction" step in the intelligence cycle.
 
-```
+```sh
 Select Intelligence Category (Fraud, IR, RA, SecOps, SecLead, Vuln) [IR]:
 Input a new event_id(UUID) [70be8ba5-fa7f-4b8e-aa04-dc76e0fa8c42]:
 0: IOC
@@ -150,7 +154,7 @@ Are you sure you want to create it? [y/N]:
 
 > ⚠️ **Make sure Seeker is running** to receive the data.
 >
->```
+>```sh
 >metemctl seeker status
 >```
 
@@ -168,22 +172,21 @@ These are important pieces of evidence to check the "Processing" and "Analysis" 
 **For the success of the intelligence cycle, we are more focused on evaluating the data analysis process than on automating the CTI consumption process.**
 
 Get data for the exercise *ir-exercise*:
-```
+```sh
 metemctl ix search '[ir-exercise]'
 metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 metemctl ix use $TOKEN_INDEX_OR_ADDRESS
-
 ```
 
 Run the ir-exercise workflow:
 
-```
+```sh
 metemctl run 
 ```
 
 Check the contents of your CTI product and the workflow:
 
-```
+```sh
 metemctl check --viz
 ```
 
@@ -194,16 +197,16 @@ The `--viz` option allows you to visualize your data analysis process described 
 ### 🚀 Disseminate your CTI products to everyone:
 > ⚠️ ***Solver* must be running** to send the data to token holders.
 >
->```
+>```sh
 >metemctl solver start --enable
 >```
 >MISP objects can be distributed when Solver is working properly.
->```
+>```sh
 >$ metemctl solver status
 >Solver running with operator you configured(0xe889b84a209719B8f0272376dB49946DbD177aE6).
 >```
 
-```
+```sh
 metemctl publish
 ```
 
