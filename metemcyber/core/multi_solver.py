@@ -320,9 +320,13 @@ class SolverThread():
 
     def _solver_mgr_wrapper(self, dpk: DataPack) -> DataPack:
         assert dpk.code in ('new_solver', 'get_solver', 'purge_solver')
-        if (self.solver is None) == (dpk.code == 'purge_solver'):
+
+        if dpk.code == 'get_solver' and self.solver:
+            pass
+        elif (self.solver is None) == (dpk.code == 'purge_solver'):
             raise MCSError(MCSErrno.EPROTO, 'Protocol error4')
-        self.solver = getattr(self.mgr, cast(str, dpk.code))(self.eoaa, *dpk.args, **dpk.kwargs)
+        else:
+            self.solver = getattr(self.mgr, cast(str, dpk.code))(self.eoaa, *dpk.args, **dpk.kwargs)
         if self.solver is None:
             return DataPack(MCSErrno.OK, None)
         return DataPack(MCSErrno.OK, None,
