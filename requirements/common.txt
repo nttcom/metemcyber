@@ -11,3 +11,4 @@ psutil==5.8.0
 cryptography==3.4.7
 eth-account==0.5.4
 PyYAML==5.4.1
+web3[tester]==5.13.1
