@@ -90,13 +90,16 @@ metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 ```
 
 > ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup a local ngrok environment](https://dashboard.ngrok.com/get-started/setup).
->
->Open the application directory and **put the ngrok executable file there**:
->
+>Download [ngrok](https://dashboard.ngrok.com/) and extract it.
+>Open the application directory to **put the ngrok executable file there**:
 >```
 >metemctl open-app-dir
 >```
->Make sure the ngrok *authtoken* exists after [setup](https://dashboard.ngrok.com/get-started/setup):
+>```
+>$ ls "$(metemctl open-app-dir --dry-run)"
+>external-links.json             metemctl.ini                    ngrok                           ...
+>```
+>**Ngrok need to connect your ngrok account.** Make sure the ngrok *authtoken* exists after [ngrok setup](https://dashboard.ngrok.com/get-started/setup):
 >```
 >cat ~/.ngrok2/ngrok.yml
 >```
