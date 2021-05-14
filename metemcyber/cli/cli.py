@@ -19,6 +19,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import urllib.request
 from configparser import ConfigParser
@@ -196,6 +197,12 @@ def _save_config(ctx: typer.Context, config: ConfigParser) -> None:
     logger.debug('updated config file')
 
 
+def find_ngrok(config: ConfigParser):
+    if not shutil.which("ngrok"):
+        config['ngrok']['ngrok_path'] = str(Path(APP_DIR) / 'ngrok')
+    return config
+
+
 def _init_app_dir(ctx: typer.Context) -> None:
     logger = getLogger()
     os.makedirs(APP_DIR, exist_ok=True)
@@ -212,6 +219,7 @@ def _init_app_dir(ctx: typer.Context) -> None:
             copyfile(src, dst, follow_symlinks=False)
 
     config = _load_config(ctx)
+    config = find_ngrok(config)
     _save_config(ctx, config)
 
     default_workspace = Path(APP_DIR) / 'workspace.pricom-mainnet'
