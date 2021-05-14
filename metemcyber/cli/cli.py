@@ -925,7 +925,7 @@ def _solver_client(ctx: typer.Context, account: Optional[Account] = None) -> MCS
 
 @solver_app.command('status',
                     help='Show Solver status.')
-def solver_status(ctx: typer.Context):
+def solver_status(ctx: typer.Context) -> bool:
     logger = getLogger()
     try:
         solver = _solver_client(ctx)
@@ -934,9 +934,10 @@ def solver_status(ctx: typer.Context):
             operator = _load_operator(ctx)
         except Exception:
             typer.echo('Solver running, but you have not yet configured operator.')
-            return
+            return False
         if solver.operator_address == operator.address:
             typer.echo(f'Solver running with operator you configured({operator.address}).')
+            return True
         else:
             typer.echo('[WARNING] '
                        f'Solver running with another operator({solver.operator_address}).')
@@ -948,6 +949,7 @@ def solver_status(ctx: typer.Context):
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
+    return False
 
 
 @solver_app.command('start',
@@ -1071,13 +1073,15 @@ def solver_support(ctx: typer.Context, token: str):
 
 
 @common_logging
-def _solver_support(ctx, token):
+def _solver_support(ctx, token) -> bool:
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
     msg = solver.solver('accept_challenges', [flx.address])
     if msg:
         typer.echo(msg)
+        return False
+    return True
 
 
 @solver_app.command('obsolete',
@@ -1720,6 +1724,12 @@ def _publish(
     catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
     typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
     _broker_serve(ctx, [catalog.address, token_address], serve_amount)
+    if solver_status(ctx):
+        if _solver_support(ctx, token_address):
+            typer.echo(f'Token({token_address}) object was supported by Solver.')
+            typer.echo(f'Your MISP object is now available for download.')
+            return
+    typer.echo(f'Run \"mtemctl solver support PUBLISHED_TOKEN_ADDRRESS\" after running Solver')
 
 
 @account_app.command("show", help="Show the current account information.")
