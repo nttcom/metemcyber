@@ -27,7 +27,7 @@ def search_report_from_anyrun(source_of_truth: Dict[str, Any]) -> Optional[str]:
     """Node for searching report from anyrun
     """
     log = logging.getLogger(__name__)
-    sha256_hash = source_of_truth['sha256']
+    sha256_hash = source_of_truth['sha256'].lower()
     anyrun_url = f"https://any.run/report/{sha256_hash}"
 
     req = urllib.request.Request(anyrun_url)
