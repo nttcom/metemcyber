@@ -16,4 +16,4 @@ dpkt~=1.9.5
 pandas~=1.2.4
 jinja2~=2.11.3
 tabulate~=0.8.9
-pymisp~=2.4.142
+pymisp~=2.4.140
