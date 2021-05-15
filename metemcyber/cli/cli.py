@@ -1489,7 +1489,7 @@ def misp_event(ctx: typer.Context):
 
     files = json_dumpdir.glob('*.json')
     for file in files:
-        uuid, title = parse_misp_object(file)
+        uuid, title = _parse_misp_object(file)
         typer.echo(f'{uuid}: {title}')
 
 
@@ -1525,7 +1525,7 @@ def check(ctx: typer.Context, viz: bool = typer.Option(
         typer.echo(f'An error occurred while testing the workflow. {err}')
 
 
-def parse_misp_object(filepath: Path) -> Tuple[str, str]:
+def _parse_misp_object(filepath: Path) -> Tuple[str, str]:
     logger = getLogger()
     uuid = ''
     title = ''
@@ -1591,15 +1591,23 @@ def _address_to_solver_assets_path(ctx, address) -> Path:
     return Path(f'{workspace}/upload/{address}')
 
 
+def _is_misp_object(misp_object):
+    with open(misp_object) as fin:
+        json_misp = json.load(fin)
+        if 'Event' in json_misp.keys():
+            return True
+    return False
+
+
 def _fix_misp_object(ctx, misp_object, uuid, title) -> Tuple[str, str]:
     if misp_object:
         typer.echo(f'loading {misp_object}.')
-        with open(misp_object) as fin:
-            json_misp = json.load(fin)
-            if 'Event' not in json_misp.keys():
-                raise Exception('Unexpected data format: missing "Event"')
-            loaded_uuid = json_misp['Event'].get('uuid')
-            loaded_title = json_misp['Event'].get('info')
+        if _is_misp_object(misp_object):
+            loaded_uuid, loaded_title = _parse_misp_object(misp_object)
+            with open(misp_object) as fin:
+                json_misp = json.load(fin)
+        else:
+            raise Exception('Unexpected data format: missing "Event"')
     else:
         json_misp = None
         loaded_uuid = loaded_title = ''
@@ -1663,6 +1671,18 @@ def _fix_amounts(ctx, token_address, initial_amount, serve_amount
     return None, None
 
 
+def _find_project_report(ctx: typer.Context):
+    config = _load_config(ctx)
+    project_dir = Path(os.getcwd()) / config['general']['project']
+    if os.path.isdir(project_dir):
+        report_dir = project_dir / 'data' / '08_reporting'
+        json_files = Path(report_dir).glob('*.json')
+        for json_file in json_files:
+            if _is_misp_object(json_file):
+                return json_file
+    return None
+
+
 @common_logging
 def _publish(
         ctx,
@@ -1674,6 +1694,13 @@ def _publish(
         price,
         initial_amount,
         serve_amount):
+
+    if not misp_object:
+        misp_object = _find_project_report(ctx)
+        if not misp_object:
+            raise Exception(
+                'MISP obeject not found in the current project. ' \
+                'Try \"metemctl publish --misp_object MISP_OBJECT_PATH\".')
 
     if price < 0:
         raise Exception(f'Invalid price: {price}')
