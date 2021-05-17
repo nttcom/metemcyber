@@ -2087,10 +2087,10 @@ def issue():
 
 @app.command(help="Access the application directoy of Metemcyber")
 def open_app_dir(
-    dry_run: bool = typer.Option(
+    print_only: bool = typer.Option(
         False,
         help='Output only the application directory path.')):
-    if dry_run:
+    if print_only:
         typer.echo(f"{APP_DIR}")
     else:
         typer.echo(f"Open \'{APP_DIR}\'")
