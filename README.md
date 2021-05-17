@@ -176,6 +176,7 @@ Get data for the exercise *ir-exercise*:
 metemctl ix search '[ir-exercise]'
 metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 metemctl ix use $TOKEN_INDEX_OR_ADDRESS
+metemctl ix extract $TOKEN_INDEX_OR_ADDRESS
 ```
 
 Run the ir-exercise workflow:
