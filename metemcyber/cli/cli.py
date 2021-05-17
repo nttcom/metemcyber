@@ -1277,19 +1277,25 @@ def _ix_extract(ctx, used_token):
     if not target_dir:
         target_dir = Path(workspace)
 
+    external_files = None
     if os.path.isfile(downloaded_misp):
         if _is_misp_object(downloaded_misp):
             external_files = _extract_contents(downloaded_misp)
-
-    typer.echo(f'Extract the contents to: {target_dir}')
-    for path, attr in external_files.items():
-        typer.echo(f'- {path}: {attr}')
-    try:
-        typer.confirm('continue?', abort=True)
-    except Exception as err:
-        raise Exception('Interrupted') from err
+        else:
+            raise Exception(f'Invalid MISP Object: {downloaded_misp}')
+    else:
+        type.echo('Try \"metemctl ix use {used_token}}\".')
+        return
 
     if external_files:
+        typer.echo(f'Extract the contents to: {target_dir}')
+        for path, attr in external_files.items():
+            typer.echo(f'- {path}: {attr}')
+        try:
+            typer.confirm('continue?', abort=True)
+        except Exception as err:
+            raise Exception('Interrupted') from err
+
         external_files = _download_contents(external_files)
         place_contents(external_files, target_dir)
 
