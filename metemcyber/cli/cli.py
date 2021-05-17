@@ -1262,8 +1262,8 @@ def place_contents(external_files: Dict[str, Dict[str, str]], target_dir: Path):
 
 
 @ix_app.command('extract', help="Extract the contents from the downloaded MISP object.")
-def ix_extact(ctx: typer.Context, used_token: str):
-    _ix_extact(ctx, used_token)
+def ix_extract(ctx: typer.Context, used_token: str):
+    _ix_extract(ctx, used_token)
 
 
 @common_logging
