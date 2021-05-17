@@ -182,7 +182,7 @@ metemctl ix extract $TOKEN_INDEX_OR_ADDRESS
 Run the ir-exercise workflow:
 
 ```sh
-metemctl run 
+metemctl run --setup
 ```
 
 Check the contents of your CTI product and the workflow:

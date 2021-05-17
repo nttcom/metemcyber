@@ -1672,13 +1672,21 @@ def misp_event(ctx: typer.Context):
         typer.echo(f'{uuid}: {title}')
 
 
+def setup_kedro(cwd):
+    subprocess.run(['kedro', 'build-reqs'], check=True, cwd=cwd)
+    subprocess.run(['kedro', 'install'], check=True, cwd=cwd)
+
+
 @app.command(help="Run the current intelligence workflow.")
-def run(ctx: typer.Context):
+def run(ctx: typer.Context, setup: bool = typer.Option(
+        False, help='kedro build-reqs && kedro install')):
     logger = getLogger()
     logger.info(f"Run command: kedro run")
     try:
         # TODO: check the existence of a CWD path
         cwd = _load_config(ctx)['general']['project']
+        if setup:
+            setup_kedro(cwd)
         subprocess.run(['kedro', 'run'], check=True, cwd=cwd)
     except CalledProcessError as err:
         logger.exception(err)
@@ -1686,8 +1694,14 @@ def run(ctx: typer.Context):
 
 
 @app.command(help="Validate the current intelligence cylcle")
-def check(ctx: typer.Context, viz: bool = typer.Option(
-        False, help='Show the visualized current workflow')):
+def check(
+    ctx: typer.Context,
+    setup: bool = typer.Option(
+        False,
+        help='kedro build-reqs && kedro install'),
+        viz: bool = typer.Option(
+            False,
+        help='Show the visualized current workflow')):
     # TODO: check the available intelligece workflow
     # TODO: check available intelligece contents
     logger = getLogger()
@@ -1695,6 +1709,8 @@ def check(ctx: typer.Context, viz: bool = typer.Option(
     try:
         # TODO: check the existence of a CWD path
         cwd = _load_config(ctx)['general']['project']
+        if setup:
+            setup_kedro(cwd)
         subprocess.run(['kedro', 'test'], check=True, cwd=cwd)
         if viz:
             logger.info(f"Run command: kedro viz")
@@ -1878,7 +1894,7 @@ def _publish(
         misp_object = _find_project_report(ctx)
         if not misp_object:
             raise Exception(
-                'MISP obeject not found in the current project. ' \
+                'MISP obeject not found in the current project. '
                 'Try \"metemctl publish --misp_object MISP_OBJECT_PATH\".')
 
     if price < 0:
