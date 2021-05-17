@@ -16,6 +16,7 @@
 
 #pylint: disable=too-many-lines
 
+import hashlib
 import json
 import os
 import re
@@ -1195,6 +1196,102 @@ def _ix_use(ctx, token, seeker, ngrok):
         raise Exception('Seeker url is not specified')
     Token(account).get(flx.address).send(operator.address, amount=1, data=data)
     typer.echo(f'Started challenge with token({flx.address}).')
+
+
+def _is_correct_sha256(filename, sha256):
+
+    sha256_hash = hashlib.sha256()
+    with open(filename, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+        if sha256_hash.hexdigest() == sha256:
+            return True
+    return False
+
+
+def _download_contents(external_files: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+    logger = getLogger()
+    for path, attr in external_files.items():
+        logger.info(f'file download: {attr["link"]}')
+        temp_file, headers = urllib.request.urlretrieve(attr['link'])
+        logger.info(f'downloaded: {path}')
+        logger.debug(f'header: {headers}')
+        if _is_correct_sha256(temp_file, attr['sha256']):
+            external_files[path]['temp_file'] = temp_file
+        else:
+            logger.warning('hash mismatch: {temp_file}')
+    return external_files
+
+
+def _extract_contents(misp_object: Path):
+    event = pymisp.mispevent.MISPEvent()
+    event.load_file(misp_object)
+    external_files: Dict[str, Dict[str, str]] = dict()
+    for attr in event.attributes:
+        if attr.type == "link":
+            external_files[attr.comment] = dict()
+            external_files[attr.comment]['link'] = attr.value
+    for attr in event.attributes:
+        if attr.type == "sha256":
+            if attr.comment in external_files.keys():
+                external_files[attr.comment]['sha256'] = attr.value
+    if external_files:
+        return external_files
+
+    return None
+
+
+def _find_project_dir(ctx: typer.Context):
+    config = _load_config(ctx)
+    project_dir = Path(os.getcwd()) / config['general']['project']
+    if os.path.isdir(project_dir):
+        if os.access(project_dir, os.W_OK):
+            return project_dir
+    return None
+
+
+def place_contents(external_files: Dict[str, Dict[str, str]], target_dir: Path):
+    for path, attr in external_files.items():
+        output_path = target_dir / Path(path)
+        output_dir = output_path.parent
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        if attr['temp_file']:
+            shutil.move(attr['temp_file'], output_path)
+            typer.echo(f'put: {output_path}')
+
+
+@ix_app.command('extract', help="Extract the contents from the downloaded MISP object.")
+def ix_extact(ctx: typer.Context, used_token: str):
+    _ix_extact(ctx, used_token)
+
+
+@common_logging
+def _ix_extact(ctx, used_token):
+    config = _load_config(ctx)
+    workspace = config['general']['workspace']
+    flx = FlexibleIndexToken(ctx, used_token)
+    downloaded_misp = Path(f'{workspace}/download/{flx.address}.json')
+
+    target_dir = _find_project_dir(ctx)
+    if not target_dir:
+        target_dir = Path(workspace)
+
+    if os.path.isfile(downloaded_misp):
+        if _is_misp_object(downloaded_misp):
+            external_files = _extract_contents(downloaded_misp)
+
+    typer.echo(f'Extract the contents to: {target_dir}')
+    for path, attr in external_files.items():
+        typer.echo(f'- {path}: {attr}')
+    try:
+        typer.confirm('continue?', abort=True)
+    except Exception as err:
+        raise Exception('Interrupted') from err
+
+    if external_files:
+        external_files = _download_contents(external_files)
+        place_contents(external_files, target_dir)
 
 
 def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> TokenInfo:
