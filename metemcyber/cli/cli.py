@@ -1267,7 +1267,7 @@ def ix_extact(ctx: typer.Context, used_token: str):
 
 
 @common_logging
-def _ix_extact(ctx, used_token):
+def _ix_extract(ctx, used_token):
     config = _load_config(ctx)
     workspace = config['general']['workspace']
     flx = FlexibleIndexToken(ctx, used_token)
