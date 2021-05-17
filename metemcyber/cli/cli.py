@@ -844,6 +844,82 @@ def _token_burn(ctx, token, amount, data):
     typer.echo(f'burned {amount} of token({flx.address}).')
 
 
+@contract_token_app.command('publish')
+def token_publish(ctx: typer.Context,
+                  catalog: str = typer.Option(
+                      '1',
+                      help='A CTI catalog id/address to use for dissemination'),
+                  token_address: Optional[str] = typer.Option(
+                      None,
+                      help='A CTI token address to use for dissemination'),
+                  uuid: Optional[str] = typer.Option(
+                      None,
+                      help='The uuid of misp object'),
+                  title: Optional[str] = typer.Option(
+                      None,
+                      help='The title of misp object'),
+                  price: int = typer.Option(
+                      10,
+                      help='A price of CTI token (dissemination cost)'),
+                  initial_amount: int = typer.Option(
+                      100,
+                      help='An initial supply amount of CTI tokens'),
+                  serve_amount: int = typer.Option(
+                      99,
+                      help='An amount of CTI tokens to give CTI broker'),
+                  ):
+    _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount)
+
+
+@common_logging
+def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount):
+    operator_address = _load_operator(ctx).address
+    flx_catalog = FlexibleIndexCatalog(ctx, catalog)
+    notice_token, fix_token = _fix_amounts(ctx, token_address, initial_amount, serve_amount)
+
+    typer.echo(f'{"":=<64}')
+    typer.echo(f'{title}')
+    typer.echo(f'{"":-<64}')
+    typer.echo(f' - UUID: {uuid}')
+    typer.echo(f' - Price: {price}')
+    if token_address:
+        typer.echo(f' - Charge: {serve_amount} (Token: {token_address})')
+        if notice_token:
+            typer.echo(f'           <!> {notice_token} <!>')
+    else:
+        typer.echo(f' - Sales Quantity: {serve_amount} (Initial Supply: {initial_amount})')
+    typer.echo(f' - Exchanger: {operator_address}')
+    typer.echo(f' - Catalog: {flx_catalog.index}: {flx_catalog.address}')
+    typer.echo(f'{"":=<64}')
+
+    try:
+        typer.confirm('Are you sure you want to publish it?', abort=True)
+    except Exception as err:
+        raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
+
+    if not token_address:
+        token_address = _token_create(ctx, initial_amount)
+    elif fix_token:
+        fix_token()  # mint or burn
+
+    account = _load_account(ctx)
+    catalog = Catalog(account).get(flx_catalog.address)
+    catalog.register_cti(
+        cast(
+            ChecksumAddress,
+            token_address),
+        uuid,
+        title,
+        price,
+        operator_address)
+    typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
+    catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
+    typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
+    _broker_serve(ctx, [catalog.address, token_address], serve_amount)
+
+    return token_address
+
+
 @seeker_app.command('status')
 def seeker_status(ctx: typer.Context):
     _seeker_status(ctx)
@@ -1704,53 +1780,22 @@ def _publish(
 
     if price < 0:
         raise Exception(f'Invalid price: {price}')
-    operator_address = _load_operator(ctx).address
-    flx_catalog = FlexibleIndexCatalog(ctx, catalog)
-    notice_token, fix_token = _fix_amounts(ctx, token_address, initial_amount, serve_amount)
+
     uuid, title = _fix_misp_object(ctx, misp_object, uuid, title)
+    token_address = _token_publish(
+        ctx,
+        catalog,
+        token_address,
+        uuid,
+        title,
+        price,
+        initial_amount,
+        serve_amount)
 
-    typer.echo(f'{"":=<64}')
-    typer.echo(f'{title}')
-    typer.echo(f'{"":-<64}')
-    typer.echo(f' - UUID: {uuid}')
-    typer.echo(f' - Price: {price}')
-    if token_address:
-        typer.echo(f' - Charge: {serve_amount} (Token: {token_address})')
-        if notice_token:
-            typer.echo(f'           <!> {notice_token} <!>')
-    else:
-        typer.echo(f' - Sales Quantity: {serve_amount} (Initial Supply: {initial_amount})')
-    typer.echo(f' - Exchanger: {operator_address}')
-    typer.echo(f' - Catalog: {flx_catalog.index}: {flx_catalog.address}')
-    typer.echo(f'{"":=<64}')
-
-    try:
-        typer.confirm('Are you sure you want to publish it?', abort=True)
-    except Exception as err:
-        raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
-
-    if not token_address:
-        token_address = _token_create(ctx, initial_amount)
-    elif fix_token:
-        fix_token()  # mint or burn
     os.symlink(_uuid_to_misp_download_path(ctx, uuid),
                _address_to_solver_assets_path(ctx, token_address))
     typer.echo(f'created a symlink of MISP object as a solver asset for token: {token_address}.')
 
-    account = _load_account(ctx)
-    catalog = Catalog(account).get(flx_catalog.address)
-    catalog.register_cti(
-        cast(
-            ChecksumAddress,
-            token_address),
-        uuid,
-        title,
-        price,
-        operator_address)
-    typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
-    catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
-    typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
-    _broker_serve(ctx, [catalog.address, token_address], serve_amount)
     if solver_status(ctx):
         if _solver_support(ctx, token_address):
             typer.echo(f'Token({token_address}) object was supported by Solver.')
