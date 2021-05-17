@@ -100,7 +100,7 @@ metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 >metemctl open-app-dir
 >```
 >```sh
->$ ls "$(metemctl open-app-dir --dry-run)"
+>$ ls "$(metemctl open-app-dir --print-only)"
 >external-links.json             metemctl.ini                    ngrok                           ...
 >```
 >**Ngrok need to connect your ngrok account.** Make sure the ngrok *authtoken* exists after [ngrok setup](https://dashboard.ngrok.com/get-started/setup):
