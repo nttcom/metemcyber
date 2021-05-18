@@ -41,6 +41,7 @@ This exercise will be performed on the testnet environment.
 (Currently, we recommend using the venv to install)
 
 ```sh
+sudo apt install build-essential python3-venv python3-dev
 git clone -b develop https://github.com/nttcom/metemcyber
 cd metemcyber
 ./init.sh
