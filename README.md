@@ -1,6 +1,6 @@
 <div align="center">
 
-[![banner](https://raw.githubusercontent.com/nttcom/metemcyber/develop/images/banner.png)](https://www.metemcyber.ntt.com)
+[![banner](https://raw.githubusercontent.com/nttcom/metemcyber/main/images/banner.png)](https://www.metemcyber.ntt.com)
 
 # Metemcyber
 
@@ -42,7 +42,7 @@ This exercise will be performed on the testnet environment.
 
 ```sh
 sudo apt install build-essential python3-venv python3-dev
-git clone -b develop https://github.com/nttcom/metemcyber
+git clone https://github.com/nttcom/metemcyber
 cd metemcyber
 ./init.sh
 . venv/bin/activate
@@ -194,7 +194,7 @@ metemctl check --viz
 
 The `--viz` option allows you to visualize your data analysis process described by the workflow. (the same as `kedro viz`)
 
-![banner](https://raw.githubusercontent.com/nttcom/metemcyber/develop/images/tutorial_kedro_viz.png)
+![banner](https://raw.githubusercontent.com/nttcom/metemcyber/main/images/tutorial_kedro_viz.png)
 
 ### 🚀 Disseminate your CTI products to everyone:
 > ⚠️ ***Solver* must be running** to send the data to token holders.
