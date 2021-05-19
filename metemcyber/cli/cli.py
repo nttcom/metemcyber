@@ -16,8 +16,11 @@
 
 #pylint: disable=too-many-lines
 
+import hashlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import urllib.request
 from configparser import ConfigParser
@@ -26,13 +29,19 @@ from enum import Enum
 from pathlib import Path
 from shutil import copyfile, copytree
 from subprocess import CalledProcessError
+from time import sleep
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 from uuid import UUID, uuid4
 
 import eth_account
+import pymisp
+import requests
 import typer
+import urllib3
 import yaml
 from eth_typing import ChecksumAddress
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token
 from web3 import Web3
 
 from metemcyber.cli.constants import APP_DIR
@@ -64,15 +73,11 @@ DATA_FILE_NAME = "source_of_truth.yml"
 DEFAULT_CONFIGS = {
     'general': {
         'project': '00000000-0000-0000-0000-000000000000',
-        'misp_url': 'http://your.misp.url',
-        'misp_auth_key': 'YOUR_MISP_AUTH_KEY',
-        'misp_ssl_cert': '0',
-        'misp_json_dumpdir': APP_DIR + '/misp/download',
         'slack_webhook_url': 'SLACK_WEBHOOK_URL',
         'endpoint_url': 'YOUR_ETHEREUM_JSON_RPC_URL',
         'airdrop_url': 'AIRDROP_FUNCTION_URL',
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
-        'workspace': APP_DIR + '/workspace',
+        'workspace': str(Path(APP_DIR) / 'workspace'),
     },
     'catalog': {
         'actives': '',
@@ -95,6 +100,14 @@ DEFAULT_CONFIGS = {
     'ngrok': DC_NGROK['ngrok'],
     'standalone_solver': DC_SOLV_ALN['standalone_solver'],
     'gcs_solver': DC_SOLV_GCS['gcs_solver'],
+    'misp': {
+        'url': 'YOUR_MISP_URL',
+        'api_key': 'YOUR_MISP_API_KEY',
+        'ssl_cert': '2',
+        'download': str(Path(APP_DIR) / 'misp' / 'download'),
+        'gcp_cloud_iap_cred': '',
+        'gcp_client_id': '',
+    }
 }
 
 app = typer.Typer()
@@ -185,6 +198,12 @@ def _save_config(ctx: typer.Context, config: ConfigParser) -> None:
     logger.debug('updated config file')
 
 
+def find_ngrok(config: ConfigParser):
+    if not shutil.which("ngrok"):
+        config['ngrok']['ngrok_path'] = str(Path(APP_DIR) / 'ngrok')
+    return config
+
+
 def _init_app_dir(ctx: typer.Context) -> None:
     logger = getLogger()
     os.makedirs(APP_DIR, exist_ok=True)
@@ -201,6 +220,7 @@ def _init_app_dir(ctx: typer.Context) -> None:
             copyfile(src, dst, follow_symlinks=False)
 
     config = _load_config(ctx)
+    config = find_ngrok(config)
     _save_config(ctx, config)
 
     default_workspace = Path(APP_DIR) / 'workspace.pricom-mainnet'
@@ -397,7 +417,7 @@ def create_data_for_workflow(yml_filepath: Path):
                 copyfile(template, data_file_path)
 
 
-def create_workflow(event_id, category, contents):
+def create_workflow(event_id, category, contents, starter):
     logger = getLogger()
     logger.info(f"Create the workflow: {event_id}")
     # find current directory
@@ -424,7 +444,14 @@ def create_workflow(event_id, category, contents):
     if os.path.isfile(dist_yml_filepath):
         logger.info(f"Run command: kedro new --config {dist_yml_filepath}")
         try:
-            subprocess.run(['kedro', 'new', '--config', dist_yml_filepath], check=True)
+            if starter:
+                starter_path = Path(__file__).parent / 'starter' / starter
+                subprocess.run(['kedro', 'new', '--config',
+                                dist_yml_filepath,
+                                '--starter', starter_path], check=True)
+            else:
+                subprocess.run(['kedro', 'new', '--config',
+                                dist_yml_filepath], check=True)
             create_data_for_workflow(dist_yml_filepath)
         except CalledProcessError as err:
             logger.exception(err)
@@ -465,7 +492,11 @@ def new(
     contents: Optional[List[IntelligenceContents]] = typer.Option(
         None,
         case_sensitive=False,
-        help='Pick up all workflow products (Indicator of Compomise, etc.)',)
+        help='Pick up all workflow products (Indicator of Compomise, etc.)',),
+    starter: Optional[str] = typer.Option(
+        None,
+        case_sensitive=False,
+        help="Enter starter's name when using starter (ir-exercise, etc.)")
 ):
     logger = getLogger()
     # TODO: Use Enum names
@@ -516,7 +547,11 @@ def new(
     answer = typer.confirm('Are you sure you want to create it?', abort=True)
     # run "kedro new --config workflow.yml"
     if answer:
-        create_workflow(event_id, formal_category[category], display_contents)
+        create_workflow(
+            event_id,
+            formal_category[category],
+            display_contents,
+            starter)
         # TODO: manage the project id on workspace directory
         config = _load_config(ctx)
         config.set('general', 'project', event_id)
@@ -774,7 +809,7 @@ def _token_create(ctx, initial_supply) -> Optional[ChecksumAddress]:
     if initial_supply <= 0:
         raise Exception(f'Invalid initial-supply: {initial_supply}')
     token = Token(account).new(initial_supply, [])
-    typer.echo(f'created a new token address is {token.address}.')
+    typer.echo(f'created a new token. address is {token.address}.')
     return token.address
 
 
@@ -810,6 +845,82 @@ def _token_burn(ctx, token, amount, data):
     typer.echo(f'burned {amount} of token({flx.address}).')
 
 
+@contract_token_app.command('publish')
+def token_publish(ctx: typer.Context,
+                  catalog: str = typer.Option(
+                      '1',
+                      help='A CTI catalog id/address to use for dissemination'),
+                  token_address: Optional[str] = typer.Option(
+                      None,
+                      help='A CTI token address to use for dissemination'),
+                  uuid: Optional[str] = typer.Option(
+                      None,
+                      help='The uuid of misp object'),
+                  title: Optional[str] = typer.Option(
+                      None,
+                      help='The title of misp object'),
+                  price: int = typer.Option(
+                      10,
+                      help='A price of CTI token (dissemination cost)'),
+                  initial_amount: int = typer.Option(
+                      100,
+                      help='An initial supply amount of CTI tokens'),
+                  serve_amount: int = typer.Option(
+                      99,
+                      help='An amount of CTI tokens to give CTI broker'),
+                  ):
+    _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount)
+
+
+@common_logging
+def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount):
+    operator_address = _load_operator(ctx).address
+    flx_catalog = FlexibleIndexCatalog(ctx, catalog)
+    notice_token, fix_token = _fix_amounts(ctx, token_address, initial_amount, serve_amount)
+
+    typer.echo(f'{"":=<64}')
+    typer.echo(f'{title}')
+    typer.echo(f'{"":-<64}')
+    typer.echo(f' - UUID: {uuid}')
+    typer.echo(f' - Price: {price}')
+    if token_address:
+        typer.echo(f' - Charge: {serve_amount} (Token: {token_address})')
+        if notice_token:
+            typer.echo(f'           <!> {notice_token} <!>')
+    else:
+        typer.echo(f' - Sales Quantity: {serve_amount} (Initial Supply: {initial_amount})')
+    typer.echo(f' - Exchanger: {operator_address}')
+    typer.echo(f' - Catalog: {flx_catalog.index}: {flx_catalog.address}')
+    typer.echo(f'{"":=<64}')
+
+    try:
+        typer.confirm('Are you sure you want to publish it?', abort=True)
+    except Exception as err:
+        raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
+
+    if not token_address:
+        token_address = _token_create(ctx, initial_amount)
+    elif fix_token:
+        fix_token()  # mint or burn
+
+    account = _load_account(ctx)
+    catalog = Catalog(account).get(flx_catalog.address)
+    catalog.register_cti(
+        cast(
+            ChecksumAddress,
+            token_address),
+        uuid,
+        title,
+        price,
+        operator_address)
+    typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
+    catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
+    typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
+    _broker_serve(ctx, [catalog.address, token_address], serve_amount)
+
+    return token_address
+
+
 @seeker_app.command('status')
 def seeker_status(ctx: typer.Context):
     _seeker_status(ctx)
@@ -829,23 +940,23 @@ def _seeker_status(ctx):
 
 
 @seeker_app.command('start')
-def seeker_start(ctx: typer.Context,
-                 ngrok: Optional[bool] = typer.Option(
-                     None,
-                     help='Launch ngrok with seeker. the default depends on your configuration '
-                          'of ngrok in seeker section.'),
-                 config: Optional[str] = typer.Option(
-                     CONFIG_FILE_PATH, help='seeker config filepath')):
-    _seeker_start(ctx, ngrok, config)
+def seeker_start(
+    ctx: typer.Context,
+    ngrok: Optional[bool] = typer.Option(
+        None,
+        help='Launch ngrok with seeker. the default depends on your configuration '
+        'of ngrok in seeker section.')):
+    _seeker_start(ctx, ngrok)
 
 
 @common_logging
-def _seeker_start(ctx, ngrok, config):
+def _seeker_start(ctx, ngrok):
     if ngrok is None:
         ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
     endpoint_url = _load_config(ctx)['general']['endpoint_url']
     if not endpoint_url:
         raise Exception('Missing configuration: endpoint_url')
+    config = _workspace_confpath(ctx)
     seeker = Seeker(APP_DIR, _load_operator(ctx).address, endpoint_url, config)
     seeker.start()
     typer.echo(f'seeker started on process {seeker.pid}, '
@@ -891,7 +1002,7 @@ def _solver_client(ctx: typer.Context, account: Optional[Account] = None) -> MCS
 
 @solver_app.command('status',
                     help='Show Solver status.')
-def solver_status(ctx: typer.Context):
+def solver_status(ctx: typer.Context) -> bool:
     logger = getLogger()
     try:
         solver = _solver_client(ctx)
@@ -900,12 +1011,12 @@ def solver_status(ctx: typer.Context):
             operator = _load_operator(ctx)
         except Exception:
             typer.echo('Solver running, but you have not yet configured operator.')
-            return
+            return False
         if solver.operator_address == operator.address:
             typer.echo(f'Solver running with operator you configured({operator.address}).')
-        else:
-            typer.echo('[WARNING] '
-                       f'Solver running with another operator({solver.operator_address}).')
+            return True
+        typer.echo('[WARNING] '
+                    f'Solver running with another operator({solver.operator_address}).')
     except MCSError as err:
         if err.code == MCSErrno.ENOENT:
             typer.echo('Solver running without your operator.')
@@ -914,16 +1025,18 @@ def solver_status(ctx: typer.Context):
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
+    return False
 
 
 @solver_app.command('start',
                     help='Start Solver process.')
-def solver_start(ctx: typer.Context):
-    _solver_start(ctx)
+def solver_start(ctx: typer.Context,
+                 enable: bool = typer.Option(False, help='auto enable with default config.')):
+    _solver_start(ctx, enable)
 
 
 @common_logging
-def _solver_start(ctx):
+def _solver_start(ctx, enable):
     try:
         _solver_client(ctx)
         raise Exception('Solver already running.')
@@ -937,6 +1050,10 @@ def _solver_start(ctx):
         ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server', '-w', APP_DIR],
         shell=False)
     typer.echo('Solver started as a subprocess.')
+    if enable:
+        typer.echo('Enabling your operator.')
+        sleep(2)
+        _solver_enable(ctx, None)
 
 
 @solver_app.command('stop',
@@ -954,14 +1071,17 @@ def _solver_stop(ctx):
 
 @solver_app.command('enable',
                     help='Solver start running with operator you configured.')
-def solver_enable(ctx: typer.Context,
-                  plugin: Optional[str] = typer.Option(
-                      None,
-                      help='solver plugin filename. the default depends on your configuration of '
-                           'plugin in solver section. please note that another configuration '
-                           'may be required by plugin.'),
-                  config: Optional[str] = typer.Option(
-                      CONFIG_FILE_PATH, help='solver config filepath')):
+def solver_enable(
+    ctx: typer.Context,
+    plugin: Optional[str] = typer.Option(
+        None,
+        help='solver plugin filename. the default depends on your configuration of '
+        'plugin in solver section. please note that another configuration '
+        'may be required by plugin.')):
+    _solver_enable(ctx, plugin)
+
+
+def _solver_enable(ctx, plugin):
     logger = getLogger()
     try:
         plugin = plugin if plugin else _load_config(ctx)['solver']['plugin']
@@ -973,6 +1093,7 @@ def solver_enable(ctx: typer.Context,
             ctx.meta['account'] = account
         operator = _load_operator(ctx)
         solver = _solver_client(ctx, account=account)
+        config = _workspace_confpath(ctx)
         applied = solver.new_solver(
             operator.address, pkey, pluginfile=plugin, configfile=str(config))
 
@@ -1028,13 +1149,15 @@ def solver_support(ctx: typer.Context, token: str):
 
 
 @common_logging
-def _solver_support(ctx, token):
+def _solver_support(ctx, token) -> bool:
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
     msg = solver.solver('accept_challenges', [flx.address])
     if msg:
         typer.echo(msg)
+        return False
+    return True
 
 
 @solver_app.command('obsolete',
@@ -1072,6 +1195,108 @@ def _ix_use(ctx, token, seeker, ngrok):
         raise Exception('Seeker url is not specified')
     Token(account).get(flx.address).send(operator.address, amount=1, data=data)
     typer.echo(f'Started challenge with token({flx.address}).')
+
+
+def _is_correct_sha256(filename, sha256):
+
+    sha256_hash = hashlib.sha256()
+    with open(filename, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+        if sha256_hash.hexdigest() == sha256:
+            return True
+    return False
+
+
+def _download_contents(external_files: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+    logger = getLogger()
+    for path, attr in external_files.items():
+        logger.info(f'file download: {attr["link"]}')
+        temp_file, headers = urllib.request.urlretrieve(attr['link'])
+        logger.info(f'downloaded: {path}')
+        logger.debug(f'header: {headers}')
+        if _is_correct_sha256(temp_file, attr['sha256']):
+            external_files[path]['temp_file'] = temp_file
+        else:
+            logger.warning('hash mismatch: {temp_file}')
+    return external_files
+
+
+def _extract_contents(misp_object: Path):
+    event = pymisp.mispevent.MISPEvent()
+    event.load_file(misp_object)
+    external_files: Dict[str, Dict[str, str]] = dict()
+    for attr in event.attributes:
+        if attr.type == "link":
+            external_files[attr.comment] = dict()
+            external_files[attr.comment]['link'] = attr.value
+    for attr in event.attributes:
+        if attr.type == "sha256":
+            if attr.comment in external_files.keys():
+                external_files[attr.comment]['sha256'] = attr.value
+    if external_files:
+        return external_files
+
+    return None
+
+
+def _find_project_dir(ctx: typer.Context):
+    config = _load_config(ctx)
+    project_dir = Path(os.getcwd()) / config['general']['project']
+    if os.path.isdir(project_dir):
+        if os.access(project_dir, os.W_OK):
+            return project_dir
+    return None
+
+
+def place_contents(external_files: Dict[str, Dict[str, str]], target_dir: Path):
+    for path, attr in external_files.items():
+        output_path = target_dir / Path(path)
+        output_dir = output_path.parent
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        if attr['temp_file']:
+            shutil.move(attr['temp_file'], output_path)
+            typer.echo(f'put: {output_path}')
+
+
+@ix_app.command('extract', help="Extract the contents from the downloaded MISP object.")
+def ix_extract(ctx: typer.Context, used_token: str):
+    _ix_extract(ctx, used_token)
+
+
+@common_logging
+def _ix_extract(ctx, used_token):
+    config = _load_config(ctx)
+    workspace = config['general']['workspace']
+    flx = FlexibleIndexToken(ctx, used_token)
+    downloaded_misp = Path(f'{workspace}/download/{flx.address}.json')
+
+    target_dir = _find_project_dir(ctx)
+    if not target_dir:
+        target_dir = Path(workspace)
+
+    external_files = None
+    if os.path.isfile(downloaded_misp):
+        if _is_misp_object(downloaded_misp):
+            external_files = _extract_contents(downloaded_misp)
+        else:
+            raise Exception(f'Invalid MISP Object: {downloaded_misp}')
+    else:
+        type.echo('Try \"metemctl ix use {used_token}}\".')
+        return
+
+    if external_files:
+        typer.echo(f'Extract the contents to: {target_dir}')
+        for path, attr in external_files.items():
+            typer.echo(f'- {path}: {attr}')
+        try:
+            typer.confirm('continue?', abort=True)
+        except Exception as err:
+            raise Exception('Interrupted') from err
+
+        external_files = _download_contents(external_files)
+        place_contents(external_files, target_dir)
 
 
 def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> TokenInfo:
@@ -1238,6 +1463,7 @@ def _operator_set(ctx, operator_address):
         typer.echo('you should restart seeker and solver, if launched.')
 
 
+@ix_catalog_app.command('show', help="Show the list of CTI catalogs")
 @contract_catalog_app.command('show', help="Show the list of CTI catalogs")
 def catalog_show(ctx: typer.Context):
     _catalog_show(ctx)
@@ -1319,11 +1545,11 @@ def misp():
     typer.echo(f"misp")
 
 
-@misp_app.command("open")
+@misp_app.command("open", help="Go to your MISP instance.")
 def misp_open(ctx: typer.Context):
     logger = getLogger()
     try:
-        misp_url = _load_config(ctx)['general']['misp_url']
+        misp_url = _load_config(ctx)['misp']['url']
         logger.info(f"Open MISP: {misp_url}")
         typer.echo(misp_url)
         typer.launch(misp_url)
@@ -1332,13 +1558,138 @@ def misp_open(ctx: typer.Context):
         logger.error(err)
 
 
+class IAPAuth(requests.auth.AuthBase):
+
+    def __init__(self, ctx):
+        self.client_id = _load_config(ctx)['misp']['gcp_client_id']
+
+        credential_path = _load_config(ctx)['misp']['gcp_cloud_iap_cred']
+        if credential_path:
+            # Set the GOOGLE_APPLICATION_CREDENTIALS to use service account
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = str(credential_path)
+
+    def __call__(self, r):
+        open_id_connect_token = id_token.fetch_id_token(Request(), self.client_id)
+        r.headers['Proxy-Authorization'] = 'Bearer {}'.format(open_id_connect_token)
+        return r
+
+
+class MISPClient():
+    def __init__(self, url, api_key, ssl_cert=2, auth=None):
+        if ssl_cert == 0:
+            urllib3.disable_warnings()
+        self.misp = pymisp.PyMISP(url, api_key, ssl_cert == 2, auth=auth)
+
+    def get_event(self, event_id):
+        return self.misp.get_event(event_id)
+
+    def search(self, **kwargs):
+        return self.misp.search(**kwargs)
+
+    def search_index(self, **kwargs):
+        return self.misp.search_index(**kwargs)
+
+    def add_event(self, event_obj):
+        return self.misp.add_event(event_obj)
+
+    def update_event(self, event_obj):
+        return self.misp.update_event(event_obj)
+
+
+def _dump_json(data, dumpdir, force=False, indent=None):
+    try:
+        uuid = data['Event']['uuid']
+        if len(uuid) == 0:
+            raise Exception('Empty UUID')
+    except Exception as err:
+        raise Exception('Unexpected data: missing Event or UUID') from err
+
+    filename = uuid + '.json'
+    fpath = Path(dumpdir) / filename
+    if os.path.isfile(fpath) and not force:
+        raise Exception(f'already exists: {fpath}')
+    with open(fpath, 'w') as fout:
+        json.dump(data, fout, indent=indent, ensure_ascii=False)
+
+    return fpath
+
+
+def _build_query():
+    basequery = "search"
+    query_string = basequery + " limit=100 page=1"
+    query_array = re.split(r'\s+', query_string)
+    qname = query_array[0]
+    qargs = query_array[1:]
+    query = dict()
+    for token in qargs:
+        key, val = token.split('=')
+        query[key] = val
+
+    return qname, query
+
+def _store_pretty_json(results, json_dumpdir):
+    # store json file
+    indent = 2
+    for val in results:
+        try:
+            fpath = _dump_json(val, json_dumpdir, True, indent)
+            typer.echo(f'dumped to {fpath}')
+        except OSError as err:
+            typer.echo(err)
+
+
+@misp_app.command("fetch", help="Export events from your MISP instance.")
+def misp_fetch(ctx: typer.Context):
+    logger = getLogger()
+    url = _load_config(ctx)['misp']['url']
+    api_key = _load_config(ctx)['misp']['api_key']
+    ssl_cert = int(_load_config(ctx)['misp']['ssl_cert'])
+    logger.info(f"Ferch MISP: {url}")
+
+    json_dumpdir = Path(_load_config(ctx)['misp']['download'])
+
+    client_id = _load_config(ctx)['misp']['gcp_client_id']
+    if client_id:
+        client = MISPClient(url, api_key, ssl_cert, auth=IAPAuth(ctx))
+    else:
+        client = MISPClient(url, api_key, ssl_cert)
+
+    # send query
+    qname, query = _build_query()
+    result = getattr(client, qname)(**query)
+
+    # separate json data
+    results = result if isinstance(result, list) else [result]
+
+    _store_pretty_json(results, json_dumpdir)
+
+
+
+@misp_app.command("event", help="Show exported MISP events")
+def misp_event(ctx: typer.Context):
+    json_dumpdir = Path(_load_config(ctx)['misp']['download'])
+
+    files = json_dumpdir.glob('*.json')
+    for file in files:
+        uuid, title = _parse_misp_object(file)
+        typer.echo(f'{uuid}: {title}')
+
+
+def setup_kedro(cwd):
+    subprocess.run(['kedro', 'build-reqs'], check=True, cwd=cwd)
+    subprocess.run(['kedro', 'install'], check=True, cwd=cwd)
+
+
 @app.command(help="Run the current intelligence workflow.")
-def run(ctx: typer.Context):
+def run(ctx: typer.Context, setup: bool = typer.Option(
+        False, help='kedro build-reqs && kedro install')):
     logger = getLogger()
     logger.info(f"Run command: kedro run")
     try:
         # TODO: check the existence of a CWD path
         cwd = _load_config(ctx)['general']['project']
+        if setup:
+            setup_kedro(cwd)
         subprocess.run(['kedro', 'run'], check=True, cwd=cwd)
     except CalledProcessError as err:
         logger.exception(err)
@@ -1346,8 +1697,14 @@ def run(ctx: typer.Context):
 
 
 @app.command(help="Validate the current intelligence cylcle")
-def check(ctx: typer.Context, viz: bool = typer.Option(
-        False, help='Show the visualized current workflow')):
+def check(
+    ctx: typer.Context,
+    setup: bool = typer.Option(
+        False,
+        help='kedro build-reqs && kedro install'),
+        viz: bool = typer.Option(
+            False,
+        help='Show the visualized current workflow')):
     # TODO: check the available intelligece workflow
     # TODO: check available intelligece contents
     logger = getLogger()
@@ -1355,6 +1712,8 @@ def check(ctx: typer.Context, viz: bool = typer.Option(
     try:
         # TODO: check the existence of a CWD path
         cwd = _load_config(ctx)['general']['project']
+        if setup:
+            setup_kedro(cwd)
         subprocess.run(['kedro', 'test'], check=True, cwd=cwd)
         if viz:
             logger.info(f"Run command: kedro viz")
@@ -1364,7 +1723,7 @@ def check(ctx: typer.Context, viz: bool = typer.Option(
         typer.echo(f'An error occurred while testing the workflow. {err}')
 
 
-def parse_misp_object(filepath: Path) -> Tuple[str, str]:
+def _parse_misp_object(filepath: Path) -> Tuple[str, str]:
     logger = getLogger()
     uuid = ''
     title = ''
@@ -1379,36 +1738,33 @@ def parse_misp_object(filepath: Path) -> Tuple[str, str]:
                     title = event['info']
         except json.JSONDecodeError as err:
             logger.exception(err)
-            typer.echo(f'An error occurred while parsing your misp object. {err}')
+            raise Exception(f'An error occurred while parsing your misp object. {err}') from err
     return uuid, title
 
 
 @app.command(help="Deploy the CTI token to disseminate CTI.")
 def publish(
         ctx: typer.Context,
-        misp_object: str,
-        catalog: Optional[int] = typer.Option(
-            1,
+        misp_object: Optional[str] = None,
+        catalog: str = typer.Option(
+            '1',
             help='A CTI catalog id/address to use for dissemination'),
-    token_address: Optional[str] = typer.Option(
+        token_address: Optional[str] = typer.Option(
             None,
             help='A CTI token address to use for dissemination'),
-        operator_address: Optional[str] = typer.Option(
-            None,
-            help='A CTI operator address to use for dissemination'),
         uuid: Optional[str] = typer.Option(
             None,
             help='The uuid of misp object'),
         title: Optional[str] = typer.Option(
             None,
             help='The title of misp object'),
-        price: Optional[int] = typer.Option(
+        price: int = typer.Option(
             10,
             help='A price of CTI token (dissemination cost)'),
-        initial_amount: Optional[int] = typer.Option(
+        initial_amount: int = typer.Option(
             100,
             help='An initial supply amount of CTI tokens'),
-        serve_amount: Optional[int] = typer.Option(
+        serve_amount: int = typer.Option(
             99,
             help='An amount of CTI tokens to give CTI broker'),
 ):
@@ -1417,12 +1773,112 @@ def publish(
         misp_object,
         catalog,
         token_address,
-        operator_address,
         uuid,
         title,
         price,
         initial_amount,
         serve_amount)
+
+
+def _uuid_to_misp_download_path(_ctx, uuid) -> Path:
+    return Path(f'{APP_DIR}/misp/download/{str(UUID(uuid))}')
+
+
+def _address_to_solver_assets_path(ctx, address) -> Path:
+    workspace = _load_config(ctx)['general']['workspace']
+    return Path(f'{workspace}/upload/{address}')
+
+
+def _is_misp_object(misp_object):
+    with open(misp_object) as fin:
+        json_misp = json.load(fin)
+        if 'Event' in json_misp.keys():
+            return True
+    return False
+
+
+def _fix_misp_object(ctx, misp_object, uuid, title) -> Tuple[str, str]:
+    if misp_object:
+        typer.echo(f'loading {misp_object}.')
+        if _is_misp_object(misp_object):
+            loaded_uuid, loaded_title = _parse_misp_object(misp_object)
+            with open(misp_object) as fin:
+                json_misp = json.load(fin)
+        else:
+            raise Exception('Unexpected data format: missing "Event"')
+    else:
+        json_misp = None
+        loaded_uuid = loaded_title = ''
+
+    if uuid and loaded_uuid and uuid != loaded_uuid:
+        raise Exception(f'Contradicory uuid: {uuid}, {loaded_uuid}')
+    uuid = uuid if uuid else loaded_uuid
+    if not uuid:
+        raise Exception('Missing uuid')
+    uuid = str(UUID(uuid))
+
+    if title and loaded_title and title != loaded_title:
+        raise Exception(f'Contradictory title: "{title}" vs. "{loaded_title}"')
+    title = title if title else loaded_title
+    if not title:
+        raise Exception('Missing title')
+
+    download_filepath = _uuid_to_misp_download_path(ctx, uuid)
+    if os.path.exists(download_filepath):
+        typer.echo(f'MISP download file already exists: {download_filepath}')
+        try:
+            typer.confirm('overwrite and continue?', abort=True)
+        except Exception as err:
+            raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
+    if json_misp:
+        json_misp['Event']['uuid'] = uuid
+        json_misp['Event']['info'] = title
+    else:
+        json_misp = {'Event': {'uuid': uuid, 'info': title}}
+    with open(download_filepath, 'w') as fout:
+        json.dump(json_misp, fout, ensure_ascii=False, indent=2)
+        typer.echo(f'saved MISP object as {download_filepath}')
+
+    return uuid, title
+
+
+def _fix_amounts(ctx, token_address, initial_amount, serve_amount
+                 ) -> Tuple[Optional[str], Optional[Callable[[], None]]]:
+    if initial_amount <= 0:
+        raise Exception(f'Invalid initial_amount: {initial_amount}')
+    if serve_amount < 0:
+        raise Exception(f'Invalid serve_amount: {serve_amount}')
+    if initial_amount < serve_amount:
+        raise Exception(
+            f'Serve amount is in excess of initial supply: {serve_amount} > {initial_amount}')
+    if token_address:
+        account = _load_account(ctx)
+        token = Token(account).get(token_address)
+        balance = token.balance_of(account.eoa)
+        diff = balance - initial_amount
+        if diff < 0:
+            return (
+                f'You only have {balance} tokens. {-diff} tokens will be minted.',
+                lambda: token.mint(-diff, account.eoa)
+            )
+        if diff > 0:
+            return (
+                f'You already have {balance} tokens. {diff} tokens will be burned.',
+                lambda: token.burn(diff, '')
+            )
+    return None, None
+
+
+def _find_project_report(ctx: typer.Context):
+    config = _load_config(ctx)
+    project_dir = Path(os.getcwd()) / config['general']['project']
+    if os.path.isdir(project_dir):
+        report_dir = project_dir / 'data' / '08_reporting'
+        json_files = Path(report_dir).glob('*.json')
+        for json_file in json_files:
+            if _is_misp_object(json_file):
+                return json_file
+    return None
 
 
 @common_logging
@@ -1431,65 +1887,43 @@ def _publish(
         misp_object,
         catalog,
         token_address,
-        operator_address,
         uuid,
         title,
         price,
         initial_amount,
         serve_amount):
 
-    misp_obj_filepath = Path(os.getcwd()) / misp_object
-    typer.echo(misp_obj_filepath)
-    uuid, title = parse_misp_object(misp_obj_filepath)
+    if not misp_object:
+        misp_object = _find_project_report(ctx)
+        if not misp_object:
+            raise Exception(
+                'MISP obeject not found in the current project. '
+                'Try \"metemctl publish --misp_object MISP_OBJECT_PATH\".')
 
-    if len(title) == 0:
-        raise Exception(f'Invalid(empty) title')
     if price < 0:
         raise Exception(f'Invalid price: {price}')
-    if initial_amount < serve_amount:
-        raise Exception(
-            f'Invalid serve amount in excess of initial supply: {serve_amount} > {initial_amount}')
-    if not operator_address:
-        config = _load_config(ctx)
-        # A Key Error exception is trapped by @common_logging
-        operator_address = config['operator']['address']
-    if token_address:
-        initial_amount = 0
 
-    typer.echo(f'{"":=<64}')
-    typer.echo(f'{title}')
-    typer.echo(f'{"":-<64}')
-    typer.echo(f' - UUID: {uuid}')
-    typer.echo(f' - Price: {price}')
-    if token_address:
-        typer.echo(f' - Charge: {serve_amount} (Token: {token_address})')
-    else:
-        typer.echo(f' - Sales Quantity: {serve_amount} (Initial Supply: {initial_amount})')
-    typer.echo(f' - Exchanger: {operator_address}')
-    typer.echo(f' - Catalog ID/Address: {catalog}')
-    typer.echo(f'{"":=<64}')
+    uuid, title = _fix_misp_object(ctx, misp_object, uuid, title)
+    token_address = _token_publish(
+        ctx,
+        catalog,
+        token_address,
+        uuid,
+        title,
+        price,
+        initial_amount,
+        serve_amount)
 
-    yes = typer.confirm('Are you sure you want to publish it?', abort=True)
+    os.symlink(_uuid_to_misp_download_path(ctx, uuid),
+               _address_to_solver_assets_path(ctx, token_address))
+    typer.echo(f'created a symlink of MISP object as a solver asset for token: {token_address}.')
 
-    if yes:
-        if not token_address:
-            token_address = _token_create(ctx, initial_amount)
-
-        account = _load_account(ctx)
-        catalog = Catalog(account).get(FlexibleIndexCatalog(ctx, catalog).address)
-        catalog.register_cti(
-            cast(
-                ChecksumAddress,
-                token_address),
-            uuid,
-            title,
-            price,
-            operator_address)
-        typer.echo(f'registered token({token_address}) onto catalog({catalog.address}).')
-        catalog.publish_cti(account.eoa, cast(ChecksumAddress, token_address))
-        typer.echo(f'Token({token_address}) was published on catalog({catalog.address}).')
-        catalog.sync_catalog(super_reload=True)
-        _broker_serve(ctx, [catalog.address, token_address], serve_amount)
+    if solver_status(ctx):
+        if _solver_support(ctx, token_address):
+            typer.echo(f'Token({token_address}) object was supported by Solver.')
+            typer.echo(f'Your MISP object is now available for download.')
+            return
+    typer.echo(f'Run \"mtemctl solver support {token_address}\" after enabling Solver')
 
 
 @account_app.command("show", help="Show the current account information.")
@@ -1529,7 +1963,7 @@ def account_create(ctx: typer.Context):
 @common_logging
 def _account_create(ctx: typer.Context):
     # Ref: https://github.com/ethereum/go-ethereum/blob/v1.10.1/cmd/geth/accountcmd.go
-    print('Your new account is locked with a password. Please give a password.')
+    typer.echo('Your new account is locked with a password. Please give a password.')
     acct = eth_account.Account.create('')
 
     # https://pages.nist.gov/800-63-3/sp800-63b.html
@@ -1537,7 +1971,7 @@ def _account_create(ctx: typer.Context):
     # Memorized secrets SHALL be at least 8 characters in length if chosen by the subscriber.
     password = ''
     while len(password) < 8:
-        print('Do not forget this password. The password must contain at least 8 characters.')
+        typer.echo('Do not forget this password. The password must contain at least 8 characters.')
         password = typer.prompt("Password", hide_input=True, confirmation_prompt=True,)
 
     encrypted = eth_account.Account().encrypt(acct.key, password)
@@ -1576,7 +2010,7 @@ def _account_airdrop(ctx: typer.Context, promote_code: str):
 
     config = _load_config(ctx)
     url = config['general']['airdrop_url']
-    if not 'http' in url:
+    if 'http' not in url:
         raise Exception('Invalid airdrop_url:', url)
 
     account = _load_account(ctx)
@@ -1670,10 +2104,16 @@ def issue():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
 
 
-@app.command(help="Access the Application Directoy of Metemcyber")
-def open_app_dir():
-    typer.echo(f"Open {APP_DIR}")
-    typer.launch(APP_DIR)
+@app.command(help="Access the application directoy of Metemcyber")
+def open_app_dir(
+    print_only: bool = typer.Option(
+        False,
+        help='Output only the application directory path.')):
+    if print_only:
+        typer.echo(f"{APP_DIR}")
+    else:
+        typer.echo(f"Open \'{APP_DIR}\'")
+        typer.launch(APP_DIR)
 
 
 if __name__ == "__main__":

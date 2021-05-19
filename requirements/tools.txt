@@ -1,2 +1,2 @@
-kedro==0.17.2
-kedro-viz==3.10.1
+kedro~=0.17.2
+kedro-viz~=3.10.1

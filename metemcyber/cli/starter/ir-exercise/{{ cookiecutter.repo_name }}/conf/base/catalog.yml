@@ -1,0 +1,62 @@
+# Here you can define all your data sets by using simple YAML syntax.
+#
+# Documentation for this file format can be found in "The Data Catalog"
+# Link: https://kedro.readthedocs.io/en/stable/05_data/01_data_catalog.html
+
+source_of_truth:
+  type: yaml.YAMLDataSet
+  filepath: data/01_raw/source_of_truth.yml
+#  layer: raw
+
+anyrun_html:
+  type: text.TextDataSet
+  filepath: data/02_intermediate/input.html
+#  layer: intermediate
+
+source_of_truth_from_anyrun:
+  type: yaml.YAMLDataSet
+  filepath: data/02_intermediate/source_of_truth_from_anyrun.yml
+#  layer: intermediate
+
+source_of_truth_with_family:
+  type: yaml.YAMLDataSet
+  filepath: data/03_primary/source_of_truth_with_family.yml
+#  layer: intermediate
+
+target_ioc:
+  type: pandas.CSVDataSet
+  filepath: data/03_primary/ioc.csv
+#  layer: intermediate
+
+discovered_network_ioc:
+  type: pandas.CSVDataSet
+  filepath: data/04_feature/discovered_network_ioc.csv
+#  layer: feature
+
+discovered_endpoint_ioc:
+  type: pandas.CSVDataSet
+  filepath: data/04_feature/discovered_endpoint_ioc.csv
+#  layer: feature
+
+artifact_windows_log:
+  type: pandas.CSVDataSet
+  filepath: data/01_raw/sysmon-log.csv
+#  layer: raw
+
+artifact_pcap:
+  type: {{cookiecutter.python_package}}.extras.datasets.pcap_dataset.PcapDataSet
+  filepath: data/01_raw/network.pcap
+
+report_template:
+  type: text.TextDataSet
+  filepath: data/01_raw/report_template.j2
+#  layer: intermediate
+
+generated_report:
+  type: text.TextDataSet
+  filepath: data/08_reporting/generated_report.md
+#  layer: reporting
+
+misp_json:
+  type: json.JSONDataSet
+  filepath: data/08_reporting/misp_event.json

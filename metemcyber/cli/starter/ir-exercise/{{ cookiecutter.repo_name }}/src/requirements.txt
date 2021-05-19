@@ -1,0 +1,19 @@
+black==v19.10b0
+flake8>=3.7.9, <4.0
+ipython==7.10
+isort>=4.3.21, <5.0
+jupyter~=1.0
+jupyter_client>=5.1, <7.0
+jupyterlab==0.31.1
+kedro==0.17.3
+nbstripout==0.3.3
+pytest-cov~=2.5
+pytest-mock>=1.7.1, <2.0
+pytest~=6.1.2
+wheel==0.32.2
+beautifulsoup4~=4.9.3
+dpkt~=1.9.5
+pandas~=1.2.4
+jinja2~=2.11.3
+tabulate~=0.8.9
+pymisp~=2.4.140

@@ -1,0 +1,27 @@
+name: ''
+md5: ''
+sha1: ''
+sha256: ''
+ssdeep: ''
+mimetype: ''
+fileinfo: ''
+malware_family: []
+trid: []
+reports:
+  - name: ''
+    timestamp: ''
+    category: ''
+    result: ''
+    score: 0
+    product: ''
+    product_category: ''
+    version: ''
+    environment: []
+    references: []
+    threats: []
+    process_activities: []
+    dllload_activities: []
+    apicall_activities: []
+    network_activities: []
+    file_activities: []
+    registry_activities: []
