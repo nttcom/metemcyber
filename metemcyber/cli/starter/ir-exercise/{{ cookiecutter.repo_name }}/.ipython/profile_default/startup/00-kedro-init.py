@@ -21,11 +21,11 @@ def reload_kedro(path, line=None, env: str = None, extra_params: Dict[str, Any] 
 
     try:
         import kedro.config.default_logger
+        from kedro.framework.cli.jupyter import collect_line_magic
         from kedro.framework.hooks import get_hook_manager
         from kedro.framework.project import configure_project
         from kedro.framework.session import KedroSession
         from kedro.framework.session.session import _activate_session
-        from kedro.framework.cli.jupyter import collect_line_magic
     except ImportError:
         logging.error(
             "Kedro appears not to be installed in your current environment "
