@@ -1,2 +1,0 @@
-# Mirrors common
--r requirements/common.txt

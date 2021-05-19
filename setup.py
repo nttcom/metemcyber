@@ -15,28 +15,6 @@
 #
 
 # See https://packaging.python.org/
-
-import os
 from setuptools import setup
 
-here = os.path.abspath(os.path.dirname(__file__))
-
-
-def load_requirements(filename):
-    with open(os.path.join(here, 'requirements', filename)) as fin:
-        requirements = fin.read().splitlines()
-    return requirements
-
-
-extras_require = {}
-extras_require['cli'] = load_requirements('tools.txt')
-extras_require['test'] = load_requirements('test.txt')
-extras_require['doc'] = load_requirements('docs.txt')
-extras_require['dev'] = extras_require['test'] + extras_require['doc']
-extras_require['all'] = extras_require['cli'] + extras_require['dev']
-
-setup(
-    install_requires=load_requirements('common.txt'),
-    extras_require=extras_require,
-    tests_require=extras_require['test']
-)
+setup()

@@ -1,4 +1,5 @@
 #!/bin/sh -ex
-python3 -m venv venv
-. venv/bin/activate
-python -m pip install --upgrade pip
+export PIPENV_VENV_IN_PROJECT=true
+pipenv --python 3.8
+pipenv run python -m pip install -U pip
+pipenv install
