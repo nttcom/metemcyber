@@ -1015,9 +1015,8 @@ def solver_status(ctx: typer.Context) -> bool:
         if solver.operator_address == operator.address:
             typer.echo(f'Solver running with operator you configured({operator.address}).')
             return True
-        else:
-            typer.echo('[WARNING] '
-                       f'Solver running with another operator({solver.operator_address}).')
+        typer.echo('[WARNING] '
+                    f'Solver running with another operator({solver.operator_address}).')
     except MCSError as err:
         if err.code == MCSErrno.ENOENT:
             typer.echo('Solver running without your operator.')
@@ -1597,7 +1596,7 @@ class MISPClient():
         return self.misp.update_event(event_obj)
 
 
-def dump_json(data, dumpdir, force=False, indent=None):
+def _dump_json(data, dumpdir, force=False, indent=None):
     try:
         uuid = data['Event']['uuid']
         if len(uuid) == 0:
@@ -1615,7 +1614,7 @@ def dump_json(data, dumpdir, force=False, indent=None):
     return fpath
 
 
-def build_query():
+def _build_query():
     basequery = "search"
     query_string = basequery + " limit=100 page=1"
     query_array = re.split(r'\s+', query_string)
@@ -1627,6 +1626,16 @@ def build_query():
         query[key] = val
 
     return qname, query
+
+def _store_pretty_json(results, json_dumpdir):
+    # store json file
+    indent = 2
+    for val in results:
+        try:
+            fpath = _dump_json(val, json_dumpdir, True, indent)
+            typer.echo(f'dumped to {fpath}')
+        except OSError as err:
+            typer.echo(err)
 
 
 @misp_app.command("fetch", help="Export events from your MISP instance.")
@@ -1646,20 +1655,14 @@ def misp_fetch(ctx: typer.Context):
         client = MISPClient(url, api_key, ssl_cert)
 
     # send query
-    qname, query = build_query()
+    qname, query = _build_query()
     result = getattr(client, qname)(**query)
 
     # separate json data
     results = result if isinstance(result, list) else [result]
 
-    # store json file
-    indent = 2
-    for val in results:
-        try:
-            fpath = dump_json(val, json_dumpdir, True, indent)
-            print(f'dumped to {fpath}')
-        except OSError as err:
-            print(err)
+    _store_pretty_json(results, json_dumpdir)
+
 
 
 @misp_app.command("event", help="Show exported MISP events")
@@ -1960,7 +1963,7 @@ def account_create(ctx: typer.Context):
 @common_logging
 def _account_create(ctx: typer.Context):
     # Ref: https://github.com/ethereum/go-ethereum/blob/v1.10.1/cmd/geth/accountcmd.go
-    print('Your new account is locked with a password. Please give a password.')
+    typer.echo('Your new account is locked with a password. Please give a password.')
     acct = eth_account.Account.create('')
 
     # https://pages.nist.gov/800-63-3/sp800-63b.html
@@ -1968,7 +1971,7 @@ def _account_create(ctx: typer.Context):
     # Memorized secrets SHALL be at least 8 characters in length if chosen by the subscriber.
     password = ''
     while len(password) < 8:
-        print('Do not forget this password. The password must contain at least 8 characters.')
+        typer.echo('Do not forget this password. The password must contain at least 8 characters.')
         password = typer.prompt("Password", hide_input=True, confirmation_prompt=True,)
 
     encrypted = eth_account.Account().encrypt(acct.key, password)
