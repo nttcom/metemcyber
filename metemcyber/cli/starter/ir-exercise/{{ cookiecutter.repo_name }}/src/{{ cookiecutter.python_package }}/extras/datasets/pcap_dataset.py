@@ -3,10 +3,7 @@ from typing import Any, Dict, List, Tuple
 
 import dpkt
 import fsspec
-from kedro.io.core import (
-    AbstractDataSet,
-    get_protocol_and_path,
-)
+from kedro.io.core import AbstractDataSet, get_protocol_and_path
 
 
 class PcapDataSet(AbstractDataSet):

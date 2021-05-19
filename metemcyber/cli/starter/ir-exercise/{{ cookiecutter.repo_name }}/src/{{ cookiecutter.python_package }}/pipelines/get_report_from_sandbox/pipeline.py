@@ -16,11 +16,7 @@
 
 from kedro.pipeline import Pipeline, node
 
-from .nodes import (
-    extract_data_from_anyrun_html,
-    get_report_from_anyrun,
-    search_report_from_anyrun,
-)
+from .nodes import extract_data_from_anyrun_html, get_report_from_anyrun, search_report_from_anyrun
 
 
 def create_pipeline(**kwargs):

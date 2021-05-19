@@ -14,8 +14,8 @@
 #    limitations under the License.
 #
 
-import sys
 import logging
+import sys
 import urllib
 from typing import Any, Dict, Optional
 
