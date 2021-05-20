@@ -58,9 +58,9 @@ jobs:
       - name: Create Python virtual environment
         # if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
-          apt update
-          apt install -y build-essential python3-dev
-          pip install pipenv
+          sudo apt update
+          sudo apt install -y build-essential python3-dev
+          pip install --user pipenv
           pipenv --python 3.8
           pipenv run python -m pip install -U pip
           pipenv install --dev
