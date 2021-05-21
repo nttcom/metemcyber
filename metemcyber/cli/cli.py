@@ -338,6 +338,7 @@ def common_logging(func):
         except Exception as err:
             logger.exception(err)
             typer.echo(f'failed operation: {err}')
+        return None
     return wrapper
 
 
