@@ -199,6 +199,8 @@ class Seeker():
         """
         if self.pid:
             raise Exception(f'Already running on pid({self.pid}).')
+        # Seeker needs to keep running in the background.
+        # pylint pylint: disable=R1732
         proc = Popen(self.cmd_args, shell=False)
         for _cnt in range(5):
             sleep(1)
