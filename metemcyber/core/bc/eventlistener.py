@@ -49,39 +49,35 @@ class BasicEventListener:
         self.stop()
 
     def add_event_filter(self, key: str, event_filter: LogFilter,
-                         callback: Callable[[AttributeDict[Any, Any]], None]) -> None:
-        self.__lock.acquire()
-        if key in self.__event_filters.keys():
-            assert self.__event_filters[key]['callback'] == callback
-            self.__event_filters[key]['count'] += 1
-        else:
-            self.__event_filters[key] = {
-                'filter': event_filter, 'callback': callback, 'count': 1}
-            LOGGER.debug('start watching: %s', key)
-        self.__lock.release()
+                         callback: Callable[[AttributeDict], None]) -> None:
+        with self.__lock:
+            if key in self.__event_filters.keys():
+                assert self.__event_filters[key]['callback'] == callback
+                self.__event_filters[key]['count'] += 1
+            else:
+                self.__event_filters[key] = {
+                    'filter': event_filter, 'callback': callback, 'count': 1}
+                LOGGER.debug('start watching: %s', key)
         if not self.__stopping:
             self.start()
 
     def remove_event_filter(self, key: str) -> None:
-        self.__lock.acquire()
-        self.__event_filters[key]['count'] -= 1
-        if self.__event_filters[key]['count'] <= 0:
-            del self.__event_filters[key]
-            LOGGER.debug('remove watching: %s', key)
-        self.__lock.release()
+        with self.__lock:
+            self.__event_filters[key]['count'] -= 1
+            if self.__event_filters[key]['count'] <= 0:
+                del self.__event_filters[key]
+                LOGGER.debug('remove watching: %s', key)
         # auto-stopped in __run() if __event_filters is empty.
 
     def add_event_filter_in_callback(self, key: str, event_filter: LogFilter,
-                                     callback: Callable[[AttributeDict[Any, Any]], None]) -> None:
-        self.__pending_lock.acquire()
-        self.__pending_filters.append(
-            {'key': key, 'filter': event_filter, 'callback': callback})
-        self.__pending_lock.release()
+                                     callback: Callable[[AttributeDict], None]) -> None:
+        with self.__pending_lock:
+            self.__pending_filters.append(
+                {'key': key, 'filter': event_filter, 'callback': callback})
 
     def remove_event_filter_in_callback(self, key: str) -> None:
-        self.__pending_lock.acquire()
-        self.__pending_filters.append({'key': key, 'filter': None})
-        self.__pending_lock.release()
+        with self.__pending_lock:
+            self.__pending_filters.append({'key': key, 'filter': None})
 
     def start(self) -> None:
         if self.__thread:
@@ -111,41 +107,39 @@ class BasicEventListener:
             if len(self.__event_filters) == 0:
                 break
 
-            self.__lock.acquire()
-            for value in self.__event_filters.values():
-                try:
-                    events = value['filter'].get_new_entries()
-                except (ConnError, HTTPError) as err:
-                    LOGGER.warning(
-                        'could not connect to ethereum network: %s', err)
-                    break  # retry on next time
+            with self.__lock:
+                for value in self.__event_filters.values():
+                    try:
+                        events = value['filter'].get_new_entries()
+                    except (ConnError, HTTPError) as err:
+                        LOGGER.warning(
+                            'could not connect to ethereum network: %s', err)
+                        break  # retry on next time
 
-                for event in events:
+                    for event in events:
+                        if self.__stopping:
+                            break
+                        LOGGER.info(
+                            'event %s: address=%s args=%s',
+                            event['event'], event['address'], event['args'])
+
+                        Thread(target=value['callback'], args=[event]).start()
+
                     if self.__stopping:
                         break
-                    LOGGER.info(
-                        'event %s: address=%s args=%s',
-                        event['event'], event['address'], event['args'])
-
-                    Thread(target=value['callback'], args=[event]).start()
-
-                if self.__stopping:
-                    break
-            self.__lock.release()
 
             if self.__stopping:
                 break
             time.sleep(EVENT_POLLING_INTERVAL_SEC)
 
-            self.__pending_lock.acquire()
-            for item in self.__pending_filters:
-                if item['filter']:
-                    self.add_event_filter(
-                        item['key'], item['filter'], item['callback'])
-                else:
-                    self.remove_event_filter(item['key'])
-            self.__pending_filters.clear()
-            self.__pending_lock.release()
+            with self.__pending_lock:
+                for item in self.__pending_filters:
+                    if item['filter']:
+                        self.add_event_filter(
+                            item['key'], item['filter'], item['callback'])
+                    else:
+                        self.remove_event_filter(item['key'])
+                self.__pending_filters.clear()
 
         LOGGER.info('%s: thread exiting: %s', self.__prefix, self.__identity)
         self.__thread = None
