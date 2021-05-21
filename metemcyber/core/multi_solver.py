@@ -117,6 +117,8 @@ class DataPack:
         total = 0
         while total < len(msg):
             if hasattr(socket, 'SOCK_NONBLOCK'):
+                # SOCK_NONBLOCK is available only on Linux.
+                # pylint pylint: disable=E1101
                 tmp = sock.send(msg[total:], socket.SOCK_NONBLOCK)
             else:
                 tmp = sock.send(msg[total:])
