@@ -41,12 +41,12 @@ This exercise will be performed on the testnet environment.
 (Currently, we recommend using the venv to install)
 
 ```sh
-sudo apt install build-essential python3-venv python3-dev
+sudo apt install build-essential python3-dev
+pip3 install pipenv
 git clone https://github.com/nttcom/metemcyber
 cd metemcyber
 ./init.sh
-. venv/bin/activate
-pip install -e .[cli]
+pipenv shell
 # For ZSH users
 # pip install -e .\[cli\]
 ```

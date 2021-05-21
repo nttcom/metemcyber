@@ -17,8 +17,8 @@ on:
 env:
   CACHE_VERSION: 1
   DEFAULT_PYTHON: 3.8
-  PYLINT_DISABLE: CC0114,C0115,C0116,R0903,R0902,R0913,W1309,W1203,W1309,R0801,W0703,W0511,C0111,E0401
   PYTHON_ROOT_DIRS: metemcyber
+  PIPENV_VENV_IN_PROJECT: true
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -42,13 +42,13 @@ jobs:
         id: generate-python-key
         run: >-
           echo "::set-output name=key::base-venv-${{ env.CACHE_VERSION }}-${{
-            hashFiles('requirements/test.txt')
+            hashFiles('Pipfile.lock')
           }}"
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@v2
         with:
-          path: venv
+          path: .venv
           key: >-
             ${{ runner.os }}-${{ steps.python.outputs.python-version }}-${{
               steps.generate-python-key.outputs.key
@@ -58,14 +58,15 @@ jobs:
       - name: Create Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
-          python3 -m venv venv
-          . venv/bin/activate
-          python -m pip install -U pip setuptools wheel
-          pip install -U -r requirements/test.txt
+          sudo apt update
+          sudo apt install -y build-essential python3-dev
+          pip install --user pipenv
+          pipenv --python 3.8
+          pipenv run python -m pip install -U pip
+          pipenv sync --dev
       # Runs a linter for python
       - name: Run formatting check
         run: |
-          . venv/bin/activate
-          isort ${{ env.PYTHON_ROOT_DIRS }} --diff --check-only --line-length=100
-          pylint ${{ env.PYTHON_ROOT_DIRS }} --max-line-length=100 --score=n --disable=${{ env.PYLINT_DISABLE }}
-          mypy ${{ env.PYTHON_ROOT_DIRS }} --ignore-missing-imports --show-error-codes --no-error-summary --exclude ${{ env.PYTHON_ROOT_DIRS }}/cli/starter 
+          pipenv run isort ${{ env.PYTHON_ROOT_DIRS }} --diff --check-only
+          pipenv run pylint ${{ env.PYTHON_ROOT_DIRS }} --score=n
+          pipenv run mypy ${{ env.PYTHON_ROOT_DIRS }} --show-error-codes --no-error-summary
