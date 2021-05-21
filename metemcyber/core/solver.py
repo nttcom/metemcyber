@@ -19,7 +19,7 @@ from collections import deque
 from configparser import ConfigParser
 from threading import Condition, Thread
 from time import sleep
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 from urllib.request import Request, urlopen
 
 from eth_typing import ChecksumAddress
@@ -86,7 +86,7 @@ class ChallengeListener(BasicEventListener):
         super().__init__(str(self))
         #                    token_address:   callback(token_address,    event)
         self.executor = QueuedExecutor()
-        self.accepting: Dict[ChecksumAddress, Callable[[ChecksumAddress, AttributeDict[Any, Any]],
+        self.accepting: Dict[ChecksumAddress, Callable[[ChecksumAddress, AttributeDict],
                                                        None]] = {}
         event_filter = CTIOperator(account).get(
             operator).event_filter(event_name, fromBlock='latest')
@@ -96,14 +96,14 @@ class ChallengeListener(BasicEventListener):
         super().destroy()
         self.executor.destroy()
 
-    def dispatch_callback(self, event: AttributeDict[Any, Any]) -> None:
+    def dispatch_callback(self, event: AttributeDict) -> None:
         token_address = event['args']['token']
         if token_address in self.accepting.keys():
             callback = self.accepting[token_address]
             self.executor.enqueue(callback, token_address, event)
 
     def accept_tokens(self, token_addresses: List[ChecksumAddress],
-                      callback: Callable[[ChecksumAddress, AttributeDict[Any, Any]], None]) -> None:
+                      callback: Callable[[ChecksumAddress, AttributeDict], None]) -> None:
         for address in token_addresses:
             self.accepting[address] = callback
 
