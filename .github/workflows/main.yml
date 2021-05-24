@@ -40,9 +40,6 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Setup pipenv
         run: |
-          echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
-          sudo apt update
-          sudo apt install -y build-essential python3-dev
           pip install --user pipenv
       - name: Generate partial Python venv restore key
         id: generate-python-key
@@ -65,6 +62,8 @@ jobs:
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           pipenv --python 3.8
+          sudo apt update
+          sudo apt install -y build-essential python3-dev
           pipenv run python -m pip install -U pip
           pipenv sync --dev
       # Runs a linter for python
