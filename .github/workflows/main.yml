@@ -38,9 +38,12 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
-      - name: Add to the system path
+      - name: Setup pipenv
         run: |
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+          sudo apt update
+          sudo apt install -y build-essential python3-dev
+          pip install --user pipenv
       - name: Generate partial Python venv restore key
         id: generate-python-key
         run: >-
@@ -61,9 +64,6 @@ jobs:
       - name: Create Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
-          sudo apt update
-          sudo apt install -y build-essential python3-dev
-          pip install --user pipenv
           pipenv --python 3.8
           pipenv run python -m pip install -U pip
           pipenv sync --dev
