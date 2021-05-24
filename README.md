@@ -15,6 +15,14 @@
 [![Twitter](https://img.shields.io/twitter/follow/metemcyber?label=Follow&style=social)](https://twitter.com/metemcyber)
 <!-- ![GitHub Release](https://img.shields.io/github/v/release/nttcom/metemcyber.svg?style=flat) -->
 
+**Pricom Mainnet (rpc.metemcyber.ntt.com)**
+| Contract Name | Address |
+| ---- | ---- |
+| CTICatalog | 0x168DD95472cEaF5c28447C8b07A593e205E92A12 |
+| CTIBroker | 0xC1814B834E1be7DeE7611fD5F747535369B8683e |
+| CTIOperator | 0x35b3fbeABB802E9477b17a63073ABe874A386E25 |
+| metemcyber_util</br>(placeholder) | 0x0e5EECFF51a3ab2221fF6bBd240B20E8933ff28A</br>\_\_$47ceb01e1c551398bb2e8f2c8232f40551$\_\_ |
+
 ## 💡 Overview
 
 Metemcyber™ enables security collaboration and assessment all across the organization through the [intelligence cycle](https://en.wikipedia.org/wiki/Intelligence_cycle).
