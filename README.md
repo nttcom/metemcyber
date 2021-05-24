@@ -45,21 +45,19 @@ Metemcyber™ enables security collaboration and assessment all across the organ
 
 ## 🚅 QuickStart
 
-This exercise will be performed on the testnet environment.
-(Currently, we recommend using the venv to install)
+This exercise will be performed on the test environment.
+(Currently, we recommend using the pipenv to install)
 
 ```sh
-sudo apt install build-essential python3-dev
-pip3 install pipenv
+sudo apt install git build-essential python3-dev
 git clone https://github.com/nttcom/metemcyber
 cd metemcyber
-./init.sh
-pipenv shell
-# For ZSH users
-# pip install -e .\[cli\]
+pip install -e '.[cli]' # pipenv users should run './init.sh'
 ```
+
 <!-- ```
-pip install $PACKAGE_NAME[cli]
+sudo apt install build-essential python3-dev
+pip install $PACKAGE_NAME'[cli]'
 ``` -->
 
 Check the current configuration:
