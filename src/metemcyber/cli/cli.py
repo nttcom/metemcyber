@@ -1005,30 +1005,37 @@ def _solver_client(ctx: typer.Context, account: Optional[Account] = None) -> MCS
 
 @solver_app.command('status',
                     help='Show Solver status.')
-def solver_status(ctx: typer.Context) -> bool:
+def solver_status(ctx: typer.Context):
+    typer.echo(_solver_status(ctx)[1])
+
+
+def _solver_status(ctx: typer.Context) -> Tuple[bool, str]:
     logger = getLogger()
     try:
         solver = _solver_client(ctx)
-        solver.get_solver()
-        try:
-            operator = _load_operator(ctx)
-        except Exception:
-            typer.echo('Solver running, but you have not yet configured operator.')
-            return False
-        if solver.operator_address == operator.address:
-            typer.echo(f'Solver running with operator you configured({operator.address}).')
-            return True
-        typer.echo('[WARNING] '
-                   f'Solver running with another operator({solver.operator_address}).')
-    except MCSError as err:
-        if err.code == MCSErrno.ENOENT:
-            typer.echo('Solver running without your operator.')
-        else:
-            typer.echo(f'failed operation: {err}')
     except Exception as err:
         logger.exception(err)
-        typer.echo(f'failed operation: {err}')
-    return False
+        return False, str(err)
+    try:
+        solver.get_solver()
+    except MCSError as err:
+        if err.code == MCSErrno.ENOENT:
+            msg = 'Solver running without your operator.'
+        else:
+            msg = str(err)
+        return False, msg
+    except Exception as err:
+        logger.exception(err)
+        return False, f'failed operation: {err}'
+    try:
+        operator = _load_operator(ctx)
+    except Exception:
+        return False, 'Solver running, but you have not yet configured operator.'
+    if solver.operator_address == operator.address:
+        msg = f'Solver running with operator you configured({operator.address}).'
+    else:
+        msg = f'[WARNING] Solver running with another operator({solver.operator_address}).'
+    return True, msg
 
 
 @solver_app.command('start',
@@ -1148,19 +1155,23 @@ def _solver_disable(ctx):
 @solver_app.command('support',
                     help='Register token to accept challenge.')
 def solver_support(ctx: typer.Context, token: str):
-    _solver_support(ctx, token)
+    __solver_support(ctx, token)
 
 
 @common_logging
-def _solver_support(ctx, token) -> bool:
+def __solver_support(ctx, token):
+    _solver_support(ctx, token)
+
+
+def _solver_support(ctx, token):
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
     msg = solver.solver('accept_challenges', [flx.address])
     if msg:
         typer.echo(msg)
-        return False
-    return True
+    typer.echo(f'Token({token}) object was supported by Solver.')
+    typer.echo(f'Your MISP object is now available for download.')
 
 
 @solver_app.command('obsolete',
@@ -1175,6 +1186,7 @@ def _solver_obsolete(ctx, token):
     solver = _solver_client(ctx)
     solver.get_solver()
     solver.solver('refuse_challenges', [flx.address])
+    typer.echo(f'obsoleted challenge for token({flx.address}) by solver.')
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
@@ -1951,11 +1963,12 @@ def _publish(
     os.symlink(_uuid_to_misp_download_path(ctx, uuid), assets_path)
     typer.echo(f'created a symlink of MISP object as a solver asset for token: {token_address}.')
 
-    if solver_status(ctx):
-        if _solver_support(ctx, token_address):
-            typer.echo(f'Token({token_address}) object was supported by Solver.')
-            typer.echo(f'Your MISP object is now available for download.')
+    if _solver_status(ctx)[0]:
+        try:
+            _solver_support(ctx, token_address)
             return
+        except Exception as err:
+            typer.echo(f'failed solver support: {err}')
     typer.echo(f'Run \"mtemctl solver support {token_address}\" after enabling Solver')
 
 
@@ -1979,6 +1992,10 @@ def _discontinue(ctx, catalog_and_token):
         typer.echo(f'took back all({amount}) of token({flx_token.address}) from broker.')
     catalog.unregister_cti(flx_token.address)
     typer.echo(f'unregistered token({flx_token.address}) from catalog({catalog.address}).')
+    if _solver_status(ctx)[0]:
+        _solver_obsolete(ctx, flx_token.address)
+    else:
+        _load_operator(ctx).unregister_tokens([flx_token.address])
 
 
 @account_app.command("show", help="Show the current account information.")
