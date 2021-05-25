@@ -71,6 +71,11 @@ CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
 WORKSPACE_CONFIG_FILENAME = 'config.ini'
 WORKFLOW_FILE_NAME = "workflow.yml"
 DATA_FILE_NAME = "source_of_truth.yml"
+METEM_STARTER_ALIASES = {
+    "ir-exercise"
+}
+METEM_STARTERS_REPO = "git+https://github.com/nttcom/metemcyber-starters.git"
+
 
 DEFAULT_CONFIGS = {
     'general': {
@@ -448,10 +453,16 @@ def create_workflow(event_id, category, contents, starter):
         logger.info(f"Run command: kedro new --config {dist_yml_filepath}")
         try:
             if starter:
-                starter_path = Path(__file__).parent / 'starter' / starter
-                subprocess.run(['kedro', 'new', '--config',
-                                dist_yml_filepath,
-                                '--starter', starter_path], check=True)
+                if starter in METEM_STARTER_ALIASES:
+                    subprocess.run(['kedro', 'new', '--config',
+                                    dist_yml_filepath,
+                                    '--starter', METEM_STARTERS_REPO,
+                                    '--directory', starter,
+                                    '--checkout', 'main'], check=True)
+                else:
+                    subprocess.run(['kedro', 'new', '--config',
+                                    dist_yml_filepath,
+                                    '--starter', starter], check=True)
             else:
                 subprocess.run(['kedro', 'new', '--config',
                                 dist_yml_filepath], check=True)
