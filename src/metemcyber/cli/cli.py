@@ -1019,7 +1019,7 @@ def solver_status(ctx: typer.Context) -> bool:
             typer.echo(f'Solver running with operator you configured({operator.address}).')
             return True
         typer.echo('[WARNING] '
-                    f'Solver running with another operator({solver.operator_address}).')
+                   f'Solver running with another operator({solver.operator_address}).')
     except MCSError as err:
         if err.code == MCSErrno.ENOENT:
             typer.echo('Solver running without your operator.')
@@ -1658,6 +1658,7 @@ def _build_query():
 
     return qname, query
 
+
 def _store_pretty_json(results, json_dumpdir):
     # store json file
     indent = 2
@@ -1693,7 +1694,6 @@ def misp_fetch(ctx: typer.Context):
     results = result if isinstance(result, list) else [result]
 
     _store_pretty_json(results, json_dumpdir)
-
 
 
 @misp_app.command("event", help="Show exported MISP events")
