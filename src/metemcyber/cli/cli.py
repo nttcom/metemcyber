@@ -16,6 +16,7 @@
 
 #pylint: disable=too-many-lines
 
+import errno
 import hashlib
 import json
 import os
@@ -59,6 +60,7 @@ from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 from metemcyber.core.ngrok import DEFAULT_CONFIGS as DC_NGROK
 from metemcyber.core.ngrok import NgrokMgr
 from metemcyber.core.seeker import DEFAULT_CONFIGS as DC_SEEKER
+from metemcyber.core.seeker import TTY_FILEPATH as TTYLINK4SEEKER
 from metemcyber.core.seeker import Seeker
 from metemcyber.core.util import config2str, merge_config
 from metemcyber.plugins.gcs_solver import DEFAULT_CONFIGS as DC_SOLV_GCS
@@ -1181,12 +1183,14 @@ def ix_use(ctx: typer.Context, token: str,
                '', help='Globally accessible url which seeker is listening. '
                         'This option overwrites --ngrok.'),
            ngrok: bool = typer.Option(
-               True, help='Use ngrok public url bound up with seeker if launched.')):
-    _ix_use(ctx, token, seeker, ngrok)
+               True, help='Use ngrok public url bound up with seeker if launched.'),
+           monitor: bool = typer.Option(
+               True, help='Print messages from Seeker on current terminal.')):
+    _ix_use(ctx, token, seeker, ngrok, monitor)
 
 
 @common_logging
-def _ix_use(ctx, token, seeker, ngrok):
+def _ix_use(ctx, token, seeker, ngrok, monitor):
     flx = FlexibleIndexToken(ctx, token)
     account = _load_account(ctx)
     operator = _load_operator(ctx)
@@ -1196,6 +1200,32 @@ def _ix_use(ctx, token, seeker, ngrok):
         raise Exception('Seeker url is not specified')
     Token(account).get(flx.address).send(operator.address, amount=1, data=data)
     typer.echo(f'Started challenge with token({flx.address}).')
+    if monitor:
+        _monitor_seeker_message()
+
+
+def _monitor_seeker_message():
+    try:
+        tty = subprocess.run(['tty'], check=True, capture_output=True, text=True).stdout.strip()
+        if not os.path.exists(tty):
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tty)
+    except Exception as err:
+        typer.echo(f'cannot get tty: {err}')
+        typer.echo('give up monitoring seeker message. '
+                   'try "metemctl ix show [--done]" to check task status.')
+        return
+    try:
+        typer.echo('>> Start monitoring seeker message. type CTRL-C to abort.')
+        if os.path.exists(TTYLINK4SEEKER):
+            typer.echo('[CAUTION] TTY used by another monitoring process is overwritten.')
+            os.unlink(TTYLINK4SEEKER)  # force overwrite
+        os.symlink(tty, TTYLINK4SEEKER)
+        while input():
+            pass
+    except KeyboardInterrupt:
+        pass
+    finally:
+        os.unlink(TTYLINK4SEEKER)
 
 
 def _is_correct_sha256(filename, sha256):
