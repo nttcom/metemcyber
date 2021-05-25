@@ -52,6 +52,7 @@ This exercise will be performed on the test environment.
 sudo apt install git build-essential python3-dev
 git clone https://github.com/nttcom/metemcyber
 cd metemcyber
+pip install -U pip
 pip install -e '.[cli]' # pipenv users should run './init.sh'
 ```
 
