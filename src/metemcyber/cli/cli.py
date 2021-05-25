@@ -1945,8 +1945,10 @@ def _publish(
         initial_amount,
         serve_amount)
 
-    os.symlink(_uuid_to_misp_download_path(ctx, uuid),
-               _address_to_solver_assets_path(ctx, token_address))
+    assets_path = _address_to_solver_assets_path(ctx, token_address)
+    if os.path.exists(assets_path):
+        os.unlink(assets_path)  # force overwrite
+    os.symlink(_uuid_to_misp_download_path(ctx, uuid), assets_path)
     typer.echo(f'created a symlink of MISP object as a solver asset for token: {token_address}.')
 
     if solver_status(ctx):
