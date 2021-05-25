@@ -15,6 +15,7 @@
 #
 
 import json
+import os
 from getpass import getpass
 from typing import Callable, Tuple, cast
 
@@ -53,7 +54,8 @@ def decode_keyfile(filename: str,
 
 
 def deploy_erc1820(eoa: ChecksumAddress, web3: Web3) -> None:
-    erc1820_raw_tx_filepath = 'metemcyber/core/bc/erc1820.tx.raw'
+    src_dir = os.path.dirname(os.path.abspath(__file__))
+    erc1820_raw_tx_filepath = f'{src_dir}/erc1820.tx.raw'
     deployer_address = '0xa990077c3205cbDf861e17Fa532eeB069cE9fF96'
     contract_address = '0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24'
     code = web3.eth.getCode(contract_address)
