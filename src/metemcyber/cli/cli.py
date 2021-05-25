@@ -1960,8 +1960,7 @@ def _publish(
 @app.command(help="Unregister disseminated CTI token from catalog.")
 def discontinue(
         ctx: typer.Context,
-        catalog_and_token: List[str],
-        ):
+        catalog_and_token: List[str]):
     _discontinue(ctx, catalog_and_token)
 
 
