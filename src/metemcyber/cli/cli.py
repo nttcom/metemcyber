@@ -1957,6 +1957,28 @@ def _publish(
     typer.echo(f'Run \"mtemctl solver support {token_address}\" after enabling Solver')
 
 
+@app.command(help="Unregister disseminated CTI token from catalog.")
+def discontinue(
+        ctx: typer.Context,
+        catalog_and_token: List[str]):
+    _discontinue(ctx, catalog_and_token)
+
+
+@common_logging
+def _discontinue(ctx, catalog_and_token):
+    account = _load_account(ctx)
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    catalog = Catalog(account).get(flx_token.catalog.address)
+    broker = _load_broker(ctx)
+    broker.uncache(catalog=catalog.address, token=flx_token.address)
+    amount = broker.get_amounts(catalog.address, [flx_token.address])[0]
+    if amount > 0:
+        broker.takeback(catalog.address, flx_token.address, amount)
+        typer.echo(f'took back all({amount}) of token({flx_token.address}) from broker.')
+    catalog.unregister_cti(flx_token.address)
+    typer.echo(f'unregistered token({flx_token.address}) from catalog({catalog.address}).')
+
+
 @account_app.command("show", help="Show the current account information.")
 def account_show(ctx: typer.Context):
     _account_show(ctx)
