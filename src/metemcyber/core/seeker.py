@@ -38,6 +38,8 @@ from metemcyber.core.util import merge_config
 from metemcyber.core.webhook import WebhookReceiver
 
 LOGGER = get_logger(name='seeker', file_prefix='core')
+TTY_FILEPATH = f'{APP_DIR}/.tty4seeker.lnk'
+LIMIT_ATONCE = 16
 
 CONFIG_SECTION = 'seeker'
 DEFAULT_CONFIGS = {
@@ -48,6 +50,16 @@ DEFAULT_CONFIGS = {
         'ngrok': '0',
     }
 }
+
+
+def tty_message(msg: str) -> None:
+    try:
+        with open(TTY_FILEPATH, 'w') as tty:
+            if not tty.isatty:
+                return
+            tty.write(msg + '\n')
+    except Exception:
+        pass
 
 
 def seeker_pid_filepath(app_dir: str) -> str:
@@ -63,7 +75,9 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
                 rdata = rdata.decode()
     except Exception as err:
         LOGGER.exception(err)
-        LOGGER.error(f'Failed download from {download_url}.')
+        msg = f'Failed download from {download_url}.'
+        LOGGER.error(msg)
+        tty_message(msg)
         return
 
     try:
@@ -71,7 +85,9 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
         title = jdata['Event']['info']
     except Exception:
         title = '(cannot decode title)'
-    LOGGER.info(f'Downloaded data, title: {title}.')
+    msg = f'Downloaded data. title: "{title}".'
+    LOGGER.info(msg)
+    tty_message(msg)
 
     try:
         if not os.path.isdir(dir_path):
@@ -79,10 +95,16 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
         filepath = f'{dir_path}/{token_address}.json'
         with open(filepath, 'w') as fout:
             json.dump(jdata, fout, ensure_ascii=False, indent=2)
-        LOGGER.info(f'Saved downloaded data in {filepath}.')
+        msg = f'Saved downloaded data in {filepath}.'
+        LOGGER.info(msg)
+        tty_message(msg)
     except Exception as err:
         LOGGER.exception(err)
-        LOGGER.error('Saving downloaded data failed.')
+        msg = f'Saving downloaded data failed: {err}'
+        LOGGER.error(msg)
+        tty_message(msg)
+
+    tty_message('(type CTRL-C to quit monitoring)')
 
 
 class Resolver(WebhookReceiver):
@@ -96,43 +118,51 @@ class Resolver(WebhookReceiver):
     def resolve_request(self, headers: EnvironHeaders, body: str):
         sign = headers.get(SIGNATURE_HEADER)
         if sign is None:
-            LOGGER.error(f'Received request without signature.')
+            msg = f'Received request without signature.'
+            LOGGER.error(msg)
+            tty_message(msg)
             return
         LOGGER.debug(f'Received request. headers={headers}, body={body}.')
+        tty_message('Incoming data...')
         try:
             jdata = json.loads(body)
             if jdata['from'] != verify_message(body, sign):
                 raise Exception('Signer mismatch.')
+            tty_message(f'Data sender: {jdata["from"]}.')
             operator = Operator(Account(Ether(self.endpoint_url))).get(self.operator_address)
             task = None
-            limit_atonce = 16
             offset = 0
             while True:
-                tasks = operator.history(jdata['token_address'], None, limit_atonce, offset)
+                tasks = operator.history(jdata['token_address'], None, LIMIT_ATONCE, offset)
                 tmp = [item for item in tasks if item[0] == int(jdata['task_id'])]
                 if tmp:
                     task = tmp[0]
                     break
-                if len(tasks) < limit_atonce:
+                if len(tasks) < LIMIT_ATONCE:
                     break
-                offset += limit_atonce
+                offset += LIMIT_ATONCE
 
             if task is None:
-                LOGGER.error(f'No such task id: {jdata["task_id"]}')
-                return
+                raise Exception(f'No such task id: {jdata["task_id"]}')
             _, t_addr, t_solver, _, _ = task
             if t_addr != jdata['token_address'] or t_solver != jdata['from']:
                 raise Exception('Task info mismatch')
         except KeyError as err:
-            LOGGER.error(f'Missing parameter: {err}')
+            msg = f'Missing parameter: {err}'
+            LOGGER.error(msg)
+            tty_message(msg)
             return
         except Exception as err:
             LOGGER.exception(err)
-            LOGGER.error(f'Failed verifying data from solver: {err}')
+            msg = f'Failed verifying data from solver: {err}'
+            LOGGER.error(msg)
+            tty_message(msg)
             return
 
-        LOGGER.info(f'Trying download_url for task {jdata["task_id"]} - '
-                    f'token({jdata["token_address"]}): {jdata["download_url"]}')
+        msg = f'Trying download_url for task {jdata["task_id"]} - ' + \
+              f'token({jdata["token_address"]}): {jdata["download_url"]}'
+        LOGGER.info(msg)
+        tty_message(msg)
         download_json(jdata['download_url'], jdata['token_address'], self.download_path)
 
 
