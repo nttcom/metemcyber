@@ -1197,7 +1197,7 @@ def _ix_use(ctx, token, seeker, ngrok, monitor):
     assert operator.address
     data = seeker if seeker else (NgrokMgr(APP_DIR).public_url or '') if ngrok else ''
     if not data:
-        raise Exception('Seeker url is not specified')
+        raise Exception('Seeker url is not specified (or ngrok is not running)')
     Token(account).get(flx.address).send(operator.address, amount=1, data=data)
     typer.echo(f'Started challenge with token({flx.address}).')
     if monitor:
