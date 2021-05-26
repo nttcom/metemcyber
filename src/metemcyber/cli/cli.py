@@ -811,6 +811,32 @@ def _broker_serve(ctx, catalog_and_token, amount):
     typer.echo(f'consigned {amount} of token({flx_token.address}) to broker({broker.address}).')
 
 
+@contract_broker_app.command('takeback', help='Takeback tokens from the broker.')
+def broker_takeback(ctx: typer.Context, catalog_and_token: List[str], amount: int):
+    _broker_takeback(ctx, catalog_and_token, amount)
+
+
+@common_logging
+def _broker_takeback(ctx, catalog_and_token, amount):
+    if amount <= 0:
+        raise Exception(f'Invalid amount: {amount}')
+    if len(catalog_and_token) > 2:
+        raise Exception('Redundant arguments for CATALOG_AND_TOKEN')
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    if not flx_token.catalog:
+        raise Exception('Missing catalog information')
+    account = _load_account(ctx)
+    token = Token(account).get(flx_token.address)
+    if token.publisher != account.eoa:
+        raise Exception(f'Not a token published by you')
+    broker = _load_broker(ctx)
+    balance = token.balance_of(broker.address)
+    if balance < amount:
+        raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
+    broker.takeback(flx_token.catalog.address, flx_token.address, amount)
+    typer.echo(f'took back {amount} of token({flx_token.address}) from broker({broker.address}).')
+
+
 @contract_token_app.command('create')
 def token_create(ctx: typer.Context, initial_supply: int):
     _token_create(ctx, initial_supply)
@@ -1366,13 +1392,12 @@ def _find_token_info(ctx: typer.Context, token_address: ChecksumAddress) -> Toke
 
 def _get_challenges(ctx: typer.Context
                     ) -> List[Tuple[int, ChecksumAddress, ChecksumAddress, ChecksumAddress, int]]:
-    account = _load_account(ctx)
     operator = _load_operator(ctx)
     raw_tasks = []
-    limit_atonce = 16
+    limit_atonce = 64
     offset = 0
     while True:
-        tmp = operator.history(ADDRESS0, account.eoa, limit_atonce, offset)
+        tmp = operator.history(ADDRESS0, ADDRESS0, limit_atonce, offset)
         raw_tasks.extend(tmp)
         if len(tmp) < limit_atonce:
             break
@@ -1383,15 +1408,16 @@ def _get_challenges(ctx: typer.Context
 @ix_app.command('show', help="Show CTI tokens available.")
 def ix_challenge_show(ctx: typer.Context,
                       done: bool = typer.Option(False, help='show finished and cancelled'),
-                      mine_only: bool = typer.Option(True, help='show yours only')):
-    _ix_challenge_show(ctx, done, mine_only)
+                      mine_only: bool = typer.Option(True, help='show yours only'),
+                      verbose: bool = typer.Option(False, help='show seekr and solver')):
+    _ix_challenge_show(ctx, done, mine_only, verbose)
 
 
 @common_logging
-def _ix_challenge_show(ctx, done, mine_only):
+def _ix_challenge_show(ctx, done, mine_only, verbose):
     account = _load_account(ctx)
     raw_tasks = _get_challenges(ctx)
-    for (task_id, token, _, seeker, state) in reversed(raw_tasks):
+    for (task_id, token, solver, seeker, state) in reversed(raw_tasks):
         if mine_only and seeker != account.eoa:
             continue
         if not done and state in (2, 3):  # ('Finished', 'Cancelled')
@@ -1400,9 +1426,13 @@ def _ix_challenge_show(ctx, done, mine_only):
             title = _find_token_info(ctx, token).title
         except Exception:
             title = '(no information found on current catalogs)'
+        ext_msg = f'    ├ Seeker: {seeker}' + '\n' +\
+                  f'    ├ Solver: {solver}' + '\n' \
+                  if verbose else ''
         typer.echo(
             f'  {task_id}: {title}' + '\n'
             f'    ├ Token: {token}' + '\n'
+            f'{ext_msg}'
             f'    └ State: {TASK_STATES[state]}')
 
 
