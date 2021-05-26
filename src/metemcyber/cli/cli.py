@@ -811,6 +811,32 @@ def _broker_serve(ctx, catalog_and_token, amount):
     typer.echo(f'consigned {amount} of token({flx_token.address}) to broker({broker.address}).')
 
 
+@contract_broker_app.command('takeback', help='Takeback tokens from the broker.')
+def broker_takeback(ctx: typer.Context, catalog_and_token: List[str], amount: int):
+    _broker_takeback(ctx, catalog_and_token, amount)
+
+
+@common_logging
+def _broker_takeback(ctx, catalog_and_token, amount):
+    if amount <= 0:
+        raise Exception(f'Invalid amount: {amount}')
+    if len(catalog_and_token) > 2:
+        raise Exception('Redundant arguments for CATALOG_AND_TOKEN')
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    if not flx_token.catalog:
+        raise Exception('Missing catalog information')
+    account = _load_account(ctx)
+    token = Token(account).get(flx_token.address)
+    if token.publisher != account.eoa:
+        raise Exception(f'Not a token published by you')
+    broker = _load_broker(ctx)
+    balance = token.balance_of(broker.address)
+    if balance < amount:
+        raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
+    broker.takeback(flx_token.catalog.address, flx_token.address, amount)
+    typer.echo(f'took back {amount} of token({flx_token.address}) from broker({broker.address}).')
+
+
 @contract_token_app.command('create')
 def token_create(ctx: typer.Context, initial_supply: int):
     _token_create(ctx, initial_supply)
