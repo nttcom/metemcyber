@@ -1372,7 +1372,7 @@ def _get_challenges(ctx: typer.Context
     limit_atonce = 16
     offset = 0
     while True:
-        tmp = operator.history(ADDRESS0, account.eoa, limit_atonce, offset)
+        tmp = operator.history(ADDRESS0, ADDRESS0, limit_atonce, offset)
         raw_tasks.extend(tmp)
         if len(tmp) < limit_atonce:
             break
