@@ -20,12 +20,11 @@ import errno
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import urllib.request
 from configparser import ConfigParser
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from shutil import copyfile, copytree
@@ -1658,28 +1657,6 @@ class IAPAuth(requests.auth.AuthBase):
         return r
 
 
-class MISPClient():
-    def __init__(self, url, api_key, ssl_cert=2, auth=None):
-        if ssl_cert == 0:
-            urllib3.disable_warnings()
-        self.misp = pymisp.PyMISP(url, api_key, ssl_cert == 2, auth=auth)
-
-    def get_event(self, event_id):
-        return self.misp.get_event(event_id)
-
-    def search(self, **kwargs):
-        return self.misp.search(**kwargs)
-
-    def search_index(self, **kwargs):
-        return self.misp.search_index(**kwargs)
-
-    def add_event(self, event_obj):
-        return self.misp.add_event(event_obj)
-
-    def update_event(self, event_obj):
-        return self.misp.update_event(event_obj)
-
-
 def _dump_json(data, dumpdir, force=False, indent=None):
     try:
         uuid = data['Event']['uuid']
@@ -1698,20 +1675,6 @@ def _dump_json(data, dumpdir, force=False, indent=None):
     return fpath
 
 
-def _build_query():
-    basequery = "search"
-    query_string = basequery + " limit=100 page=1"
-    query_array = re.split(r'\s+', query_string)
-    qname = query_array[0]
-    qargs = query_array[1:]
-    query = dict()
-    for token in qargs:
-        key, val = token.split('=')
-        query[key] = val
-
-    return qname, query
-
-
 def _store_pretty_json(results, json_dumpdir):
     # store json file
     indent = 2
@@ -1723,30 +1686,94 @@ def _store_pretty_json(results, json_dumpdir):
             typer.echo(err)
 
 
-@misp_app.command("fetch", help="Export events from your MISP instance.")
-def misp_fetch(ctx: typer.Context):
+def _ssl_settings(ssl_cert: int) -> bool:
+    if ssl_cert == 0:
+        urllib3.disable_warnings()
+        return False
+    if ssl_cert == 1:
+        return False
+    return True
+
+
+def _pymisp_client(ctx: typer.Context):
     logger = getLogger()
+
     url = _load_config(ctx)['misp']['url']
     api_key = _load_config(ctx)['misp']['api_key']
     ssl_cert = int(_load_config(ctx)['misp']['ssl_cert'])
-    logger.info(f"Ferch MISP: {url}")
 
-    json_dumpdir = Path(_load_config(ctx)['misp']['download'])
+    logger.info(f"Fetch MISP: {url}")
 
     client_id = _load_config(ctx)['misp']['gcp_client_id']
+
     if client_id:
-        client = MISPClient(url, api_key, ssl_cert, auth=IAPAuth(ctx))
-    else:
-        client = MISPClient(url, api_key, ssl_cert)
+        return pymisp.PyMISP(url, api_key, _ssl_settings(ssl_cert), auth=IAPAuth(ctx))
 
-    # send query
-    qname, query = _build_query()
-    result = getattr(client, qname)(**query)
+    return pymisp.PyMISP(url, api_key, _ssl_settings(ssl_cert))
 
-    # separate json data
-    results = result if isinstance(result, list) else [result]
 
+@misp_app.command("fetch", help="Export events from your MISP instance.")
+def misp_fetch(
+    ctx: typer.Context,
+    limit: int = typer.Option(
+        1000,
+        help='Limit the number of results.'),
+    page: int = typer.Option(
+        1,
+        help='Sets the page to be returned.'),
+    date_from: Optional[str] = typer.Option(
+        None,
+        help='Published Events with the date set to a date after the one specified.'),
+    date_to: Optional[str] = typer.Option(
+        None,
+        help='Published Events with the date set to a date before the one specified.'),
+    publish_timestamp: Optional[float] = typer.Option(
+        None,
+        help='Restrict the results by the last publish timestamp.'),
+    timestamp: Optional[float] = typer.Option(
+        str((datetime.now() - timedelta(days=60)).timestamp()),
+        help='Restrict the results by the timestamp. (Default is 30 days before)'),
+    tags: Optional[List[str]] = typer.Option(
+        None,
+        help='Tags to search or to exclude. You can pass a list.'),
+    threatlevel: Optional[List[str]] = typer.Option(
+        None,
+        help='Threat level(s) (1,2,3,4).'),
+    distribution: Optional[List[str]] = typer.Option(
+        None,
+        help='Distribution level(s) (0,1,2,3).'),
+    org: Optional[List[Union[str]]] = typer.Option(
+        None,
+        help='Search by the creator organisation by supplying the organisation identifier.')
+):
+    results = _pymisp_client(ctx).search(
+        limit=limit,
+        page=page,
+        data_from=date_from,
+        date_to=date_to,
+        publish_timestamp=publish_timestamp,
+        timestamp=timestamp,
+        # Maybe unbound bug in mypy https://github.com/python/mypy/issues/9354
+        tags=cast(Optional[pymisp.api.SearchParameterTypes], tags),  # type: ignore
+        threatlevel=cast(Optional[List[pymisp.api.SearchType]], threatlevel),  # type: ignore
+        distribution=cast(Optional[List[pymisp.api.SearchType]], distribution),  # type: ignore
+        org=cast(Optional[pymisp.api.SearchParameterTypes], org))  # type: ignore
+
+    json_dumpdir = Path(_load_config(ctx)['misp']['download'])
     _store_pretty_json(results, json_dumpdir)
+
+
+def _load_misp_event(filepath):
+    logger = getLogger()
+    event = pymisp.mispevent.MISPEvent()
+    try:
+        event.load_file(filepath)
+    except (TypeError, json.decoder.JSONDecodeError) as err:
+        logger.exception(f'{err}: {filepath}')
+        typer.echo(f'{err}: {filepath}')
+    if not hasattr(event, 'date'):
+        raise Exception(f'The date field of the new event is required. ({filepath})')
+    return event
 
 
 @misp_app.command("event", help="Show exported MISP events")
@@ -1754,9 +1781,14 @@ def misp_event(ctx: typer.Context):
     json_dumpdir = Path(_load_config(ctx)['misp']['download'])
 
     files = json_dumpdir.glob('*.json')
-    for file in files:
-        uuid, title = _parse_misp_object(file)
-        typer.echo(f'{uuid}: {title}')
+    files_sort_by_date = sorted(list(files), key=lambda f: _load_misp_event(f).date, reverse=True)
+
+    output_line = []
+    for file in files_sort_by_date:
+        event = _load_misp_event(file)
+        output_line.append(f'{event.date} - {event.uuid}: {event.info}')
+
+    typer.echo_via_pager('\n'.join(output_line))
 
 
 def setup_kedro(cwd):
@@ -1807,25 +1839,6 @@ def check(
         typer.echo(f'An error occurred while testing the workflow. {err}')
 
 
-def _parse_misp_object(filepath: Path) -> Tuple[str, str]:
-    logger = getLogger()
-    uuid = ''
-    title = ''
-    with open(filepath) as fin:
-        try:
-            misp_object = json.load(fin)
-            if 'Event' in misp_object.keys():
-                event = misp_object['Event']
-                if 'uuid' in event.keys():
-                    uuid = event['uuid']
-                if 'info' in event.keys():
-                    title = event['info']
-        except json.JSONDecodeError as err:
-            logger.exception(err)
-            raise Exception(f'An error occurred while parsing your misp object. {err}') from err
-    return uuid, title
-
-
 @app.command(help="Deploy the CTI token to disseminate CTI.")
 def publish(
         ctx: typer.Context,
@@ -1836,12 +1849,6 @@ def publish(
         token_address: Optional[str] = typer.Option(
             None,
             help='A CTI token address to use for dissemination'),
-        uuid: Optional[str] = typer.Option(
-            None,
-            help='The uuid of misp object'),
-        title: Optional[str] = typer.Option(
-            None,
-            help='The title of misp object'),
         price: int = typer.Option(
             10,
             help='A price of CTI token (dissemination cost)'),
@@ -1857,15 +1864,13 @@ def publish(
         misp_object,
         catalog,
         token_address,
-        uuid,
-        title,
         price,
         initial_amount,
         serve_amount)
 
 
 def _uuid_to_misp_download_path(_ctx, uuid) -> Path:
-    return Path(f'{APP_DIR}/misp/download/{str(UUID(uuid))}')
+    return Path(f'{APP_DIR}/misp/download/{str(UUID(uuid))}.json')
 
 
 def _address_to_solver_assets_path(ctx, address) -> Path:
@@ -1873,57 +1878,39 @@ def _address_to_solver_assets_path(ctx, address) -> Path:
     return Path(f'{workspace}/upload/{address}')
 
 
-def _is_misp_object(misp_object):
-    with open(misp_object) as fin:
-        json_misp = json.load(fin)
-        if 'Event' in json_misp.keys():
+def _is_misp_object(load_filepath):
+    with open(load_filepath) as fin:
+        dict_object = json.load(fin)
+        if 'Event' in dict_object.keys():
             return True
     return False
 
 
-def _fix_misp_object(ctx, misp_object, uuid, title) -> Tuple[str, str]:
-    if misp_object:
-        typer.echo(f'loading {misp_object}.')
-        if _is_misp_object(misp_object):
-            loaded_uuid, loaded_title = _parse_misp_object(misp_object)
-            with open(misp_object) as fin:
-                json_misp = json.load(fin)
-        else:
-            raise Exception('Unexpected data format: missing "Event"')
-    else:
-        json_misp = None
-        loaded_uuid = loaded_title = ''
+def _store_misp_object(ctx, load_filepath) -> Tuple[str, str]:
+    typer.echo(f'loading: {load_filepath}')
+    event = _load_misp_event(load_filepath)
 
-    if uuid and loaded_uuid and uuid != loaded_uuid:
-        raise Exception(f'Contradicory uuid: {uuid}, {loaded_uuid}')
-    uuid = uuid if uuid else loaded_uuid
-    if not uuid:
-        raise Exception('Missing uuid')
-    uuid = str(UUID(uuid))
-
-    if title and loaded_title and title != loaded_title:
-        raise Exception(f'Contradictory title: "{title}" vs. "{loaded_title}"')
-    title = title if title else loaded_title
-    if not title:
-        raise Exception('Missing title')
-
-    download_filepath = _uuid_to_misp_download_path(ctx, uuid)
+    download_filepath = _uuid_to_misp_download_path(ctx, event.uuid)
     if os.path.exists(download_filepath):
-        typer.echo(f'MISP download file already exists: {download_filepath}')
-        try:
-            typer.confirm('overwrite and continue?', abort=True)
-        except Exception as err:
-            raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
-    if json_misp:
-        json_misp['Event']['uuid'] = uuid
-        json_misp['Event']['info'] = title
-    else:
-        json_misp = {'Event': {'uuid': uuid, 'info': title}}
+        if Path(download_filepath).resolve() != Path(load_filepath).resolve():
+            typer.echo(f'MISP download file already exists: {download_filepath}')
+            try:
+                typer.confirm('overwrite and continue?', abort=True)
+            except Exception as err:
+                raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
+        else:
+            return event.uuid, event.info
+
+    # save the loadable MISP objects
+    misp_object = pymisp.AbstractMISP()
+    misp_object.Event = event
     with open(download_filepath, 'w') as fout:
-        json.dump(json_misp, fout, ensure_ascii=False, indent=2)
+        # dump json correctly with ensure_ascii=False
+        # cannot set ensure_ascii=False in fout.write(misp_object.to_json())
+        json.dump(json.loads(misp_object.to_json()), fout, ensure_ascii=False, indent=2)
         typer.echo(f'saved MISP object as {download_filepath}')
 
-    return uuid, title
+    return event.uuid, event.info
 
 
 def _fix_amounts(ctx, token_address, initial_amount, serve_amount
@@ -1971,8 +1958,6 @@ def _publish(
         misp_object,
         catalog,
         token_address,
-        uuid,
-        title,
         price,
         initial_amount,
         serve_amount):
@@ -1987,7 +1972,7 @@ def _publish(
     if price < 0:
         raise Exception(f'Invalid price: {price}')
 
-    uuid, title = _fix_misp_object(ctx, misp_object, uuid, title)
+    uuid, title = _store_misp_object(ctx, misp_object)
     token_address = _token_publish(
         ctx,
         catalog,
