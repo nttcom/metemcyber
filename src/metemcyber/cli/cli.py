@@ -1716,7 +1716,7 @@ def _pymisp_client(ctx: typer.Context):
 def misp_fetch(
     ctx: typer.Context,
     limit: int = typer.Option(
-        100,
+        1000,
         help='Limit the number of results.'),
     page: int = typer.Option(
         1,
@@ -1731,7 +1731,7 @@ def misp_fetch(
         None,
         help='Restrict the results by the last publish timestamp.'),
     timestamp: Optional[float] = typer.Option(
-        str((datetime.now() - timedelta(days=30)).timestamp()),
+        str((datetime.now() - timedelta(days=60)).timestamp()),
         help='Restrict the results by the timestamp. (Default is 30 days before)'),
     tags: Optional[List[str]] = typer.Option(
         None,
