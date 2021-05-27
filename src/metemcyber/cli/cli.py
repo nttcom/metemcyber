@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import urllib.request
 from configparser import ConfigParser
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from shutil import copyfile, copytree
