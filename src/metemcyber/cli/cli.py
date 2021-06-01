@@ -44,6 +44,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 from web3 import Web3
 
+from metemcyber import __version__
 from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
@@ -348,8 +349,21 @@ def common_logging(func):
     return wrapper
 
 
+def version_callback(value: bool):
+    if value:
+        typer.echo(f'metemctl version {__version__}')
+        raise typer.Exit()
+
+
 @app.callback()
-def app_callback(ctx: typer.Context):
+def app_callback(
+    ctx: typer.Context,
+    _version: bool = typer.Option(
+        None,
+        "--version",
+        callback=version_callback,
+        is_eager=True),
+):
     # init app directory if it does not exist
     logger = getLogger()
     if os.path.exists(APP_DIR):
