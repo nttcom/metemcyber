@@ -31,7 +31,7 @@ from metemcyber.core.logger import get_logger
 
 LOGGER = get_logger(name='contract', file_prefix='core.bc')
 MINIMAL_CONTRACT_ID = 'MetemcyberMinimal.sol:MetemcyberMinimal'
-TX_RETRY_MAX = 10
+TX_RETRY_MAX = 3
 TX_RETRY_DELAY_SEC = 2
 
 
@@ -46,15 +46,20 @@ def combined_json_path(contract_id: str) -> str:
 def retryable_contract(cls):
     def __retryable(func):
         def wrapper(*args, **kwargs):
-            for cnt in range(TX_RETRY_MAX):
+            for cnt in range(1, TX_RETRY_MAX):
                 try:
                     return func(*args, **kwargs)
                 except Exception as err:
-                    LOGGER.exception(err)
+                    LOGGER.error(err)  # shorten error message
                     sleep(TX_RETRY_DELAY_SEC)
                     LOGGER.warning(f'retrying:{cnt}')
                     continue
-            raise Exception(f'Transaction retry count exceeds max({TX_RETRY_MAX}).')
+            # last retry. raise Exception as is if occurred.
+            try:
+                return func(*args, **kwargs)
+            except Exception as err:
+                LOGGER.exception(err)
+                raise err
         return wrapper
 
     # exclude methods defined in baseclass.
