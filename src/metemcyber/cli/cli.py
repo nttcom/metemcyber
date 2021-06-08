@@ -785,7 +785,7 @@ def _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only):
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
-def ix_buy(ctx: typer.Context, catalog_and_token: List[str]):
+def ix_buy(ctx: typer.Context, catalog_and_token: str):
     _ix_buy(ctx, catalog_and_token)
 
 
@@ -798,7 +798,7 @@ def _ix_buy(ctx, catalog_and_token):
 
 
 @contract_broker_app.command('serve', help="Pass your tokens to the broker for disseminate.")
-def broker_serve(ctx: typer.Context, catalog_and_token: List[str], amount: int):
+def broker_serve(ctx: typer.Context, catalog_and_token: str, amount: int):
     _broker_serve(ctx, catalog_and_token, amount)
 
 
@@ -825,7 +825,7 @@ def _broker_serve(ctx, catalog_and_token, amount):
 
 
 @contract_broker_app.command('takeback', help='Takeback tokens from the broker.')
-def broker_takeback(ctx: typer.Context, catalog_and_token: List[str], amount: int):
+def broker_takeback(ctx: typer.Context, catalog_and_token: str, amount: int):
     _broker_takeback(ctx, catalog_and_token, amount)
 
 
@@ -2015,7 +2015,7 @@ def _publish(
 @app.command(help="Unregister disseminated CTI token from catalog.")
 def discontinue(
         ctx: typer.Context,
-        catalog_and_token: List[str]):
+        catalog_and_token: str):
     _discontinue(ctx, catalog_and_token)
 
 
