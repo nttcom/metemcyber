@@ -14,7 +14,7 @@
 #    limitations under the License.
 #
 
-from typing import ClassVar, Dict
+from typing import ClassVar, Dict, List, Tuple
 
 from eth_typing import ChecksumAddress
 from web3 import Web3
@@ -90,4 +90,61 @@ class CTIToken(Contract):
         self.gaslog('revokeOperator', tx_receipt)
         if tx_receipt['status'] != 1:
             raise ValueError('Transaction failed: revokeOperator')
+        self.log_success()
+
+    @property
+    def editable(self) -> bool:
+        if self.version < 1:
+            raise Exception('Not supported (too old contract version)')
+        func = self.contract.functions.editable()
+        return func.call()
+
+    def set_editable(self, editable: bool):
+        if self.version < 1:
+            raise Exception('Not supported (too old contract version)')
+        func = self.contract.functions.setEditable(editable)
+        tx_hash = func.transact()
+        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('setEditable', tx_receipt)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: setEditable')
+        self.log_success()
+
+    def add_candidates(self, candidates: List[str]):
+        if self.version < 1:
+            raise Exception('Not supported (too old contract version)')
+        func = self.contract.functions.addCandidates(candidates)
+        tx_hash = func.transact()
+        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('addCandidates', tx_receipt)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: addCandidates')
+        self.log_success()
+
+    def remove_candidates(self, indexes: List[int]):
+        if self.version < 1:
+            raise Exception('Not supported (too old contract version)')
+        func = self.contract.functions.removeCandidates(indexes)
+        tx_hash = func.transact()
+        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('removeCandidatas', tx_receipt)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: removeCandidates')
+        self.log_success()
+
+    def list_candidates(self) -> List[Tuple[int, int, str]]:  # [(index, score, desc), ...]
+        if self.version < 1:
+            raise Exception('Not supported (too old contract version)')
+        func = self.contract.functions.listCandidates()
+        return func.call()
+
+    def vote(self, index: int, amount: int):
+        if self.version < 1:
+            raise Exception('Not supported (too old contract version)')
+        func = self.contract.functions.vote(index, amount)
+        tx_hash = func.transact()
+        tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
+        self.gaslog('vote', tx_receipt)
+        if tx_receipt['status'] != 1:
+            raise ValueError('Transaction failed: vote')
         self.log_success()
