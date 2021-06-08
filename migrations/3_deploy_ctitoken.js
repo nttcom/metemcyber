@@ -17,5 +17,5 @@
 const CTIToken = artifacts.require("CTIToken");
 
 module.exports = function (deployer) {
-  deployer.deploy(CTIToken, 10, []);
+  deployer.deploy(CTIToken, 10, [], false);
 };
