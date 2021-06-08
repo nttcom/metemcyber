@@ -19,20 +19,23 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC777/ERC777.sol";
+import "./Votable.sol";
 
 string constant CTIToken_ContractId = "CTIToken.sol:CTIToken";
 
-contract CTIToken is ERC777 {
+contract CTIToken is ERC777, Votable {
 
     string public constant contractId = CTIToken_ContractId;
-    uint256 public constant contractVersion = 0;
+    uint256 public constant contractVersion = 1;
     address public immutable publisher;
 
     constructor(
         uint256 initialSupply,
-        address[] memory defaultOperators
+        address[] memory defaultOperators,
+        bool anyoneEditable
     )
         ERC777("CTIToken", "CTIT", defaultOperators)
+        Votable(anyoneEditable)
     {
         publisher = msg.sender;
         _mint(msg.sender, initialSupply, "", "");
@@ -48,5 +51,10 @@ contract CTIToken is ERC777 {
     {
         require(msg.sender == publisher, "not publisher");
         _mint(dest, amount, userData, operatorData);
+    }
+
+    function vote(uint256 idx, uint256 amount) public override(Votable) {
+        burn(amount, "");
+        Votable.vote(idx, amount);
     }
 }
