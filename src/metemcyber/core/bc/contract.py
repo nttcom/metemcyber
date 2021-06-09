@@ -35,6 +35,14 @@ TX_RETRY_MAX = 3
 TX_RETRY_DELAY_SEC = 2
 
 
+class ContractVersionError(Exception):
+    pass
+
+
+class ContractIdError(Exception):
+    pass
+
+
 def combined_json_path(contract_id: str) -> str:
     contract_src = contract_id.split(':')[0]
     src_dir = os.path.dirname(os.path.abspath(__file__))
@@ -49,6 +57,11 @@ def retryable_contract(cls):
             for cnt in range(1, TX_RETRY_MAX):
                 try:
                     return func(*args, **kwargs)
+                except (ContractVersionError,
+                        ContractIdError,
+                        ) as err:  # not retryable
+                    LOGGER.exception(err)
+                    raise err
                 except Exception as err:
                     LOGGER.error(err)  # shorten error message
                     sleep(TX_RETRY_DELAY_SEC)
@@ -150,7 +163,7 @@ class Contract():
             tmp_id = 'unknown type of address'
         if tmp_id != self.__class__.contract_id:
             tmp_id = tmp_id.split(':', 1)[1] if ':' in tmp_id else tmp_id
-            raise Exception(f'Invalid address. {address} is {tmp_id}.')
+            raise ContractIdError(f'Invalid address. {address} is {tmp_id}.')
         self.version = minimal.functions.contractVersion().call()
         # pylint: disable=protected-access
         self.__class__.__load(self.version)
