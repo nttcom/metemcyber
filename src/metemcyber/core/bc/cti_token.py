@@ -96,12 +96,14 @@ class CTIToken(Contract):
     def editable(self) -> bool:
         if self.version < 1:
             raise Exception('Not supported (too old contract version)')
+        self.log_trace()
         func = self.contract.functions.editable()
         return func.call()
 
     def set_editable(self, editable: bool):
         if self.version < 1:
             raise Exception('Not supported (too old contract version)')
+        self.log_trace()
         func = self.contract.functions.setEditable(editable)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
@@ -113,6 +115,7 @@ class CTIToken(Contract):
     def add_candidates(self, candidates: List[str]):
         if self.version < 1:
             raise Exception('Not supported (too old contract version)')
+        self.log_trace()
         func = self.contract.functions.addCandidates(candidates)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
@@ -124,6 +127,7 @@ class CTIToken(Contract):
     def remove_candidates(self, indexes: List[int]):
         if self.version < 1:
             raise Exception('Not supported (too old contract version)')
+        self.log_trace()
         func = self.contract.functions.removeCandidates(indexes)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
@@ -135,12 +139,14 @@ class CTIToken(Contract):
     def list_candidates(self) -> List[Tuple[int, int, str]]:  # [(index, score, desc), ...]
         if self.version < 1:
             raise Exception('Not supported (too old contract version)')
+        self.log_trace()
         func = self.contract.functions.listCandidates()
         return func.call()
 
     def vote(self, index: int, amount: int):
         if self.version < 1:
             raise Exception('Not supported (too old contract version)')
+        self.log_trace()
         func = self.contract.functions.vote(index, amount)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
