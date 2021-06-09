@@ -1,7 +1,7 @@
 
 
 SOLS_DIR        = contracts
-DATA_DIR        = metemcyber/core/bc/contracts_data
+DATA_DIR        = src/metemcyber/core/bc/contracts_data
 
 SOURCE_SOLS     = CTICatalog CTIOperator CTIToken CTIBroker MetemcyberUtil
 SOURCE_SOLS     += MetemcyberMinimal AddressGroup

@@ -31,8 +31,16 @@ from metemcyber.core.logger import get_logger
 
 LOGGER = get_logger(name='contract', file_prefix='core.bc')
 MINIMAL_CONTRACT_ID = 'MetemcyberMinimal.sol:MetemcyberMinimal'
-TX_RETRY_MAX = 10
+TX_RETRY_MAX = 3
 TX_RETRY_DELAY_SEC = 2
+
+
+class ContractVersionError(Exception):
+    pass
+
+
+class ContractIdError(Exception):
+    pass
 
 
 def combined_json_path(contract_id: str) -> str:
@@ -46,15 +54,25 @@ def combined_json_path(contract_id: str) -> str:
 def retryable_contract(cls):
     def __retryable(func):
         def wrapper(*args, **kwargs):
-            for cnt in range(TX_RETRY_MAX):
+            for cnt in range(1, TX_RETRY_MAX):
                 try:
                     return func(*args, **kwargs)
-                except Exception as err:
+                except (ContractVersionError,
+                        ContractIdError,
+                        ) as err:  # not retryable
                     LOGGER.exception(err)
+                    raise err
+                except Exception as err:
+                    LOGGER.error(err)  # shorten error message
                     sleep(TX_RETRY_DELAY_SEC)
                     LOGGER.warning(f'retrying:{cnt}')
                     continue
-            raise Exception(f'Transaction retry count exceeds max({TX_RETRY_MAX}).')
+            # last retry. raise Exception as is if occurred.
+            try:
+                return func(*args, **kwargs)
+            except Exception as err:
+                LOGGER.exception(err)
+                raise err
         return wrapper
 
     # exclude methods defined in baseclass.
@@ -145,7 +163,7 @@ class Contract():
             tmp_id = 'unknown type of address'
         if tmp_id != self.__class__.contract_id:
             tmp_id = tmp_id.split(':', 1)[1] if ':' in tmp_id else tmp_id
-            raise Exception(f'Invalid address. {address} is {tmp_id}.')
+            raise ContractIdError(f'Invalid address. {address} is {tmp_id}.')
         self.version = minimal.functions.contractVersion().call()
         # pylint: disable=protected-access
         self.__class__.__load(self.version)

@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from eth_typing import ChecksumAddress
 
@@ -28,18 +28,19 @@ from metemcyber.core.bc.util import ADDRESS0
 class Token():
     #                token address         eoa address      balance
     tokens_map: Dict[ChecksumAddress, Dict[ChecksumAddress, int]] = {}
+    address: ChecksumAddress
 
     def __init__(self, account: Account) -> None:
         self.account: Account = account
-        self.address: Optional[ChecksumAddress] = None
 
     def get(self, address: ChecksumAddress) -> Token:
         self.address = address
         return self
 
     def new(self, initial_supply: int,
-            default_operators: List[ChecksumAddress]) -> Token:
-        cti_token = CTIToken(self.account).new(initial_supply, default_operators)
+            default_operators: List[ChecksumAddress],
+            anyone_editable: bool) -> Token:
+        cti_token = CTIToken(self.account).new(initial_supply, default_operators, anyone_editable)
         return self.get(cti_token.address)
 
     def uncache(self, entire: bool = False) -> None:
@@ -85,3 +86,27 @@ class Token():
         cti_token = CTIToken(self.account).get(self.address)
         cti_token.burn_token(amount, data)
         self.uncache()
+
+    @property
+    def editable(self) -> bool:
+        assert self.address
+        return CTIToken(self.account).get(self.address).editable
+
+    def set_editable(self, editable: bool):
+        assert self.address
+        CTIToken(self.account).get(self.address).set_editable(editable)
+
+    def add_candidates(self, candidates: List[str]):
+        CTIToken(self.account).get(self.address).add_candidates(candidates)
+
+    def remove_candidates(self, indexes: List[int]):
+        CTIToken(self.account).get(self.address).remove_candidates(indexes)
+
+    def list_candidates(self) -> List[Tuple[int, int, str]]:  # [(index, score, desc), ...]
+        return CTIToken(self.account).get(self.address).list_candidates()
+
+    def vote(self, index: int, amount: int):
+        if amount <= 0 or self.balance_of(self.account.eoa) < amount:
+            raise Exception(f'Invalid amount: {amount}')
+        CTIToken(self.account).get(self.address).vote(index, amount)
+        self.uncache()  # amount of token is burned in vote().

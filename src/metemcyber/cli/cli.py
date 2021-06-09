@@ -129,6 +129,8 @@ ix_app = typer.Typer()
 app.add_typer(ix_app, name="ix", help="Manage CTI tokens to collect CTIs.")
 ix_catalog_app = typer.Typer()
 ix_app.add_typer(ix_catalog_app, name='catalog', help="Manage the list of CTI catalogs to use")
+ix_issue_app = typer.Typer()
+ix_app.add_typer(ix_issue_app, name='issue', help='Manage issue to vote.')
 
 contract_app = typer.Typer()
 app.add_typer(contract_app, name="contract", help="Manage your smart contracts.")
@@ -785,7 +787,7 @@ def _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only):
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
-def ix_buy(ctx: typer.Context, catalog_and_token: List[str]):
+def ix_buy(ctx: typer.Context, catalog_and_token: str):
     _ix_buy(ctx, catalog_and_token)
 
 
@@ -798,7 +800,7 @@ def _ix_buy(ctx, catalog_and_token):
 
 
 @contract_broker_app.command('serve', help="Pass your tokens to the broker for disseminate.")
-def broker_serve(ctx: typer.Context, catalog_and_token: List[str], amount: int):
+def broker_serve(ctx: typer.Context, catalog_and_token: str, amount: int):
     _broker_serve(ctx, catalog_and_token, amount)
 
 
@@ -825,7 +827,7 @@ def _broker_serve(ctx, catalog_and_token, amount):
 
 
 @contract_broker_app.command('takeback', help='Takeback tokens from the broker.')
-def broker_takeback(ctx: typer.Context, catalog_and_token: List[str], amount: int):
+def broker_takeback(ctx: typer.Context, catalog_and_token: str, amount: int):
     _broker_takeback(ctx, catalog_and_token, amount)
 
 
@@ -851,19 +853,31 @@ def _broker_takeback(ctx, catalog_and_token, amount):
 
 
 @contract_token_app.command('create')
-def token_create(ctx: typer.Context, initial_supply: int):
-    _token_create(ctx, initial_supply)
+def token_create(ctx: typer.Context, initial_supply: int,
+                 editable: bool = typer.Option(False, help="Anyone can edit vote candidates")):
+    _token_create(ctx, initial_supply, editable)
 
 
 @common_logging
-def _token_create(ctx, initial_supply) -> Optional[ChecksumAddress]:
+def _token_create(ctx, initial_supply, editable=False) -> ChecksumAddress:
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     if initial_supply <= 0:
         raise Exception(f'Invalid initial-supply: {initial_supply}')
-    token = Token(account).new(initial_supply, [])
+    token = Token(account).new(initial_supply, [], editable)
     typer.echo(f'created a new token. address is {token.address}.')
     return token.address
+
+
+@contract_token_app.command('set-editable')
+def token_set_editable(ctx: typer.Context, catalog_and_token: str, anyone_editable: bool):
+    _token_set_editable(ctx, catalog_and_token, anyone_editable)
+
+
+@common_logging
+def _token_set_editable(ctx, catalog_and_token, anyone_editable):
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    Token(_load_account(ctx)).get(flx_token.address).set_editable(anyone_editable)
 
 
 @contract_token_app.command('mint')
@@ -1376,7 +1390,7 @@ def _ix_extract(ctx, used_token):
         else:
             raise Exception(f'Invalid MISP Object: {downloaded_misp}')
     else:
-        type.echo('Try \"metemctl ix use {used_token}}\".')
+        typer.echo('Try \"metemctl ix use {used_token}}\".')
         return
 
     if external_files:
@@ -1459,6 +1473,67 @@ def _ix_cancel(ctx, challenge_id):
     operator = _load_operator(ctx)
     operator.cancel_challenge(challenge_id)
     typer.echo(f'cancelled challenge: {challenge_id}.')
+
+
+@ix_app.command('vote', help='Vote amount of (solved) token to an issue.')
+def ix_vote(ctx: typer.Context, catalog_and_token: str, issue: int,
+            amount: int = typer.Option(1, help='amount of token to vote')):
+    _ix_vote(ctx, catalog_and_token, issue, amount)
+
+
+@common_logging
+def _ix_vote(ctx, catalog_and_token, index, amount):
+    index = int(index)
+    amount = int(amount)
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    token = Token(_load_account(ctx)).get(flx_token.address)
+    token.vote(index, amount)
+    typer.echo('voted. try "metemctl ix issue list TOKEN" to see list.')
+
+
+@ix_issue_app.command('list')
+def ix_issue_list(ctx: typer.Context, catalog_and_token: str):
+    _ix_issue_list(ctx, catalog_and_token)
+
+
+@common_logging
+def _ix_issue_list(ctx, catalog_and_token):
+    account = _load_account(ctx)
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    token = Token(account).get(flx_token.address)
+    candidates = token.list_candidates()
+    if len(candidates) == 0:
+        typer.echo('No issue to vote.')
+        if token.editable or token.publisher == account.eoa:
+            typer.echo('You can add issues by "metemctl ix issue add TOKEN ISSUE".')
+        return
+    typer.echo(' index: (score) issue')
+    for index, score, desc in candidates:
+        typer.echo(f' {index}: ({score}) {desc}')
+
+
+@ix_issue_app.command('add')
+def ix_issue_add(ctx: typer.Context, catalog_and_token: str, issue: str):
+    _ix_issue_add(ctx, catalog_and_token, issue)
+
+
+@common_logging
+def _ix_issue_add(ctx, catalog_and_token, issue):
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    Token(_load_account(ctx)).get(flx_token.address).add_candidates([issue])
+    typer.echo('added issue. try "metemctl ix issue list" to list issues.')
+
+
+@ix_issue_app.command('remove')
+def ix_issue_remove(ctx: typer.Context, catalog_and_token: str, index: int):
+    _ix_issue_remove(ctx, catalog_and_token, index)
+
+
+@common_logging
+def _ix_issue_remove(ctx, catalog_and_token, index):
+    flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    Token(_load_account(ctx)).get(flx_token.address).remove_candidates([int(index)])
+    typer.echo('removed indexed issue. try "metemctl ix issue list" to list issues.')
 
 
 @contract_broker_app.command('show')
@@ -2015,7 +2090,7 @@ def _publish(
 @app.command(help="Unregister disseminated CTI token from catalog.")
 def discontinue(
         ctx: typer.Context,
-        catalog_and_token: List[str]):
+        catalog_and_token: str):
     _discontinue(ctx, catalog_and_token)
 
 
@@ -2211,8 +2286,8 @@ def external_link():
             typer.echo(f"- {hyperlink}: {service['description']}")
 
 
-@app.command(help="Check Metemcyber issues")
-def issue():
+@app.command('issue', help="Check Metemcyber issues")
+def issue_():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
 
 
