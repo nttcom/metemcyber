@@ -832,7 +832,7 @@ def broker_serve(ctx: typer.Context, catalog_and_token: str, amount: int):
 def _broker_serve(ctx, catalog_and_token, amount):
     if amount <= 0:
         raise Exception(f'Invalid amount: {amount}')
-    if len(catalog_and_token) > 2:
+    if isinstance(catalog_and_token, list) and len(catalog_and_token) > 2:
         raise Exception('Redundant arguments for CATALOG_AND_TOKEN')
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     if not flx_token.catalog:
@@ -859,7 +859,7 @@ def broker_takeback(ctx: typer.Context, catalog_and_token: str, amount: int):
 def _broker_takeback(ctx, catalog_and_token, amount):
     if amount <= 0:
         raise Exception(f'Invalid amount: {amount}')
-    if len(catalog_and_token) > 2:
+    if isinstance(catalog_and_token, list) and len(catalog_and_token) > 2:
         raise Exception('Redundant arguments for CATALOG_AND_TOKEN')
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     if not flx_token.catalog:
