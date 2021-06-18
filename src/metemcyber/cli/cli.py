@@ -55,6 +55,7 @@ from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
 from metemcyber.core.bc.util import ADDRESS0, decode_keyfile, deploy_erc1820
+from metemcyber.core.constants import PTS_RATE
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 from metemcyber.core.ngrok import DEFAULT_CONFIGS as DC_NGROK
@@ -794,9 +795,32 @@ def ix_buy(ctx: typer.Context, catalog_and_token: str):
 @common_logging
 def _ix_buy(ctx, catalog_and_token):
     flx = FlexibleIndexToken(ctx, catalog_and_token)
+    if flx.info.price * PTS_RATE > _load_account(ctx).wallet.balance:
+        raise Exception(f'Short of ETHER to buy token {flx.catalog.index}-{flx.index}.')
     broker = _load_broker(ctx)
     broker.buy(flx.catalog.address, flx.address, flx.info.price, allow_cheaper=False)
     typer.echo(f'bought token {flx.catalog.index}-{flx.index} for {flx.info.price} pts.')
+
+
+@ix_app.command('bulk-buy', help='Buy each CTI Token listed on catalog.')
+def ix_bulk_buy(ctx: typer.Context, catalog: str,
+                duplicated: bool = typer.Option(False, help='buy tokens even if already have')):
+    _ix_bulk_buy(ctx, catalog, duplicated)
+
+
+@common_logging
+def _ix_bulk_buy(ctx, catalog, duplicated):
+    flx = FlexibleIndexCatalog(ctx, catalog)
+    tokens = _get_tokens_population(ctx, soldout=True, own=duplicated).get(flx.index)
+    if not tokens:
+        typer.echo(f'No tokens to buy on catalog {flx.index}: {flx.address}.')
+        return
+    typer.echo(f'bulk buying tokens in catalog {flx.index}: {flx.address}.')
+    for token in tokens:
+        if token.amount == 0:
+            typer.echo(f'{flx.index}-{token.token_id} is soldout.')
+            continue
+        _ix_buy(ctx, f'{flx.index}-{token.token_id}')
 
 
 @contract_broker_app.command('serve', help="Pass your tokens to the broker for disseminate.")

@@ -20,13 +20,12 @@ from typing import Dict, List, Optional
 
 from eth_typing import ChecksumAddress
 
-from .account import Account
-from .catalog import Catalog
-from .cti_broker import CTIBroker
-from .cti_token import CTIToken
-from .token import Token
-
-PTS_RATE: int = 10**18  # FIXME: should import from somewhere
+from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.catalog import Catalog
+from metemcyber.core.bc.cti_broker import CTIBroker
+from metemcyber.core.bc.cti_token import CTIToken
+from metemcyber.core.bc.token import Token
+from metemcyber.core.constants import PTS_RATE
 
 
 class Broker():
