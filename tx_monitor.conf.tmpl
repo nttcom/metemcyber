@@ -1,0 +1,28 @@
+{
+    "dumper": {
+        "endpoint": "https://rpc.metemcyber.ntt.com",
+        "db_filepath_raw": "tx_shelf.raw.db",
+        "start_block": 0,
+        "print_blocknum": true,
+        "exit_on_head": true},
+    "decoder": {
+        "db_filepath_raw": "tx_shelf.raw.db",
+        "db_filepath_decoded": "tx_shelf.db",
+        "start_block": 0,
+        "exit_on_head": true,
+        "print_blocknum": true,
+        "print_decoded": true},
+    "metadata_manager": {
+        "db_filepath_decoded": "tx_shelf.db",
+        "db_filepath_meta": "tx_shelf.meta.db",
+        "start_block": 0,
+        "exit_on_head": true,
+        "print_blocknum": true},
+    "counter": {
+        "db_filepath_decoded": "tx_shelf.db",
+        "db_filepath_meta": "tx_shelf.meta.db"},
+    "slack_notifier": {
+        "webhook": "Your IncommingWebhook URL. ex) https://hooks.slack.com/services/T01FJ...",
+        "channel": "Channel name to post. ex) #dev",
+        "appname": "Metembot"}
+}
