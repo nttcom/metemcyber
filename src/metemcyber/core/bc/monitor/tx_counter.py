@@ -23,9 +23,6 @@ from eth_typing import ChecksumAddress
 import metemcyber.core.bc.monitor.tx_util as util
 from metemcyber.core.bc.monitor.tx_db import TransactionDB
 from metemcyber.core.bc.monitor.tx_metadata_manager import MetadataManager
-from metemcyber.core.logger import get_logger
-
-LOGGER = get_logger(name='counter', file_prefix='tx_monitor')
 
 
 class BasicTx:
