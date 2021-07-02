@@ -1,4 +1,4 @@
-import React, { Component, useState, useEffect } from 'react';
+import React from 'react';
 import './App.css';
 import Login from './containers/login';
 import DefaultLayout from './containers/defaultLayout';
@@ -9,20 +9,16 @@ import '@fortawesome/fontawesome-free/js/solid';
 import '@fortawesome/fontawesome-free/js/regular';
 
 
-class App extends Component {
-
-  render() {
-    return (
-      <BrowserRouter>
-        <Switch>
-          <Route path="/contents" name="Overview" render={props => <DefaultLayout {...props} />} />
-          <Route path="/login" name="Home" render={props => <Login {...props} />} />
-          <Route name="Home" render={props => <Login {...props} />} />
-        </Switch>
-      </BrowserRouter>
-    );
-  }
-
+function App() {
+  return (
+    <BrowserRouter>
+      <Switch>
+        <Route path="/contents" name="Overview" render={props => <DefaultLayout {...props} />} />
+        <Route path="/login" name="Home" render={props => <Login {...props} />} />
+        <Route name="Home" render={props => <Login {...props} />} />
+      </Switch>
+    </BrowserRouter>
+  );
 }
 
 export default App;

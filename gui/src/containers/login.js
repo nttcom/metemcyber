@@ -15,7 +15,6 @@ function Login(props) {
     const [currentKeyName, setCurrentKeyName] = useState('');
     const [selectedKey, setSelectedKey] = useState({});
     const [modalToggle, setModalToggle] = useState(false);
-    const [passModalToggle, setPassModalToggle] = useState(false);
     const [setup, setSetup] = useState(true);
 
     const handleChange = (e) => {
@@ -23,13 +22,11 @@ function Login(props) {
     }
 
     const handleSubmit = () => {
-
         setLoading(true);
         ipcRenderer.once('login', (event, arg) => {
             console.log(arg)
-            props.history.push('/contents')
+            props.history.push('/contents');
         });
-
         ipcRenderer.send('login', pass);
     }
 
@@ -37,27 +34,18 @@ function Login(props) {
         setSelectedKey({});
         setModalToggle(!modalToggle);
     }
+
     const handleOk = (e) => {
         ipcRenderer.sendSync('set-key', { name: selectedKey.name, path: selectedKey.path });
         setCurrentKeyName(selectedKey.name);
         setModalToggle(false);
     }
-    const sendPassword = () => {
-        setPassModalToggle(false);
-        ipcRenderer.send('set-password', pass);
-        setPass('');
-    }
 
     useEffect(() => {
-        sessionStorage.setItem('imageDir', `${ipcRenderer.sendSync('get-imagedir')}metemcyber_logo.png`);
-        console.log(__dirname)
-
+        sessionStorage.setItem('imageDir', `${ipcRenderer.sendSync('get-image-dir')}metemcyber_logo.png`);
         setCurrentKeyName(ipcRenderer.sendSync('get-key'));
         if (sessionStorage.getItem('init') === null) {
             ipcRenderer.send('exec-init');
-            ipcRenderer.once('get-password', (event, arg) => {
-                setPassModalToggle(true);
-            });
             ipcRenderer.once('finish-init', (event, arg) => {
                 sessionStorage.setItem('init', true);
                 setSetup(false);
@@ -73,7 +61,7 @@ function Login(props) {
         setSelectedKey(acceptedFiles[0]);
 
     }, []);
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
     return (
         <div className="app flex-row align-items-center">
@@ -136,18 +124,6 @@ function Login(props) {
                     <Button color="secondary" onClick={toggle}>Cancel</Button>
                 </ModalFooter>
             </KeyModal>
-            <Modal isOpen={passModalToggle} >
-                <ModalBody>
-                    <InputGroup style={{ marginBottom: "10px" }}>
-                        <InputGroupAddon addonType="prepend">
-                        </InputGroupAddon>
-                        <Input placeholder="Enter your sudo pass" type="password" value={pass} onChange={handleChange} />
-                    </InputGroup>
-                </ModalBody>
-                <ModalFooter>
-                    <Button color="primary" onClick={sendPassword}>OK</Button>{' '}
-                </ModalFooter>
-            </Modal>
         </div>
     );
 }
