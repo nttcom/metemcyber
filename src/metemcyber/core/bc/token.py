@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import Dict, List, Optional, Tuple
 
 from eth_typing import ChecksumAddress
@@ -43,6 +44,15 @@ class Token():
         cti_token = CTIToken(self.account).new(initial_supply, default_operators, anyone_editable)
         return self.get(cti_token.address)
 
+    def _passthrough(self, *args, **kwargs):
+        assert self.address
+        cti_token = CTIToken(self.account).get(self.address)
+        finfo = inspect.getframeinfo(inspect.stack()[1][0])
+        func = getattr(cti_token, finfo.function)
+        if not callable(func):  # maybe a property
+            return func
+        return func(*args, **kwargs)
+
     def uncache(self, entire: bool = False) -> None:
         if entire:
             del Token.tokens_map
@@ -54,8 +64,7 @@ class Token():
 
     @property
     def publisher(self) -> ChecksumAddress:
-        assert self.address
-        return CTIToken(self.account).get(self.address).publisher
+        return self._passthrough()
 
     def balance_of(self, target: ChecksumAddress) -> int:
         assert self.address
@@ -75,35 +84,38 @@ class Token():
         cti_token.mint(dest, amount)
         self.uncache()
 
-    def send(self, dest: ChecksumAddress, amount: int, data: str = '') -> None:
-        assert self.address
-        cti_token = CTIToken(self.account).get(self.address)
-        cti_token.send_token(dest, amount, data)
+    def send(self, *args, **kwargs):
+        self._passthrough(*args, **kwargs)
         self.uncache()
 
-    def burn(self, amount: int, data: str = '') -> None:
-        assert self.address
-        cti_token = CTIToken(self.account).get(self.address)
-        cti_token.burn_token(amount, data)
+    def burn(self, *args, **kwargs):
+        self._passthrough(*args, **kwargs)
         self.uncache()
+
+    def is_operator(self, *args, **kwargs) -> bool:
+        return self._passthrough(*args, **kwargs)
+
+    def authorize_operator(self, *args, **kwargs):
+        self._passthrough(*args, **kwargs)
+
+    def revoke_operator(self, *args, **kwargs):
+        self._passthrough(*args, **kwargs)
 
     @property
     def editable(self) -> bool:
-        assert self.address
-        return CTIToken(self.account).get(self.address).editable
+        return self._passthrough()
 
-    def set_editable(self, editable: bool):
-        assert self.address
-        CTIToken(self.account).get(self.address).set_editable(editable)
+    def set_editable(self, *args, **kwargs):
+        self._passthrough(*args, **kwargs)
 
-    def add_candidates(self, candidates: List[str]):
-        CTIToken(self.account).get(self.address).add_candidates(candidates)
+    def add_candidates(self, *args, **kwargs):
+        self._passthrough(*args, **kwargs)
 
-    def remove_candidates(self, indexes: List[int]):
-        CTIToken(self.account).get(self.address).remove_candidates(indexes)
+    def remove_candidates(self, *args, **kwargs):
+        self._passthrough(*args, **kwargs)
 
     def list_candidates(self) -> List[Tuple[int, int, str]]:  # [(index, score, desc), ...]
-        return CTIToken(self.account).get(self.address).list_candidates()
+        return self._passthrough()
 
     def vote(self, index: int, amount: int):
         if amount <= 0 or self.balance_of(self.account.eoa) < amount:

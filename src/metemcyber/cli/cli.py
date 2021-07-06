@@ -85,6 +85,8 @@ DEFAULT_CONFIGS = {
         'endpoint_url': 'YOUR_ETHEREUM_JSON_RPC_URL',
         'airdrop_url': 'AIRDROP_FUNCTION_URL',
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
+        'solver_keyfile': '',
+        'solver_keyfile_password': '',
         'workspace': str(Path(APP_DIR) / 'workspace'),
     },
     'catalog': {
@@ -268,6 +270,24 @@ def _load_account(ctx: typer.Context) -> Account:
     account = Account(ether, eoa, pkey)
     ctx.meta['account'] = account
     return account
+
+
+def _load_solver_account(ctx: typer.Context) -> Account:
+    if 'solver_account' in ctx.meta.keys():
+        return ctx.meta['solver_account']
+    config = _load_config(ctx)
+    if not config['general']['solver_keyfile']:  # use account as solver
+        ctx.meta['solver_account'] = _load_account(ctx)
+        return ctx.meta['solver_account']
+    keyfile = config['general']['solver_keyfile'] or config['general']['keyfile']
+    oldpw = os.environ.get('METEMCTL_KEYFILE_PASSWORD', '')
+    if config['general'].get('solver_keyfile_password'):
+        os.environ['METEMCTL_KEYFILE_PASSWORD'] = config['general']['solver_keyfile_password']
+    eoaa, pkey = decode_keyfile(keyfile, _get_keyfile_password)
+    os.environ['METEMCTL_KEYFILE_PASSWORD'] = oldpw
+    solver_account = Account(Ether(config['general']['endpoint_url']), eoaa, pkey)
+    ctx.meta['solver_account'] = solver_account
+    return solver_account
 
 
 def _load_contract_libs(ctx: typer.Context):
@@ -993,6 +1013,7 @@ def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amou
         token_address = _token_create(ctx, initial_amount)
     elif fix_token:
         fix_token()  # mint or burn
+    _authorize_solver(ctx, token_address)
 
     account = _load_account(ctx)
     catalog = Catalog(account).get(flx_catalog.address)
@@ -1010,6 +1031,16 @@ def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amou
     _broker_serve(ctx, [catalog.address, token_address], serve_amount)
 
     return token_address
+
+
+def _authorize_solver(ctx, token_address: ChecksumAddress):
+    account = _load_account(ctx)
+    solver_account = _load_solver_account(ctx)
+    token = Token(account).get(token_address)
+    if solver_account.eoa == account.eoa or token.is_operator(solver_account.eoa, account.eoa):
+        return
+    Token(account).get(token_address).authorize_operator(solver_account.eoa)
+    typer.echo(f'authorized solver({solver_account.eoa}) as a token operator.')
 
 
 @seeker_app.command('status')
@@ -1080,11 +1111,10 @@ def _seeker_stop(ctx):
         typer.echo('ngrok also stopped.')
 
 
-def _solver_client(ctx: typer.Context, account: Optional[Account] = None) -> MCSClient:
+def _solver_client(ctx: typer.Context) -> MCSClient:
     if 'solver_client' in ctx.meta.keys():
         return ctx.meta['solver_client']
-    account = account if account else _load_account(ctx)
-    solver = MCSClient(account, APP_DIR)
+    solver = MCSClient(_load_solver_account(ctx), APP_DIR)
     solver.connect()
     solver.login()
     ctx.meta['solver_client'] = solver
@@ -1108,7 +1138,7 @@ def _solver_status(ctx: typer.Context) -> Tuple[bool, str]:
         solver.get_solver()
     except MCSError as err:
         if err.code == MCSErrno.ENOENT:
-            msg = 'Solver running without your operator.'
+            msg = f'Solver running with EOA({solver.account.eoa}), but not yet enabled.'
         else:
             msg = str(err)
         return False, msg
@@ -1118,11 +1148,13 @@ def _solver_status(ctx: typer.Context) -> Tuple[bool, str]:
     try:
         operator = _load_operator(ctx)
     except Exception:
-        return False, 'Solver running, but you have not yet configured operator.'
+        return False, f'Solver running with EOA({solver.account.eoa}). Operator is not configured.'
     if solver.operator_address == operator.address:
-        msg = f'Solver running with operator you configured({operator.address}).'
+        msg = (f'Solver running with EOA({solver.account.eoa}) '
+               f'and enabled with operator({operator.address}).')
     else:
-        msg = f'[WARNING] Solver running with another operator({solver.operator_address}).'
+        msg = (f'[WARNING] Solver running with EOA({solver.account.eoa}) '
+               f'and enabled with ANOTHER operator({solver.operator_address}).')
     return True, msg
 
 
@@ -1182,21 +1214,7 @@ def solver_enable(
 def _solver_enable(ctx, plugin):
     logger = getLogger()
     try:
-        plugin = plugin if plugin else _load_config(ctx)['solver']['plugin']
-
-        # exceptional case not to use _load_account: private key is required by new_solver().
-        eoaa, pkey = decode_keyfile(_load_config(ctx)['general']['keyfile'], _get_keyfile_password)
-        account = Account(Ether(_load_config(ctx)['general']['endpoint_url']), eoaa, pkey)
-        if not ctx.meta.get('account'):
-            ctx.meta['account'] = account
-        operator = _load_operator(ctx)
-        solver = _solver_client(ctx, account=account)
-        config = _workspace_confpath(ctx)
-        applied = solver.new_solver(
-            operator.address, pkey, pluginfile=plugin, configfile=str(config))
-
-        assert applied == operator.address
-        typer.echo(f'Solver is now running with your operator({applied}).')
+        solver = _solver_enable_internal(ctx, plugin)
     except Exception as err:
         logger.exception(err)
         typer.echo(f'failed operation: {err}')
@@ -1224,6 +1242,28 @@ def _solver_enable(ctx, plugin):
     except Exception as err:
         logger.exception(err)
         typer.echo(f'accepting registerd tokens failed: {err}')
+
+
+def _solver_enable_internal(ctx, plugin) -> MCSClient:
+    operator = _load_operator(ctx)
+    conf = _load_config(ctx)
+    plugin = plugin if plugin else conf['solver']['plugin']
+    keyfile = conf['general']['solver_keyfile'] or conf['general']['keyfile']
+    oldpw = os.environ.get('METEMCTL_KEYFILE_PASSWORD', '')
+    if conf['general'].get('solver_keyfile_password'):
+        os.environ['METEMCTL_KEYFILE_PASSWORD'] = conf['general']['solver_keyfile_password']
+    # exceptional case not to use _load_account: private key is required by new_solver().
+    eoaa, pkey = decode_keyfile(keyfile, _get_keyfile_password)
+    os.environ['METEMCTL_KEYFILE_PASSWORD'] = oldpw
+    solver = _solver_client(ctx)
+    assert eoaa == solver.account.eoa
+    config = _workspace_confpath(ctx)
+    applied = solver.new_solver(
+        operator.address, pkey, pluginfile=plugin, configfile=str(config))
+    assert applied == operator.address
+    typer.echo(f'Enabled solver with EOA: {eoaa}.')
+    typer.echo(f'Solver is now running with your operator({applied}).')
+    return solver
 
 
 @solver_app.command('disable',

@@ -29,8 +29,9 @@ from werkzeug.datastructures import EnvironHeaders
 
 from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.cti_operator import CTIOperator
+from metemcyber.core.bc.cti_token import CTIToken
 from metemcyber.core.bc.ether import Ether
-from metemcyber.core.bc.operator import Operator
 from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import SIGNATURE_HEADER
@@ -125,28 +126,7 @@ class Resolver(WebhookReceiver):
         LOGGER.debug(f'Received request. headers={headers}, body={body}.')
         tty_message('Incoming data...')
         try:
-            jdata = json.loads(body)
-            if jdata['from'] != verify_message(body, sign):
-                raise Exception('Signer mismatch.')
-            tty_message(f'Data sender: {jdata["from"]}.')
-            operator = Operator(Account(Ether(self.endpoint_url))).get(self.operator_address)
-            task = None
-            offset = 0
-            while True:
-                tasks = operator.history(jdata['token_address'], None, LIMIT_ATONCE, offset)
-                tmp = [item for item in tasks if item[0] == int(jdata['task_id'])]
-                if tmp:
-                    task = tmp[0]
-                    break
-                if len(tasks) < LIMIT_ATONCE:
-                    break
-                offset += LIMIT_ATONCE
-
-            if task is None:
-                raise Exception(f'No such task id: {jdata["task_id"]}')
-            _, t_addr, t_solver, _, _ = task
-            if t_addr != jdata['token_address'] or t_solver != jdata['from']:
-                raise Exception('Task info mismatch')
+            jdata = self._precheck_request(body, sign)
         except KeyError as err:
             msg = f'Missing parameter: {err}'
             LOGGER.error(msg)
@@ -164,6 +144,35 @@ class Resolver(WebhookReceiver):
         LOGGER.info(msg)
         tty_message(msg)
         download_json(jdata['download_url'], jdata['token_address'], self.download_path)
+
+    def _precheck_request(self, body: str, sign: str) -> dict:
+        account = Account(Ether(self.endpoint_url))
+        jdata = json.loads(body)
+        if jdata['from'] != verify_message(body, sign):
+            raise Exception('Signer mismatch.')
+        tty_message(f'Data sender: {jdata["from"]}.')
+        operator = CTIOperator(account).get(self.operator_address)
+        task = None
+        offset = 0
+        while True:
+            tasks = operator.history(jdata['token_address'], None, LIMIT_ATONCE, offset)
+            tmp = [item for item in tasks if item[0] == int(jdata['task_id'])]
+            if tmp:
+                task = tmp[0]
+                break
+            if len(tasks) < LIMIT_ATONCE:
+                break
+            offset += LIMIT_ATONCE
+
+        if task is None:
+            raise Exception(f'No such task id: {jdata["task_id"]}')
+        _, t_addr, t_solver, _, _ = task
+        if t_addr != jdata['token_address'] or t_solver != jdata['from']:
+            raise Exception('Task info mismatch')
+        token = CTIToken(account).get(t_addr)
+        if not token.is_operator(t_solver, token.publisher):
+            raise Exception(f'RevokedOperator: {t_solver}')
+        return jdata
 
 
 class Seeker():
@@ -195,7 +204,7 @@ class Seeker():
         self.operator_address = operator_address
         self.endpoint_url = endpoint_url
         if operator_address and endpoint_url:
-            operator = Operator(Account(Ether(endpoint_url))).get(operator_address)
+            operator = CTIOperator(Account(Ether(endpoint_url))).get(operator_address)
             if operator.version < 1:
                 raise Exception(
                     f'Operator({operator_address}) is version {operator.version} and '

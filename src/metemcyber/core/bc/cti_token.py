@@ -50,7 +50,7 @@ class CTIToken(Contract):
             raise ValueError('Transaction failed: mint')
         self.log_success()
 
-    def send_token(self, dest, amount=1, data=''):
+    def send(self, dest, amount=1, data=''):
         self.log_trace()
         bdata = Web3.toBytes(text=data)
         func = self.contract.functions.send(dest, amount, bdata)
@@ -61,7 +61,7 @@ class CTIToken(Contract):
             raise ValueError('Transaction failed: send')
         self.log_success()
 
-    def burn_token(self, amount, data=''):
+    def burn(self, amount, data=''):
         self.log_trace()
         bdata = Web3.toBytes(text=data)
         func = self.contract.functions.burn(amount, bdata)
@@ -91,6 +91,11 @@ class CTIToken(Contract):
         if tx_receipt['status'] != 1:
             raise ValueError('Transaction failed: revokeOperator')
         self.log_success()
+
+    def is_operator(self, operator: ChecksumAddress, token_holder: ChecksumAddress) -> bool:
+        self.log_trace()
+        func = self.contract.functions.isOperatorFor(operator, token_holder)
+        return func.call()
 
     @property
     def editable(self) -> bool:
