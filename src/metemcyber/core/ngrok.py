@@ -104,7 +104,7 @@ class NgrokMgr():
                                f'web_addr: localhost:{port}\n')
                 # ngrok needs to keep running in the background
                 # pylint pylint: disable=R1732
-                proc = Popen(args, shell=False)
+                proc = Popen(args, shell=False, start_new_session=True)
                 try:
                     proc.wait(timeout=1)  # may exit with 'Address already in use'
                     del proc

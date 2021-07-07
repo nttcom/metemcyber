@@ -240,7 +240,7 @@ class Seeker():
             raise Exception(f'Already running on pid({self.pid}).')
         # Seeker needs to keep running in the background.
         # pylint pylint: disable=R1732
-        proc = Popen(self.cmd_args, shell=False)
+        proc = Popen(self.cmd_args, shell=False, start_new_session=True)
         for _cnt in range(5):
             sleep(1)
             self.pid, self.address, self.port = self.check_running()
