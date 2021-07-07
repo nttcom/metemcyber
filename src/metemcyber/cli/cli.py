@@ -1034,34 +1034,46 @@ def _authorize_solver(ctx, token_address: ChecksumAddress):
 
 @seeker_app.command('status')
 def seeker_status(ctx: typer.Context):
-    common_logging(_seeker_status)(ctx)
+    typer.echo(_seeker_status(ctx)[1])
 
 
-def _seeker_status(ctx):
+def _seeker_status(ctx) -> Tuple[bool, str]:
+    logger = getLogger()
+    try:
+        seeker = Seeker(APP_DIR, _load_operator(ctx).address)
+        if seeker.pid == 0:
+            return False, 'not running'
+        msg = f'running on pid {seeker.pid}, listening {seeker.address}:{seeker.port}.'
+        ngrok_mgr = NgrokMgr(APP_DIR)
+        if ngrok_mgr.pid > 0:
+            msg += ('\n'
+                    f'and ngrok running on pid {ngrok_mgr.pid}, '
+                    f'with public url: {ngrok_mgr.public_url}.')
+        return True, msg
+    except Exception as err:
+        logger.exception(err)
+        return False, str(err)
+
+
+def _seeker_url(ctx, auto_start: bool = False) -> str:
     seeker = Seeker(APP_DIR, _load_operator(ctx).address)
     if seeker.pid == 0:
-        typer.echo(f'not running.')
-    else:
-        typer.echo(f'running on pid {seeker.pid}, listening {seeker.address}:{seeker.port}.')
+        if auto_start:
+            typer.echo('auto starting seeker...')
+            _seeker_start(ctx)
+            return _seeker_url(ctx, auto_start=False)
+        raise Exception('Seeker not running')
     ngrok_mgr = NgrokMgr(APP_DIR)
-    if ngrok_mgr.pid > 0:
-        typer.echo(f'and ngrok running on pid {ngrok_mgr.pid}, '
-                   f'with public url: {ngrok_mgr.public_url}.')
+    return ngrok_mgr.public_url or f'http://{seeker.address}:{seeker.port}'
 
 
 @seeker_app.command('start')
-def seeker_start(
-    ctx: typer.Context,
-    ngrok: Optional[bool] = typer.Option(
-        None,
-        help='Launch ngrok with seeker. the default depends on your configuration '
-        'of ngrok in seeker section.')):
-    common_logging(_seeker_start)(ctx, ngrok)
+def seeker_start(ctx: typer.Context):
+    common_logging(_seeker_start)(ctx)
 
 
-def _seeker_start(ctx, ngrok):
-    if ngrok is None:
-        ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
+def _seeker_start(ctx):
+    ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
     endpoint_url = _load_config(ctx)['general']['endpoint_url']
     if not endpoint_url:
         raise Exception('Missing configuration: endpoint_url')
@@ -1298,23 +1310,19 @@ def _solver_obsolete(ctx, token):
 def ix_use(ctx: typer.Context, token: str,
            seeker: str = typer.Option(
                '', help='Globally accessible url which seeker is listening. '
-                        'This option overwrites --ngrok.'),
-           ngrok: bool = typer.Option(
-               True, help='Use ngrok public url bound up with seeker if launched.'),
+                        'Auto generated in default.'),
            monitor: bool = typer.Option(
                True, help='Print messages from Seeker on current terminal.')):
-    common_logging(_ix_use)(ctx, token, seeker, ngrok, monitor)
+    common_logging(_ix_use)(ctx, token, seeker, monitor)
 
 
-def _ix_use(ctx, token, seeker, ngrok, monitor):
+def _ix_use(ctx, token, seeker_url, monitor):
     flx = FlexibleIndexToken(ctx, token)
     account = _load_account(ctx)
     operator = _load_operator(ctx)
-    assert operator.address
-    data = seeker if seeker else (NgrokMgr(APP_DIR).public_url or '') if ngrok else ''
-    if not data:
-        raise Exception('Seeker url is not specified (or ngrok is not running)')
-    Token(account).get(flx.address).send(operator.address, amount=1, data=data)
+    if not seeker_url:
+        seeker_url = _seeker_url(ctx, auto_start=True)
+    Token(account).get(flx.address).send(operator.address, amount=1, data=seeker_url)
     typer.echo(f'Started challenge with token({flx.address}).')
     if monitor:
         _monitor_seeker_message()
