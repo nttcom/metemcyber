@@ -247,7 +247,7 @@ def _init_app_dir(ctx: typer.Context) -> None:
 
 
 def _get_keyfile_password() -> str:
-    word = os.getenv('METEMCTL_KEYFILE_PASSWORD', "")
+    word = os.environ.get('METEMCTL_KEYFILE_PASSWORD', "")
     if word:
         return word
     typer.echo('You can also use an env METEMCTL_KEYFILE_PASSWORD.')
@@ -1204,45 +1204,35 @@ def solver_enable(
         help='solver plugin filename. the default depends on your configuration of '
         'plugin in solver section. please note that another configuration '
         'may be required by plugin.')):
-    _solver_enable(ctx, plugin)
+    common_logging(_solver_enable)(ctx, plugin)
 
 
 def _solver_enable(ctx, plugin):
-    logger = getLogger()
-    try:
-        solver = _solver_enable_internal(ctx, plugin)
-    except Exception as err:
-        logger.exception(err)
-        typer.echo(f'failed operation: {err}')
-        return
+    solver = _solver_enable_internal(ctx, plugin)
 
     # start accept tokens already registered if exists.
-    try:
-        population = _get_tokens_population(
-            ctx, mine=True, mine_only=True, soldout=True, own=True, own_only=False)
-        token_addresses = [t.address for lst in population.values() for t in lst]
-        if len(token_addresses) == 0:
-            return
-    except Exception:
+    population = _get_tokens_population(
+        ctx, mine=True, mine_only=True, soldout=True, own=True, own_only=False)
+    token_addresses = [t.address for lst in population.values() for t in lst]
+    if len(token_addresses) == 0:
         return
 
     try:
         msg = solver.solver('accept_registered', token_addresses)
         acceptings = solver.solver('accepting_tokens')
-        if acceptings:
-            typer.echo(f'and accepting {len(acceptings)} token(s) already registered.')
-        else:
-            typer.echo(f'No token registered on this operator.')
-        if msg:
-            typer.echo(msg)
     except Exception as err:
-        logger.exception(err)
-        typer.echo(f'accepting registerd tokens failed: {err}')
+        raise Exception(f'accepting registerd tokens failed: {err}') from err
+    if acceptings:
+        typer.echo(f'and accepting {len(acceptings)} token(s) already registered.')
+    else:
+        typer.echo(f'No token registered on this operator.')
+    if msg:
+        typer.echo(msg)
 
 
 def _solver_enable_internal(ctx, plugin) -> MCSClient:
-    operator = _load_operator(ctx)
     conf = _load_config(ctx)
+    operator_address = cast(ChecksumAddress, conf['operator']['address'])
     plugin = plugin if plugin else conf['solver']['plugin']
     keyfile = conf['general']['solver_keyfile'] or conf['general']['keyfile']
     oldpw = os.environ.get('METEMCTL_KEYFILE_PASSWORD', '')
@@ -1255,8 +1245,8 @@ def _solver_enable_internal(ctx, plugin) -> MCSClient:
     assert eoaa == solver.account.eoa
     config = _workspace_confpath(ctx)
     applied = solver.new_solver(
-        operator.address, pkey, pluginfile=plugin, configfile=str(config))
-    assert applied == operator.address
+        operator_address, pkey, pluginfile=plugin, configfile=str(config))
+    assert applied == operator_address
     typer.echo(f'Enabled solver with EOA: {eoaa}.')
     typer.echo(f'Solver is now running with your operator({applied}).')
     return solver
