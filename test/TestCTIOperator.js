@@ -42,5 +42,8 @@ contract("CTIOperator", async accounts => {
     let tx_receipt = await operator.accepted(taskId, {from: accounts[1]});
     //console.log(format("tx_receipt: %o", tx_receipt));
     assert.equal(tx_receipt.receipt.status, true);
+
+    let registereds = await operator.listRegistered(accounts[1]);
+    assert.equal(registereds.sort().toString() == [token.address].sort().toString(), true);
   });
 });

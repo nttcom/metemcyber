@@ -18,7 +18,7 @@ from typing import ClassVar, Dict, List, Optional, Tuple
 
 from eth_typing import ChecksumAddress
 
-from metemcyber.core.bc.contract import Contract, retryable_contract
+from metemcyber.core.bc.contract import Contract, ContractVersionError, retryable_contract
 from metemcyber.core.bc.util import ADDRESS0
 
 
@@ -123,4 +123,11 @@ class CTIOperator(Contract):
     def check_registered(self, token_addresses):
         self.log_trace()
         func = self.contract.functions.checkRegistered(token_addresses)
+        return func.call()
+
+    def list_registered(self, solver_address) -> List[ChecksumAddress]:
+        self.log_trace()
+        if self.version < 2:
+            raise ContractVersionError('Not supported (too old contract version)')
+        func = self.contract.functions.listRegistered(solver_address)
         return func.call()
