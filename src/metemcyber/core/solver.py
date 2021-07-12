@@ -142,15 +142,12 @@ class BaseSolver:
         accepting = self.accepting_tokens()
         cti_operator = CTIOperator(self.account).get(self.operator_address)
         if tokens is None:  # auto detect mode
-            tokens = cti_operator.list_registered(self.operator_address)
-        if cti_operator.version < 2:
+            targets = cti_operator.list_registered(self.operator_address)
+        else:
             registered = cti_operator.check_registered(tokens)
             targets = [
                 token for i, token in enumerate(tokens)
                 if registered[i] and token not in accepting]
-        else:
-            registered = cti_operator.list_registered(self.account.eoa)
-            targets = list(set(registered) - set(accepting))
         if targets:
             LOGGER.info('newly accepted: %s', targets)
             msg = self._accept(targets, force_register=False)
