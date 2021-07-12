@@ -1167,9 +1167,8 @@ def _solver_start(ctx, enable):
     try:
         _solver_client(ctx)
         raise Exception('Solver already running.')
-    except Exception as err:
-        if not str(err).startswith('Socket not found.'):
-            raise
+    except Exception:
+        pass
     config = _load_config(ctx)
     endpoint_url = config['general']['endpoint_url']
     solv_cli_py = os.path.dirname(__file__) + '/../core/multi_solver_cli.py'

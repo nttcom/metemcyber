@@ -32,6 +32,7 @@ from eth_typing import ChecksumAddress
 from web3 import Web3
 
 from metemcyber.core.bc.account import Account
+from metemcyber.core.bc.contract import ContractVersionError
 from metemcyber.core.bc.cti_operator import CTIOperator
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.util import verify_message
@@ -51,6 +52,10 @@ EOM = '\v'  # End of Message
 
 def socket_filepath(work_dir: str) -> str:
     return f'{work_dir}/mcs.sock'
+
+
+def snapshot_filepath(work_dir: str) -> str:
+    return f'{work_dir}/.mcs.snapshot'
 
 
 def tracelog(logger, *args, **kwargs):
@@ -159,19 +164,103 @@ class SolverManager():
     """ Class to manage Solver instances
     """
 
-    def __init__(self, endpoint_url: str) -> None:
-        self.endpoint_url = endpoint_url
+    def __init__(self, endpoint_url: Optional[str], snapshot_filepath_: str):
         self.plugin = PluginManager()
         self.plugin.load()
         self.plugin.set_default_solverclass('gcs_solver.py')
         #                  eoaa:            {account: x, solver: x}
         self.solvers: Dict[ChecksumAddress, Dict[str, Any]] = {}
+        self.snapshot_filepath = snapshot_filepath_
+        self.snapshot: dict = {}
+
+        if endpoint_url:
+            self.endpoint_url = endpoint_url
+            self.snapshot = {
+                'endpoint_url': endpoint_url,
+                'key': Fernet.generate_key().decode(),
+                'solvers': {},
+            }
+            self._save_snapshot()
+        else:
+            self._load_snapshot()
 
     def destroy(self):
         for solver in [v['solver'] for v in self.solvers.values()]:
             if solver:
                 solver.destroy()
         self.solvers = {}
+        self._remove_snapshot()
+
+    def _save_snapshot(self):
+        with open(self.snapshot_filepath, 'w') as fout:
+            json.dump(self.snapshot, fout, ensure_ascii=False, indent=2)
+
+    def _update_snapshot(self,
+                         eoaa: ChecksumAddress,
+                         pkey: Optional[str],
+                         operator_address: Optional[ChecksumAddress],
+                         plugin: Optional[str],
+                         config: Optional[str],
+                         ):
+        if not pkey:
+            del self.snapshot['solvers'][eoaa]
+        else:
+            self.snapshot['solvers'][eoaa] = {
+                'eoaa': eoaa,
+                'pkey': Fernet(self.snapshot['key']).encrypt(pkey.encode('utf-8')).decode(),
+                'operator_address': operator_address,
+                'plugin': plugin,
+                'config': config,
+            }
+        self._save_snapshot()
+
+    def _load_snapshot(self):
+        try:
+            with open(self.snapshot_filepath, 'r') as fin:
+                self.snapshot = json.load(fin)
+            self.endpoint_url = self.snapshot['endpoint_url']
+            for entry in self.snapshot['solvers'].values():
+                pkey = Fernet(self.snapshot['key']).decrypt(entry['pkey'].encode()).decode()
+                solver, account = self._new_solver(
+                    entry['eoaa'], pkey, entry['operator_address'],
+                    entry['plugin'], entry['config'])
+                try:
+                    solver.accept_registered(None)
+                except ContractVersionError as err:
+                    SERVERLOG.error(f'Failed accept_registered: {err}')
+                    # ignore this error
+                self.solvers[entry['eoaa']] = {
+                    'solver': solver,
+                    'account': account,
+                    'fernet_key': None,
+                }
+        except Exception as err:
+            SERVERLOG.exception(err)
+            raise
+
+    def _remove_snapshot(self):
+        if os.path.exists(self.snapshot_filepath):
+            os.unlink(self.snapshot_filepath)
+
+    def _new_solver(self,
+                    eoaa: ChecksumAddress,
+                    pkey: str,
+                    operator_address: Optional[ChecksumAddress],
+                    solver_plugin: Optional[str],
+                    solver_config: Optional[str],
+                    ) -> Tuple[BaseSolver, Account]:
+        account = Account(Ether(self.endpoint_url), eoaa, pkey)
+        if not operator_address:  # deploy a new contract
+            cti_operator = CTIOperator(account).new()
+            operator_address = cti_operator.address
+            cti_operator.set_recipient()
+        assert operator_address
+        if solver_plugin:
+            self.plugin.set_solverclass(operator_address, solver_plugin)
+        solverclass = self.plugin.get_solverclass(operator_address)
+        solver = solverclass(account, operator_address, solver_config)
+
+        return solver, account
 
     def new_solver(self, eoaa: ChecksumAddress,
                    encrypted_pkey: str,
@@ -193,20 +282,12 @@ class SolverManager():
         cache['fernet_key'] = None  # remove immediately
         with open(encrypted_pkey, 'rb') as fin:
             pkey: str = Fernet(fnt_key).decrypt(fin.read()).decode()
-        account = Account(Ether(self.endpoint_url), eoaa, pkey)
 
-        if not operator_address:  # deploy a new contract
-            cti_operator = CTIOperator(account).new()
-            operator_address = cti_operator.address
-            cti_operator.set_recipient()
-        assert operator_address
-        if solver_plugin:
-            self.plugin.set_solverclass(operator_address, solver_plugin)
-        solverclass = self.plugin.get_solverclass(operator_address)
-        solver = solverclass(account, operator_address, solver_config)
-
+        solver, account = self._new_solver(
+            eoaa, pkey, operator_address, solver_plugin, solver_config)
         cache['solver'] = solver
         cache['account'] = account
+        self._update_snapshot(eoaa, pkey, operator_address, solver_plugin, solver_config)
 
         tracelog(SERVERLOG, 'added solver: %s', cache)
         return cache['solver']
@@ -239,6 +320,7 @@ class SolverManager():
         tracelog(SERVERLOG, 'purge solver: %s', str(cache['solver']))
         self.solvers[eoaa]['solver'].destroy()
         del self.solvers[eoaa]
+        self._update_snapshot(eoaa, None, None, None, None)
         return None
 
     def get_solver(self, eoaa):
@@ -433,18 +515,22 @@ class MCSServer():
     """ Class as a service
     """
 
-    def __init__(self, mgr: SolverManager, work_dir: str):
+    def __init__(self, work_dir: str, endpoint_url: Optional[str]):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.mgr = mgr
+        self.mgr = SolverManager(endpoint_url, snapshot_filepath(work_dir))
         self.work_dir = work_dir
         self.threadlist: List[SolverThread] = []  # all threads
         self.threadpool: List[SolverThread] = []  # non-active threads
         self.shutdown = False
         signal.signal(signal.SIGINT, self.signal_handler)
         for idx in range(NUM_THREADS):
-            sol_thr = SolverThread(self.threadpool, idx, mgr)
+            sol_thr = SolverThread(self.threadpool, idx, self.mgr)
             self.threadlist.append(sol_thr)
             self.threadpool.append(sol_thr)
+        # overwrite socket file. precheck status to avoid this.
+        socket_file = socket_filepath(self.work_dir)
+        if os.path.exists(socket_file):
+            os.unlink(socket_file)
 
     def signal_handler(self, signum, __):
         if signum not in {signal.SIGINT}:
