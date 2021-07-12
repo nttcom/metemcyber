@@ -1002,7 +1002,6 @@ def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amou
         token_address = _token_create(ctx, initial_amount)
     elif fix_token:
         fix_token()  # mint or burn
-    _authorize_solver(ctx, token_address)
 
     account = _load_account(ctx)
     catalog = Catalog(account).get(flx_catalog.address)
@@ -1030,6 +1029,16 @@ def _authorize_solver(ctx, token_address: ChecksumAddress):
         return
     Token(account).get(token_address).authorize_operator(solver_account.eoa)
     typer.echo(f'authorized solver({solver_account.eoa}) as a token operator.')
+
+
+def _revoke_solver(ctx, token_address: ChecksumAddress):
+    account = _load_account(ctx)
+    solver_account = _load_solver_account(ctx)
+    token = Token(account).get(token_address)
+    if solver_account.eoa == account.eoa or not token.is_operator(solver_account.eoa, account.eoa):
+        return
+    Token(account).get(token_address).revoke_operator(solver_account.eoa)
+    typer.echo(f'revoked solver({solver_account.eoa}) from a token operator.')
 
 
 @seeker_app.command('status')
@@ -1274,6 +1283,7 @@ def _solver_support(ctx, token):
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
+    _authorize_solver(ctx, flx.address)
     msg = solver.solver('accept_challenges', [flx.address])
     if msg:
         typer.echo(msg)
@@ -1291,6 +1301,7 @@ def _solver_obsolete(ctx, token):
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
+    _revoke_solver(ctx, flx.address)
     solver.solver('refuse_challenges', [flx.address])
     typer.echo(f'obsoleted challenge for token({flx.address}) by solver.')
 
