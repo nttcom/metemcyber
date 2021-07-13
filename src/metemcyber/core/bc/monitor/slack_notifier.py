@@ -17,15 +17,16 @@
 import argparse
 import json
 import sys
-from typing import ClassVar, List, Tuple
+from typing import ClassVar, List, Tuple, Type
 
 import requests
 
-import metemcyber.core.bc.monitor.tx_counter as tx_counter
+from metemcyber.core.bc.monitor.tx_counter import TransactionCounter
+from metemcyber.core.bc.monitor.tx_counter import parse_queries as parse_counter_queries
 
 
 class SectionGenerator:
-    def summary_to_sections(self, summary: dict, **_kwargs) -> List[dict]:
+    def summary_to_sections(self, summary: dict, _options: dict) -> List[dict]:
         return [{
             'fallback': str(self),
             'title': 'abstract generator',
@@ -106,7 +107,7 @@ class Waixu(SectionGenerator):
 
         return waipu, text
 
-    def summary_to_sections(self, summary: dict, **_kwargs) -> List[dict]:
+    def summary_to_sections(self, summary: dict, _options: dict) -> List[dict]:
         waicu, waicu_text = self._calc_waicu(summary)
         waipu, waipu_text = self._calc_waipu(summary)
 
@@ -174,36 +175,37 @@ class SlackNotifier:
         print(response.text)
 
 
-def main(args):
-    notifier = SlackNotifier(args.config, testmode=args.testmode)
-    for cname in args.classes:
-        generator_class = (Waixu if cname == 'Waixu' else
-                           SectionGenerator if cname == 'Simple' else
+def parse_queries(queries: List[dict]) -> List[
+        Tuple[Type[SectionGenerator], Type[TransactionCounter], dict]]:
+    ret = []
+    for idx, cquery in enumerate(parse_counter_queries(queries)):
+        generator_class = (Waixu if queries[idx]['class'] == 'Waixu' else
+                           SectionGenerator if queries[idx]['class'] == 'Simple' else
                            None)
         if not generator_class:
-            raise Exception(f'Invalid GeneratorName: {args.generator}')
-        counter_class = (tx_counter.Waixu if cname == 'Waixu' else
-                         tx_counter.TransactionCounter if cname == 'Simple' else
-                         None)
-        if not counter_class:
-            raise Exception(f'Invalid ClassName: {cname}')
-        generator = generator_class()
-        counter = counter_class(args.config)
-        summary = counter.summarize(days=args.days, hours=args.hours)
-        notifier.add_sections(
-            generator.summary_to_sections(summary, days=args.days, hours=args.hours))
+            raise Exception(f'Invalid Generator classname: {queries[idx]["class"]}')
+        ret.append((generator_class, cquery[0], cquery[1]))
+    return ret
+
+
+def main(args):
+    notifier = SlackNotifier(args.config, testmode=args.testmode)
+    with open(args.config, 'r') as fin:
+        queries = json.load(fin).get('queries', [])
+    for gclass, cclass, options in parse_queries(queries):
+        generator = gclass()
+        counter = cclass(args.config, options)
+        summary = counter.summarize(options)
+        notifier.add_sections(generator.summary_to_sections(summary, options))
     notifier.send_query()
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
     ('-c', '--config', dict(action='store', required=True)),
-    ('-d', '--days', dict(action='store', type=int, default=0, required=False)),
-    ('-H', '--hours', dict(action='store', type=int, default=0, required=False)),
     ('-t', '--testmode', dict(action='store_true', required=False)),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [
-    ('classes', dict(choices=['Waixu', 'Simple'], nargs='*')),
 ]
 
 if __name__ == '__main__':

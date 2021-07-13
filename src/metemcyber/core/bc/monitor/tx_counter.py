@@ -16,7 +16,7 @@
 
 import argparse
 import json
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Type, Union
 
 from eth_typing import ChecksumAddress
 
@@ -69,7 +69,7 @@ class TransactionCounter:
     meta: MetadataManager
     codesize: Dict[ChecksumAddress, int]
 
-    def __init__(self, config_filepath: str):
+    def __init__(self, config_filepath: str, _options: dict):
         with open(config_filepath, 'r') as fin:
             self.conf = json.load(fin).get('counter', {})
         self.dec_db = TransactionDB(None, self.conf['db_filepath_decoded'])
@@ -111,7 +111,15 @@ class TransactionCounter:
         ret.append(['sender', category, btx.addr_from, f'{btx.contract}.{btx.method}'])
         return ret
 
-    def summarize(self, days: int = 0, hours: int = 0, reverted: Optional[bool] = False) -> dict:
+    def summarize(self, opt: dict) -> dict:
+        days = int(opt.get('days', 0))
+        hours = int(opt.get('hours', 0))
+        opt_rev = opt.get('reverted', 'no').lower()
+        if opt_rev not in {'both', 'yes', 'no'}:
+            raise Exception(f'Invalid option for reverted: {opt.get("reverted")}')
+        reverted = (True if opt_rev == 'yes' else
+                    False if opt_rev == 'no' else
+                    None)
         summary: dict = {}
         for block in self.get_blocks(days=days, hours=hours):
             for tx0 in self.dec_db.load(block, None):
@@ -121,8 +129,8 @@ class TransactionCounter:
                     summary = util.safe_inc(summary, entry)
         return summary
 
-    def run(self, *args, **kwargs):
-        summary = self.summarize(*args, **kwargs)
+    def run(self, options: dict):
+        summary = self.summarize(options)
         print(json.dumps(summary, indent=2, sort_keys=True, ensure_ascii=False))
 
 
@@ -149,30 +157,31 @@ class Waixu(TransactionCounter):
         return ret
 
 
-def main(args):
-    for cname in args.classes:
-        counter_class = (Waixu if cname == 'Waixu' else
-                         TransactionCounter if cname == 'Simple' else
+def parse_queries(queries: List[dict]) -> List[Tuple[Type[TransactionCounter], dict]]:
+    ret = []
+    for query in queries:
+        counter_class = (Waixu if query['class'] == 'Waixu' else
+                         TransactionCounter if query['class'] == 'Simple' else
                          None)
         if not counter_class:
-            raise Exception('Invalid ClassName: {cname}')
-        counter = counter_class(args.config)
-        counter.run(days=args.days, hours=args.hours,
-                    reverted=(True if args.reverted == 'yes' else
-                              False if args.reverted == 'no' else
-                              None)
-                    )
+            raise Exception(f'Invalid Counter classname: {query["class"]}')
+        ret.append((counter_class, query.get('options', {})))
+    return ret
+
+
+def main(args):
+    with open(args.config, 'r') as fin:
+        queries = json.load(fin).get('queries', [])
+    for counter_class, options in parse_queries(queries):
+        counter = counter_class(args.config, options)
+        counter.run(options)
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
-    ('-d', '--days', dict(action='store', type=int, default=0, required=False)),
-    ('-H', '--hours', dict(action='store', type=int, default=0, required=False)),
-    ('-r', '--reverted', dict(choices=['yes', 'no', 'both'], default='no', required=False)),
     ('-c', '--config', dict(action='store', required=True)),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [
-    ('classes', dict(choices=['Waixu', 'Simple'], nargs='*')),
 ]
 
 if __name__ == '__main__':
