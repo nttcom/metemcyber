@@ -59,7 +59,7 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
     }
 
     string public constant contractId = CTIOperator_ContractId;
-    uint256 public constant contractVersion = 1;
+    uint256 public constant contractVersion = 2;
 
     IERC1820Registry private _erc1820 =
         IERC1820Registry(0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24);
@@ -69,7 +69,7 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
     Task[] private _tasks;
     bytes[] private _userData;
 
-    mapping (address => address[]) private _solvers; // CTI => solvers
+    mapping (address => address[]) private _tokens; // solver => tokens
 
     function tokensReceived(
         address /*operator*/,
@@ -141,11 +141,26 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
         address token,
         address solver
     ) internal view returns (bool) {
-        for (uint i = 0; i < _solvers[token].length; i++) {
-            if (_solvers[token][i] == solver)
+        for (uint i = 0; i < _tokens[solver].length; i++) {
+            if (_tokens[solver][i] == token)
                 return true;
         }
         return false;
+    }
+
+    function listRegistered(address solver) public view returns(address[] memory) {
+        uint count = 0;
+        for (uint i = 0; i < _tokens[solver].length; i++) {
+            if (_tokens[solver][i] != address(0))
+                count += 1;
+        }
+        address[] memory result = new address[](count);
+        uint j = 0;
+        for (uint i = 0; i < _tokens[solver].length; i++) {
+            if (_tokens[solver][i] != address(0))
+                result[j++] = _tokens[solver][i];
+        }
+        return result;
     }
 
     function register(address[] memory tokens) public {
@@ -159,14 +174,14 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
             );
             if (!_isRegistered(tokens[i], msg.sender)) {
                 uint j = 0;
-                for (j = 0; j < _solvers[tokens[i]].length; j++) {
-                    if (_solvers[tokens[i]][j] == address(0)) {
-                        _solvers[tokens[i]][j] = msg.sender;
+                for (j = 0; j < _tokens[msg.sender].length; j++) {
+                    if (_tokens[msg.sender][j] == address(0)) {
+                        _tokens[msg.sender][j] = tokens[i];
                         break;
                     }
                 }
-                if (j == _solvers[tokens[i]].length)
-                    _solvers[tokens[i]].push(msg.sender);
+                if (j == _tokens[msg.sender].length)
+                    _tokens[msg.sender].push(tokens[i]);
             }
         }
     }
@@ -175,9 +190,9 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
         if (tokens.length == 0)
             return;
         for (uint i = 0; i < tokens.length; i++) {
-            for (uint j = 0; j < _solvers[tokens[i]].length; j++) {
-                if (_solvers[tokens[i]][j] == msg.sender) {
-                    delete _solvers[tokens[i]][j];
+            for (uint j = 0; j < _tokens[msg.sender].length; j++) {
+                if (_tokens[msg.sender][j] == tokens[i]) {
+                    delete _tokens[msg.sender][j];
                     break;
                 }
             }
@@ -189,8 +204,8 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
     ) public view returns (bool[] memory) {
         bool[] memory result = new bool[](tokens.length);
         for (uint i = 0; i < tokens.length; i++) {
-            for (uint j = 0; j < _solvers[tokens[i]].length; j++) {
-                if (_solvers[tokens[i]][j] == msg.sender) {
+            for (uint j = 0; j < _tokens[msg.sender].length; j++) {
+                if (_tokens[msg.sender][j] == tokens[i]) {
                     result[i] = true;
                     break;
                 }

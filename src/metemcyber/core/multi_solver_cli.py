@@ -21,15 +21,14 @@ from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.util import decode_keyfile
 from metemcyber.core.logger import get_logger
-from metemcyber.core.multi_solver import MCSServer, SolverManager, mcs_console
+from metemcyber.core.multi_solver import MCSServer, mcs_console
 
 LOGGER = get_logger(name='solver_client', file_prefix='core')
 
 
 def main(args):
     if args.mode == 'server':
-        mgr = SolverManager(args.endpoint_url)
-        server = MCSServer(mgr, args.work_dir)
+        server = MCSServer(args.work_dir, args.endpoint_url)
         server.run()
     else:
         if args.keyfile:
@@ -53,7 +52,7 @@ OPTIONS: List[Tuple[str, str, dict]] = [
         action='store', dest='pkey',
         help='プライベートキー')),
     ('-e', '--endpoint', dict(
-        action='store', dest='endpoint_url', required=True,
+        action='store', dest='endpoint_url', required=False,
         help='Ethereum Provider Endpoint URL')),
     ('-w', '--workdir', dict(
         action='store', dest='work_dir', required=True,

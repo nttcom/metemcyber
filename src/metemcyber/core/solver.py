@@ -137,13 +137,17 @@ class BaseSolver:
     def accepting_tokens(self):
         return self.listener.list_accepting() if self.listener else []
 
-    def accept_registered(self, tokens):
+    def accept_registered(self, tokens: Optional[List[ChecksumAddress]]):
         LOGGER.info('accept_registered candidates: %s', tokens)
-        registered = CTIOperator(self.account).get(self.operator_address).check_registered(tokens)
         accepting = self.accepting_tokens()
-        targets = [
-            token for i, token in enumerate(tokens)
-            if registered[i] and token not in accepting]
+        cti_operator = CTIOperator(self.account).get(self.operator_address)
+        if tokens is None:  # auto detect mode
+            targets = cti_operator.list_registered(self.operator_address)
+        else:
+            registered = cti_operator.check_registered(tokens)
+            targets = [
+                token for i, token in enumerate(tokens)
+                if registered[i] and token not in accepting]
         if targets:
             LOGGER.info('newly accepted: %s', targets)
             msg = self._accept(targets, force_register=False)
