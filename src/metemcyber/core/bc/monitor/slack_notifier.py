@@ -191,7 +191,7 @@ def parse_queries(queries: List[dict]) -> List[
 def main(args):
     notifier = SlackNotifier(args.config, testmode=args.testmode)
     with open(args.config, 'r') as fin:
-        queries = json.load(fin).get('queries', [])
+        queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
     for gclass, cclass, options in parse_queries(queries):
         generator = gclass()
         counter = cclass(args.config, options)

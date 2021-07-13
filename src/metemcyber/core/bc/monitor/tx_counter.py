@@ -16,6 +16,7 @@
 
 import argparse
 import json
+import re
 from typing import Dict, List, Optional, Tuple, Type, Union
 
 from eth_typing import ChecksumAddress
@@ -68,14 +69,30 @@ class TransactionCounter:
     dec_db: TransactionDB
     meta: MetadataManager
     codesize: Dict[ChecksumAddress, int]
+    include_to: List[ChecksumAddress] = []
+    exclude_to: List[ChecksumAddress] = []
+    include_from: List[ChecksumAddress] = []
+    exclude_from: List[ChecksumAddress] = []
 
-    def __init__(self, config_filepath: str, _options: dict):
+    def __init__(self, config_filepath: str, options: dict):
         with open(config_filepath, 'r') as fin:
             self.conf = json.load(fin).get('counter', {})
         self.dec_db = TransactionDB(None, self.conf['db_filepath_decoded'])
         self.meta = MetadataManager(config_filepath, readonly=True)
         self.dec_db.open(readonly=True)
         self.codesize = self.dec_db.get('codesize') or {}
+        self.options = options
+        if options.get('generic_filter'):
+            rules = options['generic_filter']
+            for key in ['include_to', 'exclude_to',
+                        'include_from', 'exclude_from']:
+                if rules.get(key):
+                    if isinstance(rules[key], list):
+                        setattr(self, key, rules[key])
+                    elif isinstance(rules[key], str):
+                        setattr(self, key, re.split('[,\\s]+', rules[key]))
+                    else:
+                        raise Exception(f'Invalid filter: {key}')
 
     def fix_startblock(self) -> int:
         tmp = int(self.conf.get('start_block', 1))
@@ -93,10 +110,21 @@ class TransactionCounter:
             border = latest - (hours * 3600 / 2)  # mine a block every 2 seconds.
         return self.dec_db.stored_blocks(minimum=border if border > 0 else None)
 
+    def generic_filter(self, btx: BasicTx) -> bool:
+        if ((self.include_to and btx.addr_to not in self.include_to) or
+                (self.exclude_to and btx.addr_to in self.exclude_to)):
+            return False
+        if ((self.include_from and btx.addr_from not in self.include_from) or
+                (self.exclude_from and btx.addr_from in self.exclude_from)):
+            return False
+        return True
+
     def tx_to_entry(self, tx0: dict) -> List[List[str]]:
         if not tx0:
             return []
         btx = BasicTx(tx0)
+        if not self.generic_filter(btx):
+            return []
         ret = []
         if btx.contract == '(Unknown)':
             if btx.method == '(deploy)':
@@ -135,25 +163,56 @@ class TransactionCounter:
 
 
 class Waixu(TransactionCounter):
+    include_catalogs: List[ChecksumAddress] = []
+    exclude_catalogs: List[ChecksumAddress] = []
+    include_brokers: List[ChecksumAddress] = []
+    exclude_brokers: List[ChecksumAddress] = []
+
+    def __init__(self, config_filepath: str, options: dict):
+        super().__init__(config_filepath, options)
+        if options.get('waixu_filter'):
+            rules = options['waixu_filter']
+            for key in ['include_catalogs', 'exclude_catalogs',
+                        'include_brokers', 'exclude_brokers']:
+                if rules.get(key):
+                    if isinstance(rules[key], list):
+                        setattr(self, key, rules[key])
+                    elif isinstance(rules[key], str):
+                        setattr(self, key, re.split('[,\\s]+', rules[key]))
+                    else:
+                        raise Exception(f'Invalid filter: {key}')
+
     def tx_to_entry(self, tx0: dict) -> List[List[str]]:
         if not tx0:
             return []
         btx = BasicTx(tx0)
+        if not self.generic_filter(btx):
+            return []
         ret = []
         if btx.function == 'CTIBroker.buyToken':
             assert isinstance(btx.input_data, dict)
             catalog = btx.input_data['catalogAddress']
+            if ((self.include_catalogs and catalog not in self.include_catalogs) or
+                    (self.exclude_catalogs and catalog in self.exclude_catalogs)):
+                return []
+            if ((self.include_brokers and btx.addr_to not in self.include_brokers) or
+                    (self.exclude_brokers and btx.addr_to in self.exclude_brokers)):
+                return []
             token = btx.input_data['tokenAddress']
             ret.append(['waicu', catalog, 'tokens', token])
             ret.append(['waicu', 'total', 'tokens', token])
             ret.append(['waicu', catalog, 'buyers', btx.addr_from])
             ret.append(['waicu', 'total', 'buyers', btx.addr_from])
-        elif btx.function == 'CTICatalog.publishCti':
-            ret.append(['waipu', btx.addr_to, 'publish', btx.addr_from])
-            ret.append(['waipu', 'total', 'publish', btx.addr_from])
-        elif btx.function == 'CTICatalog.unregisterCti':
-            ret.append(['waipu', btx.addr_to, 'unregister', btx.addr_from])
-            ret.append(['waipu', 'total', 'unregister', btx.addr_from])
+        else:
+            if ((self.include_catalogs and btx.addr_to not in self.include_catalogs) or
+                    (self.exclude_catalogs and btx.addr_to in self.exclude_catalogs)):
+                return []
+            if btx.function == 'CTICatalog.publishCti':
+                ret.append(['waipu', btx.addr_to, 'publish', btx.addr_from])
+                ret.append(['waipu', 'total', 'publish', btx.addr_from])
+            elif btx.function == 'CTICatalog.unregisterCti':
+                ret.append(['waipu', btx.addr_to, 'unregister', btx.addr_from])
+                ret.append(['waipu', 'total', 'unregister', btx.addr_from])
         return ret
 
 
@@ -171,7 +230,7 @@ def parse_queries(queries: List[dict]) -> List[Tuple[Type[TransactionCounter], d
 
 def main(args):
     with open(args.config, 'r') as fin:
-        queries = json.load(fin).get('queries', [])
+        queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
     for counter_class, options in parse_queries(queries):
         counter = counter_class(args.config, options)
         counter.run(options)
