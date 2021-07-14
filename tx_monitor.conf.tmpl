@@ -32,7 +32,10 @@
                 "waixu_filter": {
                     "include_catalogs": [
                          "0xBcb4b84cdaB65C6e6Efe1697CC41a46D0AEaCA61",
-                         "0x168DD95472cEaF5c28447C8b07A593e205E92A12"]
+                         "0x168DD95472cEaF5c28447C8b07A593e205E92A12"],
+                    "exclude_catalogs": [],
+                    "include_brokers": [],
+                    "exclude_brokers": []
                 },
                 "days": 7,
                 "hours": 0}},
@@ -40,7 +43,13 @@
             "class": "Simple",
             "disable": 1,
             "options": {
-                "days": 7,
-                "reverted": "yes"}}
+                "generic_filter": {
+                    "include_to": [],
+                    "exclude_to": [],
+                    "include_from": [],
+                    "exclude_from": []
+                },
+                "days": 70,
+                "reverted": "no"}}
     ]
 }
