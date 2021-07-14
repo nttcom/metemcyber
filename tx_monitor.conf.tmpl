@@ -24,5 +24,32 @@
     "slack_notifier": {
         "webhook": "Your IncommingWebhook URL. ex) https://hooks.slack.com/services/T01FJ...",
         "channel": "Channel name to post. ex) #dev",
-        "appname": "Metembot"}
+        "appname": "Metembot"},
+    "queries": [
+        {
+            "class": "Waixu",
+            "options": {
+                "waixu_filter": {
+                    "include_catalogs": [
+                         "0xBcb4b84cdaB65C6e6Efe1697CC41a46D0AEaCA61",
+                         "0x168DD95472cEaF5c28447C8b07A593e205E92A12"],
+                    "exclude_catalogs": [],
+                    "include_brokers": [],
+                    "exclude_brokers": []
+                },
+                "days": 7,
+                "hours": 0}},
+        {
+            "class": "Simple",
+            "disable": 1,
+            "options": {
+                "generic_filter": {
+                    "include_to": [],
+                    "exclude_to": [],
+                    "include_from": [],
+                    "exclude_from": []
+                },
+                "days": 7,
+                "reverted": "yes"}}
+    ]
 }
