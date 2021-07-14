@@ -94,13 +94,6 @@ class TransactionCounter:
                     else:
                         raise Exception(f'Invalid filter: {key}')
 
-    def fix_startblock(self) -> int:
-        tmp = int(self.conf.get('start_block', 1))
-        if tmp > 0:
-            return tmp
-        tmp += self.dec_db.latest
-        return tmp if tmp > 0 else 1
-
     def get_blocks(self, days: int = 0, hours: int = 0) -> List[int]:
         assert days >= 0 and hours >= 0
         border = -1
