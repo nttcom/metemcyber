@@ -1,0 +1,57 @@
+[
+    {
+        "name": "CyberChef",
+        "url": "https://gchq.github.io/CyberChef/",
+        "description": "The Swiss Army Knife for cyber operations."
+    },
+    {
+        "name": "VirusTotal",
+        "url": "https://www.virustotal.com/",
+        "description": "Analyze suspicious files and URLs to detect types of malware."
+    },
+    {
+        "name": "UnpacMe",
+        "url": "https://www.unpac.me/feed",
+        "description": "An automated malware unpacking service."
+    },
+    {
+        "name": "ANY.RUN",
+        "url": "https://app.any.run/submissions/",
+        "description": "Interactive online malware analysis service."
+    },
+    {
+        "name": "URLhaus",
+        "url": "https://urlhaus.abuse.ch/browse/",
+        "description": "A project of sharing malicious URLs that are being used for malware distribution."
+    },
+    {
+        "name": "ThreatFox",
+        "url": "https://threatfox.abuse.ch/browse/",
+        "description": "A platform of sharing IOCs associated with malware."
+    },
+    {
+        "name": "Open Threat Exchange",
+        "url": "https://otx.alienvault.com/browse/",
+        "description": "The world’s first and largest truly open threat intelligence community."
+    },
+    {
+        "name": "ThreatMiner",
+        "url": "https://www.threatminer.org/",
+        "description": "A threat intelligence portal that provides information on IOCs."
+    },
+    {
+        "name": "Grey Noise",
+        "url": "https://viz.greynoise.io/cheat-sheet/",
+        "description": "A cybersecurity platform that collects and analyzes Internet-wide scan and attack traffic."
+    },
+    {
+        "name": "Hatching Triage",
+        "url": "https://tria.ge/reports/public",
+        "description": "A malware analysis sandbox designed for cross-platform support."
+    },
+    {
+        "name": "Bitcoin Abuse Database",
+        "url": "https://www.bitcoinabuse.com/reports",
+        "description": "Tracking bitcoin addresses used by ransomware, blackmailers, fraudsters, etc."
+    }
+]

@@ -1,121 +1,251 @@
-[![Documentation Status](https://readthedocs.org/projects/metemcyber/badge/?version=latest)](https://metemcyber.readthedocs.io/ja/latest/?badge=latest)
+<div align="center">
+
+[![banner](https://raw.githubusercontent.com/nttcom/metemcyber/main/images/banner.png)](https://www.metemcyber.ntt.com)
 
 # Metemcyber
 
-Decentralized Cyber Threat Intelligence Kaizen Framework.
+</div>
 
-[Metemcyber User Documentation](https://docs.google.com/document/d/1RL_0hDulTSuogskajhyv--eHGTsOiO6g2WLE4nTned4/edit?usp=sharing)
+> Decentralized Cyber Threat Intelligence Kaizen Framework. https://www.metemcyber.ntt.com
 
-![A Metemcyber Screenshot](screenshot.png)
+[![CI](https://github.com/nttcom/metemcyber/actions/workflows/main.yml/badge.svg)](https://github.com/nttcom/metemcyber/actions/workflows/main.yml)
+[![Documentation Status](https://readthedocs.org/projects/metemcyber/badge/?version=latest)](https://metemcyber.readthedocs.io/ja/latest/?badge=latest)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/nttcom/metemcyber)
+[![GitHub commit activity](https://img.shields.io/badge/discussions-welcome!-success)](https://github.com/nttcom/metemcyber/discussions)
+[![Twitter](https://img.shields.io/twitter/follow/metemcyber?label=Follow&style=social)](https://twitter.com/metemcyber)
+<!-- ![GitHub Release](https://img.shields.io/github/v/release/nttcom/metemcyber.svg?style=flat) -->
 
-## [実証実験の参加はこちらから](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)
+**Pricom Mainnet (rpc.metemcyber.ntt.com)**
+| Contract Name | Address |
+| ---- | ---- |
+| CTICatalog | 0xBcb4b84cdaB65C6e6Efe1697CC41a46D0AEaCA61 |
+| CTIBroker | 0xC1814B834E1be7DeE7611fD5F747535369B8683e |
+| CTIOperator | 0x35b3fbeABB802E9477b17a63073ABe874A386E25 |
+| metemcyber_util</br>(placeholder) | 0x0e5EECFF51a3ab2221fF6bBd240B20E8933ff28A</br>\_\_$47ceb01e1c551398bb2e8f2c8232f40551$\_\_ |
 
-現在開催中の[実証実験](https://www.ntt.com/about-us/press-releases/news/article/2020/1006_2.html)へのご参加には、[こちらのフォーム](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u)から利用規約に同意していただく必要があります。
+## 💡 Overview
 
-利用規約に同意していただくことで、以下の情報へのアクセスが可能となります。
+Metemcyber™ enables security collaboration and assessment all across the organization through the [intelligence cycle](https://en.wikipedia.org/wiki/Intelligence_cycle).
 
- - アクセストークン
- - Metemcyber コミュニティ(Slack ワークスペース)への参加
+- 📖 [**Metemcyber User Documentation**](https://metemcyber.readthedocs.io/)
 
-ご利用のユーザアカウントへの入金は、該当ワークスペースの`#okawari`チャンネルをご利用ください。
+## ✨ Features
 
-## Overview
+**Anyone can make a successful intelligence cycle.**
 
-Metemcyberでは、Cyber Threat Intelligence の共有 (売買) を通じて以下の特徴を実現します。
+- Content-oriented Workflow
+- Comparable Data Analysis Process
+- Fault-tolerant Collaboration
+- Disclosure Control of CTIs
+- Measuring the Cost-Effectiveness of CTIs
+- Transparency for Trust
+    - Monitoring the trading activity of CTIs
+    - Unlocking achievements based on your contribution.
+- MISP-friendly 🤗
 
-- インテリジェンスに基づく活動の影響を一か所に集約
-- セキュリティ対応に関する気づきを共有
-- よりActionableな脅威インテリジェンスの生産
+## 🚅 QuickStart
 
-```
-git clone --recursive https://github.com/nttcom/metemcyber
-cd metemcyber
-geth account new
-./metemcyber_ctl.sh pricom init 
-./metemcyber_ctl.sh - client -f $YOUR_KEY_FILE -w $WEBHOOK_URL
-```
+This exercise will be performed on the test environment.
 
-## Requirement
-
-Ubuntu 18.04, 20.04, macOS Catalina で動作を確認しています。
-
-- Docker環境 (Docker-CE等)
-
-## Install
-
-Docker環境をセットアップします。
-
-https://docs.docker.com/install/linux/docker-ce/ubuntu/
-
-
-次に、ユーザーをdockerグループに所属させます。ユーザがdockerグループに所属したことを `id` コマンドで確認してください。
-
-```
-sudo usermod -aG docker $USER
-su - $USER
-id
+```sh
+apt install build-essential python3-dev
+pip install -U pip
+pip install -U 'metemcyber[cli]'
 ```
 
-必要なパッケージをインストールします。
-```
-sudo add-apt-repository -y ppa:ethereum/ethereum
-sudo apt-get update
-sudo apt install ethereum jq curl python3-dateutil
-```
+Check the current configuration:
 
-リポジトリをクローンして、metemcyberのフォルダに移動します。
-```
-git clone --recursive https://github.com/nttcom/metemcyber.git
-cd metemcyber
+```sh
+metemctl config show
 ```
 
-## QuickStart
+### 🔑 Create a new account
 
-NTTコミュニケーションズのEnterprise Ethereum "Pricom" へ接続します。
+Create a new account if no keyfile available:
 
-### Metemcyberのセットアップ
-
-Ethereum上で利用する鍵ファイルを作成します
-```
-geth account new
+```sh
+metemctl account create
 ```
 
-Metemcyber実行環境を初期化します。
-```
-./metemcyber_ctl.sh pricom init
-```
+Display your account details you are currently using:
 
-P2P接続にngrokを用いるため、以下サイトにてアカウント作成を実施します。
-
-https://dashboard.ngrok.com/
-
-その後、setupページに従ってngrokをセットアップします。
-
-https://dashboard.ngrok.com/get-started/setup
-
-
-### Metemcyberの起動
-
-**別画面**でngrokを起動し、インターネット上からのデータ接続を可能にします。
-```
-./ngrok http 51004
+```sh
+metemctl account show
 ```
 
-ngrokが起動されていることを確認し、Metemcyberのクライアントを起動します。
-このとき、先ほど作成した鍵ファイルと、ngrok画面で表示されている通信先を指定してください。
+> ⚠️ **You must agree to [the terms of service](https://forms.office.com/Pages/ResponsePage.aspx?id=Mu8pprpnpkeOs-xDk1ZE_FdfnH75qvpDtqTkNo9NCzRUN1hRM1lIVVZCTUU3V1VJVjhFWEtQSDFMNy4u).** This is an experimental project on the enterprise ethereum of NTT Communications. **You will get a promo code if you agree to these terms.**
 
-デフォルトの場合、作成された鍵ファイルは`~/.etherium/keystore/`配下（Ubuntu環境）または`~/Library/Ethereum/keystore/`配下（macOS環境）にファイル名`UTC--xxxx`の形式で保存されています。
+Get a promo code via email, and airdrop yourself some ETH to get started:
 
+```sh
+metemctl account airdrop $PROMOTE_CODE_IN_THE_CONFIRMATION_MAIL
 ```
-./metemcyber_ctl.sh - client -f $YOUR_KEY_FILE -w $YOUR_NGROK_URL
+
+### 🛒 Collect CTIs
+Search for the CTI token you want to buy (e.g. OSINT)
+```sh
+metemctl ix search 'OSINT'
 ```
 
-**🎉🎉🎉Metemcyberへようこそ！🎉🎉🎉**
+Enter the index number of the CTI token to be purchased. The CTI token address can also be accepted.
 
-CTIの収集や配布に関する詳細な操作は、[Metemcyber User Documentation](https://docs.google.com/document/d/1RL_0hDulTSuogskajhyv--eHGTsOiO6g2WLE4nTned4/edit?usp=sharing) をご覧ください。
+```sh
+metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
+```
 
-### Metemcyberの終了
-メニュー画面で 0 を入力するか、Ctrl-C を入力します。
+> ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup a local ngrok environment](https://dashboard.ngrok.com/get-started/setup).
+>Download [ngrok](https://dashboard.ngrok.com/) and extract it.
+>Open the application directory to **put the ngrok executable file there**:
+>```sh
+>metemctl open-app-dir
+>```
+>```sh
+>$ ls "$(metemctl open-app-dir --print-only)"
+>external-links.json             metemctl.ini                    ngrok                           ...
+>```
+>**Ngrok need to connect your ngrok account.** Make sure the ngrok *authtoken* exists after [ngrok setup](https://dashboard.ngrok.com/get-started/setup):
+>```sh
+>cat ~/.ngrok2/ngrok.yml
+>```
+>Start a daemon to receive data using ngrok:
+>```sh
+>metemctl seeker start --ngrok
+>metemctl seeker status
+>```
 
-Ctrl-Dを入力すると、いつでもメニュー画面に戻ることができます。
+Use CTI token to receive the MISP object on your public URL of the ngrok.
+
+```sh
+metemctl ix use $TOKEN_INDEX_OR_ADDRESS
+```
+
+## ♻️ Run the Intelligence Cycle
+
+In this section, you will run the intelligence cycle using the exercise *ir-exercise* for Incident Response.
+
+> ⚠️ **You need to enable the test catalog as primary catalog**.
+>Enable the test catalog & Disable the production catalog:
+>```sh
+>metemctl ix catalog enable 0x168DD95472cEaF5c28447C8b07A593e205E92A12 # test
+>metemctl ix catalog disable 0xBcb4b84cdaB65C6e6Efe1697CC41a46D0AEaCA61 # production
+>```
+>Check your catalog settings:
+>```sh
+>$ metemctl ix catalog show
+>Catalogs *:active
+>  *1 0x168DD95472cEaF5c28447C8b07A593e205E92A12 # test
+>   2 0xBcb4b84cdaB65C6e6Efe1697CC41a46D0AEaCA61 # production
+>```
+
+### 🤖 Create a new workflow
+
+Metemcyber can be used not only for CTI dissemination but also CTI creation.
+
+```sh
+metemctl new　--starter=ir-exercise
+```
+
+Implement the analysis process into your workflow by selecting the event ID (In many cases, the same as the UUID of MISP object), the category of CTI (Fraud, Incident Response, Risk Analysis, Security Operations, Security Leadership, Vulnerability Management), and the content(IOCs, TTPs, etc.) you want to include in the CTI.
+
+This is an important piece of evidence to check the "Direction" step in the intelligence cycle.
+
+```sh
+Select Intelligence Category (Fraud, IR, RA, SecOps, SecLead, Vuln) [IR]:
+Input a new event_id(UUID) [70be8ba5-fa7f-4b8e-aa04-dc76e0fa8c42]:
+0: IOC
+1: TTP
+2: Workflow
+Choose contents to be include [0,1]:
+================================================================
+Event ID: 70be8ba5-fa7f-4b8e-aa04-dc76e0fa8c42
+Category: Incident Response
+Contents: ['TTPs', 'IOCs']
+================================================================
+Are you sure you want to create it? [y/N]:
+```
+
+### 📝 Summarize the data analysis process
+
+> ⚠️ **Make sure Seeker is running** to receive the data.
+>
+>```sh
+>metemctl seeker status
+>```
+
+You need to use [Kedro](https://github.com/quantumblacklabs/kedro) to summarize your data analysis process into a workflow.
+
+In practice, it is difficult to clearly separate the steps of "Collection", "Processing" and "Analysis" in the intelligence cycle, which makes the data analysis process look complicated.
+
+Please keep the following two points to make the data analysis process more maintainable.
+
+- Using the Kedro pipeline to describe *Analysis Strategy*
+- Using the Kedro nodes to describe *Analysis Method*
+
+These are important pieces of evidence to check the "Processing" and "Analysis" step in the intelligence cycle.
+
+**For the success of the intelligence cycle, we are more focused on evaluating the data analysis process than on automating the CTI consumption process.**
+
+Get data for the exercise *ir-exercise*:
+```sh
+metemctl ix search '[ir-exercise]'
+metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
+metemctl ix use $TOKEN_INDEX_OR_ADDRESS
+metemctl ix extract $TOKEN_INDEX_OR_ADDRESS
+```
+
+Run the ir-exercise workflow:
+
+```sh
+metemctl run --setup
+```
+
+Check the contents of your CTI product and the workflow:
+
+```sh
+metemctl check --viz
+```
+
+The `--viz` option allows you to visualize your data analysis process described by the workflow. (the same as `kedro viz`)
+
+![banner](https://raw.githubusercontent.com/nttcom/metemcyber/main/images/tutorial_kedro_viz.png)
+
+### 🚀 Disseminate your CTI products to everyone:
+> ⚠️ ***Solver* must be running** to send the data to token holders.
+>
+>```sh
+>metemctl solver start --enable
+>```
+>MISP objects can be distributed when Solver is working properly.
+>```sh
+>$ metemctl solver status
+>Solver running with operator you configured(0xe889b84a209719B8f0272376dB49946DbD177aE6).
+>```
+
+```sh
+metemctl publish
+```
+
+🎉🎉🎉 Welcome to Metemcyber! 🎉🎉🎉
+
+
+## 📖 Documentation
+
+For more information see the [documentation](https://metemcyber.readthedocs.io/).
+
+## ⚖️ LICENSE
+```
+Copyright 2021 NTT Communications Corporation
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
 

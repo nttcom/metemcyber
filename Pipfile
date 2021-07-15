@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+metemcyber = {editable = true, extras = ["cli"], path = "."}
+
+[dev-packages]
+sphinx = "*"
+sphinx-autobuild = "*"
+autopep8 = "*"
+isort = "*"
+pylint = "*"
+mypy = "*"
+mypy-extensions = "*"
+
+[requires]
+python_version = "3.8"

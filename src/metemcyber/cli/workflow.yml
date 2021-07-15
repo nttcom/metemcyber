@@ -1,0 +1,7 @@
+output_dir: .
+project_name: 00000000-0000-0000-0000-000000000000
+repo_name: 00000000-0000-0000-0000-000000000000
+python_package: metemcyber_00000000_0000_0000_0000_000000000000
+intelligece_category: Incident Response
+intelligece_contents:
+  - IOCs

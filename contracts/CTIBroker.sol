@@ -16,13 +16,15 @@
 
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.7.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC777/IERC777Recipient.sol";
-import "@openzeppelin/contracts/introspection/IERC1820Registry.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC1820Registry.sol";
 import "./CTIToken.sol";
 import "./CTICatalog.sol";
+
+string constant CTIBroker_ContractId = "CTIBroker.sol:CTIBroker";
+import {MetemcyberUtil} from "./MetemcyberUtil.sol";
 
 contract CTIBroker is IERC777Recipient {
 
@@ -31,6 +33,9 @@ contract CTIBroker is IERC777Recipient {
         address token,
         uint256 amount
     );
+
+    string public constant contractId = CTIBroker_ContractId;
+    uint256 public constant contractVersion = 0;
 
     IERC1820Registry private _erc1820 =
         IERC1820Registry(0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24);
@@ -60,8 +65,13 @@ contract CTIBroker is IERC777Recipient {
         uint256 amount
     ) public {
         require(amount > 0, "invalid amount");
+        require(
+            CTIToken(tokenAddress).publisher() == msg.sender,
+            "not token publisher"
+        );
         CTICatalog.Cti memory cti =
-            CTICatalog(catalogAddress).getCtiInfoByAddress(tokenAddress);
+            CTICatalog(catalogAddress).getCtiInfo(
+                MetemcyberUtil.addressToString(tokenAddress));
         require(cti.tokenId > 0, "not a published token");
         require(cti.owner == tx.origin, "not owner");
 
@@ -83,7 +93,8 @@ contract CTIBroker is IERC777Recipient {
         uint256 amount
     ) public {
         CTICatalog.Cti memory cti =
-            CTICatalog(catalogAddress).getCtiInfoByAddress(tokenAddress);
+            CTICatalog(catalogAddress).getCtiInfo(
+                MetemcyberUtil.addressToString(tokenAddress));
         require(cti.owner == tx.origin, "not owner");
         require(_deposit[catalogAddress][tokenAddress] >= amount,
             "too much amount");
@@ -106,7 +117,8 @@ contract CTIBroker is IERC777Recipient {
     ) public payable {
         require(CTICatalog(catalogAddress).validatePurchase(msg.sender), "You can't access the catalog");
         CTICatalog.Cti memory cti =
-            CTICatalog(catalogAddress).getCtiInfoByAddress(tokenAddress);
+            CTICatalog(catalogAddress).getCtiInfo(
+                MetemcyberUtil.addressToString(tokenAddress));
         uint256 paid = msg.value;
         uint256 price = cti.price * 1e18;  //PTS_RATE: 1pts = ?? wei
         int256 change = int256(msg.value - price);

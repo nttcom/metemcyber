@@ -16,7 +16,7 @@
 
 // SPDX-License-Identifier: Apache-2.0
 
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity >=0.6.0 <0.9.0;
 
 import "truffle/Assert.sol";
 import "truffle/DeployedAddresses.sol";
@@ -27,7 +27,7 @@ contract TestCTICatalog {
     function testOwner() public {
         CTICatalog catalog = CTICatalog(DeployedAddresses.CTICatalog());
         address catalogOwner = tx.origin;
-        address owner = catalog.getOwner();
+        address owner = catalog.owner();
         Assert.equal(owner, catalogOwner, "Owner mismatch!");
     }
 }

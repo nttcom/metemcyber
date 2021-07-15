@@ -1,0 +1,27 @@
+name: ''
+md5: ''
+sha1: ''
+sha256: ''
+ssdeep: ''
+mimetype: ''
+fileinfo: ''
+malware_family: []
+trid: []
+reports:
+  - name: ''
+    timestamp: '1985-04-12T23:20:50.52Z'
+    category: 'malicious/suspicious/benign'
+    result: ''
+    score: 0
+    product: ''
+    product_category: ''
+    version: ''
+    environment: []
+    references: []
+    threats: []
+    process_activities: []
+    dllload_activities: []
+    apicall_activities: []
+    network_activities: []
+    file_activities: []
+    registry_activities: []

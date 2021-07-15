@@ -1,0 +1,3 @@
+# requirements for document
+Sphinx
+sphinx-rtd-theme
