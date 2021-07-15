@@ -68,7 +68,7 @@ class ABIManager:
             return tx0
 
         if not to_addr:  # maybe deploy
-            contract_address = tx0['x_tx_receipt'].get('contractAddress')
+            contract_address = tx0['x_tx_receipt'].contractAddress
             if contract_address:
                 tx0['deployed_address'] = contract_address
                 tx0['function'] = '(deploy)'
@@ -127,11 +127,9 @@ class TransactionDecoder:
         return tmp if tmp > 0 else 1
 
     def simplify_tx(self, tx0: dict) -> dict:
-        skip_keys = {'blockHash', 'hash', 'nonce', 'r', 's', 'v', 'x_tx_receipt'}
+        skip_keys = {'blockHash', 'hash', 'nonce', 'r', 's', 'v', 'x_tx_receipt', 'x_block'}
         skip_keys_on_zero = {'to', 'input', 'value'}
-        status = tx0.get('x_tx_receipt', {}).get('status')
-        if status is not None:
-            tx0['x_receipt_status'] = status
+        tx0['x_receipt_status'] = tx0['x_tx_receipt'].status
         if tx0.get('input'):
             tx0 = self.abi_mgr.decode(tx0)
         for key in skip_keys:
