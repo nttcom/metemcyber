@@ -17,6 +17,7 @@
 import argparse
 import json
 import re
+from argparse import Namespace
 from typing import Dict, List, Optional, Tuple, Type, Union
 
 from eth_typing import ChecksumAddress
@@ -74,11 +75,11 @@ class TransactionCounter:
     include_from: List[ChecksumAddress] = []
     exclude_from: List[ChecksumAddress] = []
 
-    def __init__(self, config_filepath: str, options: dict):
-        with open(config_filepath, 'r') as fin:
+    def __init__(self, args: Namespace, options: dict):
+        with open(args.config, 'r') as fin:
             self.conf = json.load(fin).get('counter', {})
         self.dec_db = TransactionDB(None, self.conf['db_filepath_decoded'])
-        self.meta = MetadataManager(config_filepath, readonly=True)
+        self.meta = MetadataManager(args.config, readonly=True)
         self.dec_db.open(readonly=True)
         self.codesize = self.dec_db.get('codesize') or {}
         self.options = options
@@ -132,7 +133,7 @@ class TransactionCounter:
         ret.append(['sender', category, btx.addr_from, f'{btx.contract}.{btx.method}'])
         return ret
 
-    def summarize(self, opt: dict) -> dict:
+    def summarize(self, _args: Namespace, opt: dict) -> dict:
         days = int(opt.get('days', 0))
         hours = int(opt.get('hours', 0))
         opt_rev = opt.get('reverted', 'no').lower()
@@ -150,8 +151,8 @@ class TransactionCounter:
                     summary = util.safe_inc(summary, entry)
         return summary
 
-    def run(self, options: dict):
-        summary = self.summarize(options)
+    def run(self, args: Namespace, options: dict):
+        summary = self.summarize(args, options)
         print(json.dumps(summary, indent=2, sort_keys=True, ensure_ascii=False))
 
 
@@ -161,8 +162,8 @@ class Waixu(TransactionCounter):
     include_brokers: List[ChecksumAddress] = []
     exclude_brokers: List[ChecksumAddress] = []
 
-    def __init__(self, config_filepath: str, options: dict):
-        super().__init__(config_filepath, options)
+    def __init__(self, args: Namespace, options: dict):
+        super().__init__(args.config, options)
         if options.get('waixu_filter'):
             rules = options['waixu_filter']
             for key in ['include_catalogs', 'exclude_catalogs',
@@ -221,12 +222,12 @@ def parse_queries(queries: List[dict]) -> List[Tuple[Type[TransactionCounter], d
     return ret
 
 
-def main(args):
+def main(args: Namespace):
     with open(args.config, 'r') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
     for counter_class, options in parse_queries(queries):
-        counter = counter_class(args.config, options)
-        counter.run(options)
+        counter = counter_class(args, options)
+        counter.run(args, options)
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
