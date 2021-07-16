@@ -21,6 +21,7 @@ const isDev = require("electron-is-dev");
 const pty = require('node-pty');
 const fs = require('fs');
 const exec = require('util').promisify(require('child_process').exec);
+const fixPath = require('fix-path');
 
 let proc = null;
 
@@ -51,6 +52,8 @@ async function createWindow() {
       ? "http://localhost:3000/login"
       : `file://${path.join(__dirname, "../build/index.html")}`
   );
+
+  fixPath();
 
   // Open the DevTools.
   mainWindow.webContents.openDevTools()
