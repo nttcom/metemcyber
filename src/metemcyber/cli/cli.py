@@ -2114,7 +2114,7 @@ def _publish(
             return
         except Exception as err:
             typer.echo(f'failed solver support: {err}')
-    typer.echo(f'Run \"mtemctl solver support {token_address}\" after enabling Solver')
+    typer.echo(f'Run \"metemctl solver support {token_address}\" after enabling Solver')
 
 
 @app.command(help="Unregister disseminated CTI token from catalog.")
