@@ -120,7 +120,7 @@ function Execution(props) {
                                             }
                                         }
                                     })}
-                                    {props.accountInfo.tokens.length === 0 && "Item does not exist"}
+                                    {props.accountInfo.tokens.length === 0 && <Col>Item does not exist</Col>}
                                 </Row>
                             </div>
                         </Col>

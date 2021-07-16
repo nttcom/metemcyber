@@ -116,7 +116,7 @@ function BuyCti(props) {
                                             </Col>
                                         }
                                     })}
-                                    {props.content.item.length === 0 && "Item does not exist"}
+                                    {props.content.item.length === 0 && <Col>Item does not exist</Col>}
                                 </Row>
                             </div>
                         </Col>
