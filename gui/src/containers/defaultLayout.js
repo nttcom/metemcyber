@@ -23,25 +23,36 @@ import Buy from './buycti';
 import ChallangeExecution from './Challange/execution';
 import ChallangeCancel from './Challange/cancel';
 
-let intervalId = null;
-
 function DefaultLayout(props) {
     const { ipcRenderer } = window
+    const [intervalId, setIntervalId] = useState(0);
     const [toastOpen, setToastOpen] = useState(false);
     const [challangeResulst, setChallangeResult] = useState({});
     const [isLoading, setIsLoading] = useState(true);
     const [accountInfo, setAccountInfo] = useState([]);
     const [tokenList, setTokenList] = useState([]);
+    const [challangeList, setChallangeList] = useState([]);
     const [seekerStatus, setSeekerStatus] = useState(false);
 
     useEffect(async () => {
         await Promise.all(getInfo());
+        setInfoInterval();
         console.log(tokenList)
-        setInterval(() => {
+        setIsLoading(false);
+    }, []);
+
+    const setInfoInterval = () => {
+        const id = setInterval(() => {
             getInfo();
         }, 30000);
-        setIsLoading(false);
-    }, [])
+        setIntervalId(id);
+    };
+
+    const refreshInfo = async () => {
+        clearInterval(intervalId);
+        await Promise.all(getInfo());
+        setInfoInterval();
+    };
 
     const getInfo = () => {
         return [
@@ -66,6 +77,14 @@ function DefaultLayout(props) {
                 ipcRenderer.once('send-seekerstatus', (event, arg) => {
                     console.log(arg)
                     setSeekerStatus(arg);
+                    resolve();
+                });
+            }),
+            new Promise((resolve) => {
+                ipcRenderer.send('challange');
+                ipcRenderer.once('send-challangeList', (event, arg) => {
+                    console.log(arg)
+                    setChallangeList(arg);
                     resolve();
                 });
             })
@@ -130,7 +149,6 @@ function DefaultLayout(props) {
                                 </LogoutNav>
                             </SideNav>
                         </ColSideNav>
-
                         <ColNoGutter xs="10" >
                             <Row>
                                 <Col xs="12">
@@ -139,7 +157,7 @@ function DefaultLayout(props) {
                                             <Route path="/contents/account" name="account" render={() => <Account {...props} content={accountInfo} />} />
                                             <Route path="/contents/buy" name="token-buy" render={() => <Buy {...props} content={tokenList} getInfo={getInfo} />} />
                                             <Route path="/contents/challange/execution" name="challange-execution" render={() => <ChallangeExecution {...props} accountInfo={accountInfo} tokenList={tokenList} setChallangeResult={setChallangeResult} setToastOpen={setToastOpen} getInfo={getInfo} />} />
-                                            <Route path="/contents/challange/cancel" name="challange-cancel" render={() => <ChallangeCancel {...props} />} />
+                                            <Route path="/contents/challange/cancel" name="challange-cancel" render={() => <ChallangeCancel {...props} content={challangeList} refreshInfo={refreshInfo}/>} />
                                             <Route path="/contents" name="account" render={() => <Account {...props} content={accountInfo} />} />
                                         </Switch>
                                     </MainContent>

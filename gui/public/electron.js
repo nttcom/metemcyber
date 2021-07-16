@@ -295,6 +295,60 @@ ipcMain.on('buy', async (event, arg) => {
   event.reply('success-buy', "success");
 });
 
+ipcMain.on('challange', async (event, arg) => {
+  let returnVal = {
+    item: [],
+  };
+
+  let item = {
+    id: '',
+    name: '',
+    addr: '',
+    status: '',
+  };
+
+  proc = getProc(["metemctl", "ix", "show"]);
+
+  let outputStr = "";
+  proc.on('data', (data) => {
+    data.split("\r\n").map((val) => {
+      event.reply('send-log', val);
+      outputStr += val;
+    })
+  });
+  await onEnd(proc);
+
+  let outputs = outputStr.split(" ").filter(val => val !== '');
+
+  while (outputs.length > 0) {
+    item.id = outputs[0].slice(0, -1);
+    item.name = outputs.slice(1, outputs.indexOf('├')).join(" ");
+
+    outputs.splice(0, outputs.indexOf('├') + 1);
+
+    item.addr = outputs[1];
+    item.status = outputs[4];
+
+    returnVal.item.push(item);
+    item = {
+      id: '',
+      name: '',
+      addr: '',
+      status: '',
+    };
+    outputs.splice(0, 5);
+  }
+
+  event.reply('send-challangeList', returnVal);
+});
+
+ipcMain.on('cancel', async (event, arg) => {
+
+  proc = getProc(["metemctl", "ix", "cancel", arg]);
+  await onEnd(proc);
+  event.reply('success-cancel', "success");
+});
+
 ipcMain.on('get-key', async (event, arg) => {
   // get key path
   const keyProc = getProc(["metemctl", "config", "show"]);
