@@ -20,7 +20,6 @@ import { Button, Card, CardBody, CardHeader, Col, Container, Input, InputGroup, 
 
 function BuyCti(props) {
     const { ipcRenderer } = window;
-    const [content, setContent] = useState(props.content);
     const [isLoading, setIsLoading] = useState(false);
     const [searchText, setSearchText] = useState('');
     const [modalToggle, setModalToggle] = useState(false);
@@ -40,16 +39,8 @@ function BuyCti(props) {
         setSearchText(e.target.value);
     }
 
-    const handleSearch = () => {
-        const retValue = props.content.item.filter((val) => {
-            return val.name.indexOf(searchText) !== -1;
-        });
-        setContent({ item: retValue });
-    }
-
     const handleRelease = () => {
         setSearchText('');
-        setContent(props.content);
     }
 
     const handleBuy = (e) => {
@@ -57,7 +48,7 @@ function BuyCti(props) {
         ipcRenderer.send('buy', targetId);
         ipcRenderer.once('success-buy', async (event, arg) => {
             console.log(arg);
-            await Promise.all(props.getInfo());
+            await props.refreshInfo();
             setIsLoading(false);
             setModalToggle(!modalToggle);
         });
@@ -75,10 +66,7 @@ function BuyCti(props) {
                         <Col>
                             <div className="search">
                                 <InputGroup>
-                                    <Input value={searchText} onChange={handleChange} />
-                                    <InputGroupAddon addonType="append">
-                                        <Button color="secondary" onClick={handleSearch}><i className="fas fa-search"></i></Button>
-                                    </InputGroupAddon>
+                                    <Input value={searchText} onChange={handleChange} placeholder="Search for token title..." />
                                 </InputGroup>
                             </div>
                         </Col>
@@ -96,37 +84,39 @@ function BuyCti(props) {
                         <Col>
                             <div className="content">
                                 <Row>
-                                    {content.item.map((val, idx) => {
-                                        return <Col xs={split} key={idx}>
-                                            <BuyCard>
-                                                <CardHeader style={{ backgroundColor: "#bbe2f1" }}><strong>{val.name}</strong></CardHeader>
-                                                <BuyCardBody>
-                                                    <TopList type="inline">
-                                                        <ListInlineLabel>Price</ListInlineLabel>
-                                                        <ListInlineItem style={{ fontSize: "36px" }}>{val.price}</ListInlineItem>
-                                                        <ListInlineLabel>pts</ListInlineLabel>
-                                                    </TopList>
-                                                    <List type="inline">
-                                                        <ListInlineLabel>Remaining Token</ListInlineLabel>
-                                                        <ListInlineItem>{val.left}</ListInlineItem>
-                                                    </List>
-                                                    <TopList type="inline">
-                                                        <ListInlineLabel>Addr</ListInlineLabel>
-                                                        <ListInlineItem>{val.addr.length > 50 && split === "6" ? `${val.addr.slice(50)}...` : val.addr}</ListInlineItem>
-                                                    </TopList>
-                                                    <List type="inline">
-                                                        <ListInlineLabel>UUID</ListInlineLabel>
-                                                        <ListInlineItem>{val.uuid.length > 50 && split === "6" ? `${val.uuid.slice(50)}...` : val.uuid}</ListInlineItem>
-                                                    </List>
-                                                    <div>
-                                                        {val.quantity !== '' && `You have ${val.quantity}`}
-                                                    </div>
-                                                    <Button color="primary" onClick={toggle} value={val.id}>Buy</Button>
-                                                </BuyCardBody>
-                                            </BuyCard>
-                                        </Col>
+                                    {props.content.item.map((val, idx) => {
+                                        if (val.name.indexOf(searchText) > -1) {
+                                            return <Col xs={split} key={idx}>
+                                                <BuyCard>
+                                                    <CardHeader style={{ backgroundColor: "#bbe2f1" }}><strong>{val.name}</strong></CardHeader>
+                                                    <BuyCardBody>
+                                                        <TopList type="inline">
+                                                            <ListInlineLabel>Price</ListInlineLabel>
+                                                            <ListInlineItem style={{ fontSize: "36px" }}>{val.price}</ListInlineItem>
+                                                            <ListInlineLabel>pts</ListInlineLabel>
+                                                        </TopList>
+                                                        <List type="inline">
+                                                            <ListInlineLabel>Remaining Token</ListInlineLabel>
+                                                            <ListInlineItem>{val.left}</ListInlineItem>
+                                                        </List>
+                                                        <TopList type="inline">
+                                                            <ListInlineLabel>Addr</ListInlineLabel>
+                                                            <ListInlineItem>{val.addr.length > 50 && split === "6" ? `${val.addr.slice(50)}...` : val.addr}</ListInlineItem>
+                                                        </TopList>
+                                                        <List type="inline">
+                                                            <ListInlineLabel>UUID</ListInlineLabel>
+                                                            <ListInlineItem>{val.uuid.length > 50 && split === "6" ? `${val.uuid.slice(50)}...` : val.uuid}</ListInlineItem>
+                                                        </List>
+                                                        <div>
+                                                            {val.quantity !== '' && `You have ${val.quantity}`}
+                                                        </div>
+                                                        <Button color="primary" onClick={toggle} value={val.id}>Buy</Button>
+                                                    </BuyCardBody>
+                                                </BuyCard>
+                                            </Col>
+                                        }
                                     })}
-                                    {content.item.length === 0 && "Item does not exist"}
+                                    {props.content.item.length === 0 && "Item does not exist"}
                                 </Row>
                             </div>
                         </Col>

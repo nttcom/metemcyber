@@ -155,8 +155,8 @@ function DefaultLayout(props) {
                                     <MainContent>
                                         <Switch>
                                             <Route path="/contents/account" name="account" render={() => <Account {...props} content={accountInfo} />} />
-                                            <Route path="/contents/buy" name="token-buy" render={() => <Buy {...props} content={tokenList} getInfo={getInfo} />} />
-                                            <Route path="/contents/challange/execution" name="challange-execution" render={() => <ChallangeExecution {...props} accountInfo={accountInfo} tokenList={tokenList} setChallangeResult={setChallangeResult} setToastOpen={setToastOpen} getInfo={getInfo} />} />
+                                            <Route path="/contents/buy" name="token-buy" render={() => <Buy {...props} content={tokenList} refreshInfo={refreshInfo} />} />
+                                            <Route path="/contents/challange/execution" name="challange-execution" render={() => <ChallangeExecution {...props} accountInfo={accountInfo} tokenList={tokenList} setChallangeResult={setChallangeResult} setToastOpen={setToastOpen} refreshInfo={refreshInfo} />} />
                                             <Route path="/contents/challange/cancel" name="challange-cancel" render={() => <ChallangeCancel {...props} content={challangeList} refreshInfo={refreshInfo}/>} />
                                             <Route path="/contents" name="account" render={() => <Account {...props} content={accountInfo} />} />
                                         </Switch>

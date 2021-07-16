@@ -21,8 +21,6 @@ import '..//default.css';
 
 function Execution(props) {
     const { ipcRenderer } = window;
-    const [defaultContent, setDefaultContent] = useState([]);
-    const [content, setContent] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [searchText, setSearchText] = useState('');
     const [modalToggle, setModalToggle] = useState(false);
@@ -30,19 +28,6 @@ function Execution(props) {
     const [split, setSplit] = useState('12');
 
     useEffect(() => {
-        //find token info
-        const possessions = [];
-        for (const val of props.accountInfo.tokens) {
-            console.log(val)
-            for (const token of props.tokenList.item) {
-                if (val.addr === token.addr) {
-                    token.left = val.quantity;
-                    possessions.push(token);
-                }
-            }
-        }
-        setContent(possessions);
-        setDefaultContent(possessions);
         return () => console.log('unmounting...');
     }, [])
     const toggle = (e) => {
@@ -54,16 +39,8 @@ function Execution(props) {
         setSearchText(e.target.value);
     }
 
-    const handleSearch = () => {
-        const retValue = defaultContent.filter((val) => {
-            return val.name.indexOf(searchText) !== -1;
-        });
-        setContent(retValue);
-    }
-
     const handleRelease = () => {
         setSearchText('');
-        setContent(defaultContent);
     }
 
     const handleExecution = () => {
@@ -72,6 +49,8 @@ function Execution(props) {
         ipcRenderer.once('success-challange-start', async (event, arg) => {
             console.log(arg);
             console.log("success-challange-start")
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            await props.refreshInfo();
             setIsLoading(false);
             setModalToggle(!modalToggle);
         });
@@ -95,10 +74,7 @@ function Execution(props) {
                         <Col>
                             <div className="search">
                                 <InputGroup>
-                                    <Input value={searchText} onChange={handleChange} />
-                                    <InputGroupAddon addonType="append">
-                                        <Button color="secondary" onClick={handleSearch}><i className="fas fa-search"></i></Button>
-                                    </InputGroupAddon>
+                                    <Input value={searchText} onChange={handleChange} placeholder="Search for token title..." />
                                 </InputGroup>
                             </div>
                         </Col>
@@ -116,31 +92,35 @@ function Execution(props) {
                         <Col>
                             <div className="content">
                                 <Row>
-                                    {content.map((val, idx) => {
-                                        return <Col xs={split} key={idx}>
-                                            <div key={idx}>
-                                                <ChallengeCard>
-                                                    <ChallengeCardHeader><strong>{val.name}</strong></ChallengeCardHeader>
-                                                    <ChallengeCardBody>
-                                                        <List type="inline">
-                                                            <ListInlineLabel>Remaining Token</ListInlineLabel>
-                                                            <ListInlineItem>{val.left}</ListInlineItem>
-                                                        </List>
-                                                        <TopList type="inline">
-                                                            <ListInlineLabel>Addr</ListInlineLabel>
-                                                            <ListInlineItem>{val.addr.length > 50 && split === "6" ? `${val.addr.slice(50)}...` : val.addr}</ListInlineItem>
-                                                        </TopList>
-                                                        <List type="inline">
-                                                            <ListInlineLabel>UUID</ListInlineLabel>
-                                                            <ListInlineItem>{val.uuid.length > 50 && split === "6" ? `${val.uuid.slice(50)}...` : val.uuid}</ListInlineItem>
-                                                        </List>
-                                                        <Button color="success" onClick={toggle} value={val.id}>Run challange</Button>
-                                                    </ChallengeCardBody>
-                                                </ChallengeCard>
-                                            </div>
-                                        </Col>
+                                    {props.accountInfo.tokens.map((token, idx) => {
+                                        for (let val of props.tokenList.item) {
+                                            if (token.addr === val.addr && val.name.indexOf(searchText) > -1) {
+                                                return <Col xs={split} key={idx}>
+                                                    <div key={idx}>
+                                                        <ChallengeCard>
+                                                            <ChallengeCardHeader><strong>{val.name}</strong></ChallengeCardHeader>
+                                                            <ChallengeCardBody>
+                                                                <List type="inline">
+                                                                    <ListInlineLabel>Remaining Token</ListInlineLabel>
+                                                                    <ListInlineItem>{token.quantity}</ListInlineItem>
+                                                                </List>
+                                                                <TopList type="inline">
+                                                                    <ListInlineLabel>Addr</ListInlineLabel>
+                                                                    <ListInlineItem>{val.addr.length > 50 && split === "6" ? `${val.addr.slice(50)}...` : val.addr}</ListInlineItem>
+                                                                </TopList>
+                                                                <List type="inline">
+                                                                    <ListInlineLabel>UUID</ListInlineLabel>
+                                                                    <ListInlineItem>{val.uuid.length > 50 && split === "6" ? `${val.uuid.slice(50)}...` : val.uuid}</ListInlineItem>
+                                                                </List>
+                                                                <Button color="success" onClick={toggle} value={val.id}>Run challange</Button>
+                                                            </ChallengeCardBody>
+                                                        </ChallengeCard>
+                                                    </div>
+                                                </Col>
+                                            }
+                                        }
                                     })}
-                                    {content.length === 0 && "Item does not exist"}
+                                    {props.accountInfo.tokens.length === 0 && "Item does not exist"}
                                 </Row>
                             </div>
                         </Col>

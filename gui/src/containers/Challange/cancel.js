@@ -41,9 +41,6 @@ function Cancel(props) {
         setSearchText(e.target.value);
     }
 
-    const handleSearch = () => {
-    }
-
     const handleRelease = () => {
         setSearchText('');
     }
@@ -70,7 +67,7 @@ function Cancel(props) {
                         <Col>
                             <div className="search">
                                 <InputGroup>
-                                    <Input value={searchText} onChange={handleChange} />
+                                    <Input value={searchText} onChange={handleChange} placeholder="Search for token title..."/>
                                 </InputGroup>
                             </div>
                         </Col>
