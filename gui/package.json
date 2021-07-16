@@ -1,0 +1,89 @@
+{
+  "name": "Metemcyber",
+  "version": "0.1.2",
+  "private": true,
+  "main": "public/electron.js",
+  "homepage": "./",
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^5.15.3",
+    "@testing-library/jest-dom": "^5.11.4",
+    "@testing-library/react": "^11.1.0",
+    "@testing-library/user-event": "^12.1.10",
+    "bootstrap": "^4.6.0",
+    "electron-is-dev": "^1.2.0",
+    "ngrok": "^3.4.0",
+    "node-pty": "^0.10.0",
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1",
+    "react-dropzone": "^11.3.1",
+    "react-router-dom": "^5.2.0",
+    "react-scripts": "4.0.2",
+    "reactstrap": "^8.9.0",
+    "styled-components": "^5.2.1",
+    "web-vitals": "^1.0.1"
+  },
+  "scripts": {
+    "react-start": "cross-env BROWSER=none react-scripts start",
+    "react-build": "react-scripts build",
+    "react-test": "react-scripts test",
+    "react-eject": "react-scripts eject",
+    "electron-start": "wait-on http://localhost:3000 && electron .",
+    "electron-build": "electron-builder",
+    "start": "run-p react-start electron-start",
+    "build": "run-s react-build electron-build",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^11.1.0",
+    "electron-builder": "^22.9.1",
+    "npm-run-all": "^4.1.5",
+    "wait-on": "^5.2.0"
+  },
+  "build": {
+    "extends": null,
+    "directories": {
+      "buildResources": "resources",
+      "output": "dist"
+    },
+    "extraFiles": [
+      {
+        "from": "../",
+        "to": "./metemcyber_contents",
+        "filter": [
+          "!gui/*",
+          "!.git/*",
+          "!.gitignore",
+          "!.gitmodules",
+          "!.readthedocs.yml"
+        ]
+      },
+      {
+        "from": "docker-path",
+        "to": "./"
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "public/logo512.png"
+    }
+  }
+}
