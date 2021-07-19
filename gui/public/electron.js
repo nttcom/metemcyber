@@ -21,6 +21,7 @@ const isDev = require("electron-is-dev");
 const pty = require('node-pty');
 const fs = require('fs');
 const exec = require('util').promisify(require('child_process').exec);
+const fixPath = require('fix-path');
 
 let proc = null;
 
@@ -51,6 +52,8 @@ async function createWindow() {
       ? "http://localhost:3000/login"
       : `file://${path.join(__dirname, "../build/index.html")}`
   );
+
+  fixPath();
 
   // Open the DevTools.
   mainWindow.webContents.openDevTools()
@@ -89,7 +92,7 @@ ipcMain.on('logout', async (event, arg) => {
 
 ipcMain.on('login', async (event, arg) => {
   process.env.METEMCTL_KEYFILE_PASSWORD = arg;
-  proc = getProc(["metemctl", "account", "show",]);
+  proc = getProc(["account", "show",]);
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
       event.reply('send-log', val);
@@ -100,7 +103,7 @@ ipcMain.on('login', async (event, arg) => {
 });
 
 ipcMain.on('seeker', async (event, arg) => {
-  proc = getProc(["metemctl", "seeker", "status",]);
+  proc = getProc(["seeker", "status",]);
   outputStr = "";
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
@@ -119,7 +122,7 @@ ipcMain.on('seeker', async (event, arg) => {
 });
 
 ipcMain.on('challange-start', async (event, arg) => {
-  const challangeProc = getProc(["metemctl", "ix", "use", arg]);
+  const challangeProc = getProc(["ix", "use", arg]);
   outputStr = "";
   let returnVal = {
     id: arg,
@@ -169,7 +172,7 @@ ipcMain.on('account', async (event, arg) => {
     tokens: []
   };
 
-  proc = getProc(["metemctl", "account", "show"]);
+  proc = getProc(["account", "show"]);
 
   let outputStr = "";
   proc.on('data', (data) => {
@@ -199,7 +202,7 @@ ipcMain.on('account', async (event, arg) => {
     returnVal.tokens.push(token);
   }
 
-  proc = getProc(["metemctl", "config", "show"]);
+  proc = getProc(["config", "show"]);
 
   outputStr = "";
   proc.on('data', (data) => {
@@ -243,7 +246,7 @@ ipcMain.on('token', async (event, arg) => {
     quantity: ''
   };
 
-  proc = getProc(["metemctl", "ix", "search", ' ']);
+  proc = getProc(["ix", "search", ' ']);
 
   let outputStr = "";
   proc.on('data', (data) => {
@@ -290,14 +293,68 @@ ipcMain.on('token', async (event, arg) => {
 
 ipcMain.on('buy', async (event, arg) => {
 
-  proc = getProc(["metemctl", "ix", "buy", arg]);
+  proc = getProc(["ix", "buy", arg]);
   await onEnd(proc);
   event.reply('success-buy', "success");
 });
 
+ipcMain.on('challange', async (event, arg) => {
+  let returnVal = {
+    item: [],
+  };
+
+  let item = {
+    id: '',
+    name: '',
+    addr: '',
+    status: '',
+  };
+
+  proc = getProc(["ix", "show"]);
+
+  let outputStr = "";
+  proc.on('data', (data) => {
+    data.split("\r\n").map((val) => {
+      event.reply('send-log', val);
+      outputStr += val;
+    })
+  });
+  await onEnd(proc);
+
+  let outputs = outputStr.split(" ").filter(val => val !== '');
+
+  while (outputs.length > 0) {
+    item.id = outputs[0].slice(0, -1);
+    item.name = outputs.slice(1, outputs.indexOf('├')).join(" ");
+
+    outputs.splice(0, outputs.indexOf('├') + 1);
+
+    item.addr = outputs[1];
+    item.status = outputs[4];
+
+    returnVal.item.push(item);
+    item = {
+      id: '',
+      name: '',
+      addr: '',
+      status: '',
+    };
+    outputs.splice(0, 5);
+  }
+
+  event.reply('send-challangeList', returnVal);
+});
+
+ipcMain.on('cancel', async (event, arg) => {
+
+  proc = getProc(["ix", "cancel", arg]);
+  await onEnd(proc);
+  event.reply('success-cancel', "success");
+});
+
 ipcMain.on('get-key', async (event, arg) => {
   // get key path
-  const keyProc = getProc(["metemctl", "config", "show"]);
+  const keyProc = getProc(["config", "show"]);
 
   let outputStr = "";
   keyProc.on('data', (data) => {
@@ -349,7 +406,7 @@ ipcMain.on('set-key', async (event, arg) => {
 });
 
 ipcMain.on('open-download-dir', async (event, arg) => {
-  const downloadProc = getProc(["metemctl", "config", "show"]);
+  const downloadProc = getProc(["config", "show"]);
 
   let outputStr = "";
   downloadProc.on('data', (data) => {
@@ -384,7 +441,7 @@ function execLogout() {
 
 function getProc(commands) {
   console.log(commands)
-  return pty.spawn('bash', commands, nodePtyConfig);
+  return pty.spawn('metemctl', commands, nodePtyConfig);
 };
 
 function onEnd(proc) {
