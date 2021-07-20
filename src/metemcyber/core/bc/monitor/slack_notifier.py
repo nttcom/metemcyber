@@ -29,7 +29,7 @@ from metemcyber.core.bc.monitor.tx_counter import parse_queries as parse_counter
 class SectionGenerator:
     def summary_to_sections(self, summary: dict, _args: Namespace, _options: dict) -> List[dict]:
         return [{
-            'fallback': str(self),
+            'fallback': self.__class__.__name__,
             'title': 'abstract generator',
             'text': str(summary),
         }]
@@ -204,6 +204,9 @@ def main(args: Namespace):
 OPTIONS: List[Tuple[str, str, dict]] = [
     ('-c', '--config', dict(action='store', required=True)),
     ('-t', '--testmode', dict(action='store_true', required=False)),
+    ('-d', '--date_format', dict(action='store', required=False)),
+    ('-s', '--start', dict(action='store', required=False)),
+    ('-e', '--end', dict(action='store', required=False)),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [

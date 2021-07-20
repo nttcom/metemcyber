@@ -32,6 +32,16 @@ from metemcyber.core.bc.monitor.tx_db import TransactionDB
 ABIS_DIR = f'{os.path.dirname(os.path.abspath(__file__))}/../contracts_data'
 
 
+def get_blocks_by_timestamp(
+        tdb: TransactionDB, min_timestamp: int = 0, max_timestamp: int = 0) -> List[int]:
+    if not tdb.get('timestamps'):
+        raise Exception('Wrong type of database. (should be a decoded database)')
+    return [block for block, timestamp in tdb.get('timestamps').items()
+            if (min_timestamp <= 0 or timestamp >= min_timestamp) and
+               (max_timestamp <= 0 or timestamp <= max_timestamp)
+            ]
+
+
 class ABIManager:
     abis: Dict[str, dict]  # {contract_id}-{contract_version} : abi
     contracts: Dict[Any, str]  # contract : {contract_id}-{contract_version}
@@ -117,6 +127,7 @@ class TransactionDecoder:
         self.tdb_dec = TransactionDB(endpoint, self.conf['db_filepath_decoded'])
         self.abi_mgr = ABIManager()
         self.tdb_dec.update('codesize', self.tdb_raw.get('codesize'))
+        self.timestamps = self.tdb_dec.get('timestamps') or {}
 
     def fix_startblock(self) -> int:
         assert self.tdb_dec
@@ -140,6 +151,10 @@ class TransactionDecoder:
             del tx0[key]
         return tx0
 
+    def _sync_db(self, latest: int):
+        self.tdb_dec.update_latest(latest)
+        self.tdb_dec.update('timestamps', self.timestamps)
+
     def run(self):
         assert self.tdb_raw
         assert self.tdb_dec
@@ -156,12 +171,13 @@ class TransactionDecoder:
             for block in self.tdb_raw.stored_blocks(minimum=block):
                 print(f'\r{block}' if print_blocknum else '', end='', file=sys.stderr)
                 for idx, tx0 in enumerate(self.tdb_raw.load(block, None)):
+                    self.timestamps[block] = tx0['x_timestamp']
                     tx0 = self.simplify_tx(dict(tx0))
                     self.tdb_dec.store(block, idx, tx0)
                     if print_decoded:
                         pprint.pprint(tx0)
         except KeyboardInterrupt:
-            self.tdb_dec.update_latest(block - 1)  # block may be incomplete
+            self._sync_db(block - 1)  # block may be incomplete
             print(f'{ext_lf}decoder interrupted at block: {block}')
             return
 
@@ -173,6 +189,7 @@ class TransactionDecoder:
             try:
                 print(f'\r{block}' if print_blocknum else '', end='', file=sys.stderr)
                 for idx, tx0 in enumerate(self.tdb_raw.load(block, None)):
+                    self.timestamps[block] = tx0['x_timestamp']
                     tx0 = self.simplify_tx(dict(tx0))
                     self.tdb_dec.store(block, idx, tx0)
                     if print_decoded:
@@ -181,20 +198,21 @@ class TransactionDecoder:
                 block += 1
                 continue
             except KeyboardInterrupt:
-                self.tdb_dec.update_latest(block - 1)  # block may be incomplete
+                self._sync_db(block - 1)  # block may be incomplete
                 print(f'{ext_lf}decoder interrupted at block: {block}')
                 return
             except BlockNotFound:
                 if exit_on_head:
-                    self.tdb_dec.update_latest(block - 1)
+                    self._sync_db(block - 1)
                     print(f'{ext_lf}decoder stopped at the head: {block}')
                     return
             try:
-                self.tdb_dec.update_latest(block - 1)  # lazy update
+                self._sync_db(block - 1)  # lazy update
                 sleep(1)
             except KeyboardInterrupt:
                 print(f'{ext_lf}decoder interrupted at block: {block}')
                 return
+        self._sync_db(block - 1)
         print(f'{ext_lf}decoder stopped by error at block: {block}')
 
 

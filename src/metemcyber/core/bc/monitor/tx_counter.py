@@ -18,13 +18,17 @@ import argparse
 import json
 import re
 from argparse import Namespace
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Type, Union
 
 from eth_typing import ChecksumAddress
 
 import metemcyber.core.bc.monitor.tx_util as util
 from metemcyber.core.bc.monitor.tx_db import TransactionDB
+from metemcyber.core.bc.monitor.tx_decoder import get_blocks_by_timestamp
 from metemcyber.core.bc.monitor.tx_metadata_manager import MetadataManager
+
+DEFAULT_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
 
 
 class BasicTx:
@@ -95,15 +99,6 @@ class TransactionCounter:
                     else:
                         raise Exception(f'Invalid filter: {key}')
 
-    def get_blocks(self, days: int = 0, hours: int = 0) -> List[int]:
-        assert days >= 0 and hours >= 0
-        border = -1
-        hours += days * 24
-        if hours > 0:
-            latest = self.dec_db.latest
-            border = latest - (hours * 3600 / 2)  # mine a block every 2 seconds.
-        return self.dec_db.stored_blocks(minimum=border if border > 0 else None)
-
     def generic_filter(self, btx: BasicTx) -> bool:
         if ((self.include_to and btx.addr_to not in self.include_to) or
                 (self.exclude_to and btx.addr_to in self.exclude_to)):
@@ -133,17 +128,34 @@ class TransactionCounter:
         ret.append(['sender', category, btx.addr_from, f'{btx.contract}.{btx.method}'])
         return ret
 
-    def summarize(self, _args: Namespace, opt: dict) -> dict:
-        days = int(opt.get('days', 0))
-        hours = int(opt.get('hours', 0))
+    @staticmethod
+    def _get_timestamps(args: Namespace, opt: dict) -> Tuple[int, int]:
+        date_format = (args.date_format if args.date_format else
+                       opt['date_format'] if opt.get('date_format') else
+                       DEFAULT_DATETIME_FORMAT)
+        ts_min = int(datetime.strptime((args.start if args.start else
+                                        opt['start'] if opt.get('start') else
+                                        datetime.fromtimestamp(0).strftime(date_format)
+                                        ),
+                                       date_format).timestamp())
+        ts_max = int(datetime.strptime((args.end if args.end else
+                                        opt['end'] if opt.get('end') else
+                                        datetime.now().strftime(date_format)
+                                        ),
+                                       date_format).timestamp())
+        return ts_min, ts_max
+
+    def summarize(self, args: Namespace, opt: dict) -> dict:
         opt_rev = opt.get('reverted', 'no').lower()
         if opt_rev not in {'both', 'yes', 'no'}:
             raise Exception(f'Invalid option for reverted: {opt.get("reverted")}')
         reverted = (True if opt_rev == 'yes' else
                     False if opt_rev == 'no' else
                     None)
+        ts_start, ts_end = self._get_timestamps(args, opt)
         summary: dict = {}
-        for block in self.get_blocks(days=days, hours=hours):
+        for block in get_blocks_by_timestamp(
+                self.dec_db, min_timestamp=ts_start, max_timestamp=ts_end):
             for tx0 in self.dec_db.load(block, None):
                 if reverted not in {None, tx0.get('x_receipt_status') != 1}:
                     continue
@@ -163,7 +175,7 @@ class Waixu(TransactionCounter):
     exclude_brokers: List[ChecksumAddress] = []
 
     def __init__(self, args: Namespace, options: dict):
-        super().__init__(args.config, options)
+        super().__init__(args, options)
         if options.get('waixu_filter'):
             rules = options['waixu_filter']
             for key in ['include_catalogs', 'exclude_catalogs',
@@ -232,6 +244,9 @@ def main(args: Namespace):
 
 OPTIONS: List[Tuple[str, str, dict]] = [
     ('-c', '--config', dict(action='store', required=True)),
+    ('-d', '--date_format', dict(action='store', required=False)),
+    ('-s', '--start', dict(action='store', required=False)),
+    ('-e', '--end', dict(action='store', required=False)),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [
