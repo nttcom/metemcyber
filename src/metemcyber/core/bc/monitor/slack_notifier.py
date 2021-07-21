@@ -17,6 +17,7 @@
 import argparse
 import json
 import sys
+from argparse import Namespace
 from typing import ClassVar, List, Tuple, Type
 
 import requests
@@ -26,9 +27,9 @@ from metemcyber.core.bc.monitor.tx_counter import parse_queries as parse_counter
 
 
 class SectionGenerator:
-    def summary_to_sections(self, summary: dict, _options: dict) -> List[dict]:
+    def summary_to_sections(self, summary: dict, _args: Namespace, _options: dict) -> List[dict]:
         return [{
-            'fallback': str(self),
+            'fallback': self.__class__.__name__,
             'title': 'abstract generator',
             'text': str(summary),
         }]
@@ -107,7 +108,7 @@ class Waixu(SectionGenerator):
 
         return waipu, text
 
-    def summary_to_sections(self, summary: dict, _options: dict) -> List[dict]:
+    def summary_to_sections(self, summary: dict, _args: Namespace, _options: dict) -> List[dict]:
         waicu, waicu_text = self._calc_waicu(summary)
         waipu, waipu_text = self._calc_waipu(summary)
 
@@ -188,21 +189,24 @@ def parse_queries(queries: List[dict]) -> List[
     return ret
 
 
-def main(args):
+def main(args: Namespace):
     notifier = SlackNotifier(args.config, testmode=args.testmode)
     with open(args.config, 'r') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
     for gclass, cclass, options in parse_queries(queries):
         generator = gclass()
-        counter = cclass(args.config, options)
-        summary = counter.summarize(options)
-        notifier.add_sections(generator.summary_to_sections(summary, options))
+        counter = cclass(args, options)
+        summary = counter.summarize(args, options)
+        notifier.add_sections(generator.summary_to_sections(summary, args, options))
     notifier.send_query()
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
     ('-c', '--config', dict(action='store', required=True)),
     ('-t', '--testmode', dict(action='store_true', required=False)),
+    ('-d', '--date_format', dict(action='store', required=False)),
+    ('-s', '--start', dict(action='store', required=False)),
+    ('-e', '--end', dict(action='store', required=False)),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [

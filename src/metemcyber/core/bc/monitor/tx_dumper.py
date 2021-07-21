@@ -42,7 +42,7 @@ class TransactionDumper:
 
         self.web3 = Web3(HTTPProvider(endpoint))
         try:
-            self.web3.eth.getBlock('latest')
+            self.web3.eth.get_block('latest')
         except ExtraDataLengthError:
             self.web3.middleware_onion.inject(geth_poa_middleware, layer=0)
         self.tdb = TransactionDB(endpoint, db_filepath)
@@ -55,6 +55,10 @@ class TransactionDumper:
             return tmp
         tmp += self.tdb.latest
         return tmp if tmp > 0 else 1
+
+    def _sync_db(self, latest: int):
+        self.tdb.update_latest(latest)
+        self.tdb.update('codesize', self.codesize)
 
     def run(self):
         assert self.web3
@@ -70,30 +74,31 @@ class TransactionDumper:
             try:
                 if print_blocknum:
                     print(f'\r{block}', end='', file=sys.stderr)
-                num_tx = self.web3.eth.getBlockTransactionCount(block)
-                for i in range(num_tx):
-                    tx0 = dict(self.web3.eth.getTransactionByBlock(block, i))
-                    if tx0.get('hash'):
-                        # append tx_receipt as an extra data
-                        tx0['x_tx_receipt'] = dict(self.web3.eth.getTransactionReceipt(tx0['hash']))
-                    if self.codesize.get(tx0['from']) is None:
-                        self.codesize[tx0['from']] = len(self.web3.eth.getCode(tx0['from']))
-                    if tx0.get('to') and self.codesize.get(tx0['to']) is None:
-                        self.codesize[tx0['to']] = len(self.web3.eth.getCode(tx0['to']))
-                    self.tdb.store(block, i, tx0)  # latest is also updated
-                # Note: skip updating latest if num_tx is zero, for performance.
+                num_tx = self.web3.eth.get_block_transaction_count(block)
+                if num_tx > 0:
+                    block_info = self.web3.eth.get_block(block)
+                    for i in range(num_tx):
+                        tx0 = dict(self.web3.eth.get_transaction_by_block(block, i))
+                        if tx0.get('hash'):
+                            # append tx_receipt as an extra data
+                            tx0['x_tx_receipt'] = self.web3.eth.get_transaction_receipt(tx0['hash'])
+                        if self.codesize.get(tx0['from']) is None:
+                            self.codesize[tx0['from']] = len(self.web3.eth.get_code(tx0['from']))
+                        if tx0.get('to') and self.codesize.get(tx0['to']) is None:
+                            self.codesize[tx0['to']] = len(self.web3.eth.get_code(tx0['to']))
+                        tx0['x_timestamp'] = block_info.timestamp
+                        tx0['x_block'] = block_info  # allow redundant when num_tx > 1
+                        self.tdb.store(block, i, tx0)  # latest is also updated
                 block += 1
                 retry = retry_max  # reset on succeeded
                 continue
             except KeyboardInterrupt:
-                self.tdb.update_latest(block - 1)  # update before quit
-                self.tdb.update('codesize', self.codesize)
+                self._sync_db(block - 1)  # update before quit
                 print(f'{ext_lf}dumper interrupted at block: {block}')
                 return
             except BlockNotFound:
                 if self.conf.get('exit_on_head', False):
-                    self.tdb.update_latest(block - 1)
-                    self.tdb.update('codesize', self.codesize)
+                    self._sync_db(block - 1)
                     print(f'{ext_lf}dumper stopped at the head: {block}')
                     return
                 self.tdb.close(allow_redundant=True)  # switch out from keep-alive mode
@@ -105,15 +110,13 @@ class TransactionDumper:
                 retry -= 1
 
             try:
-                self.tdb.update_latest(block - 1)  # lazy update
-                self.tdb.update('codesize', self.codesize)
+                self._sync_db(block - 1)  # lazy update
                 sleep(sleep_sec)
             except KeyboardInterrupt:
                 print(f'{ext_lf}dumper interrupted at block: {block}')
                 return
 
-        self.tdb.update_latest(block - 1)
-        self.tdb.update('codesize', self.codesize)
+        self._sync_db(block - 1)
         print(f'{ext_lf}dumper stopped by error at block: {block}')
 
 

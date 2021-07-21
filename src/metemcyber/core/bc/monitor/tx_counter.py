@@ -17,13 +17,18 @@
 import argparse
 import json
 import re
+from argparse import Namespace
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Type, Union
 
 from eth_typing import ChecksumAddress
 
 import metemcyber.core.bc.monitor.tx_util as util
 from metemcyber.core.bc.monitor.tx_db import TransactionDB
+from metemcyber.core.bc.monitor.tx_decoder import get_blocks_by_timestamp
 from metemcyber.core.bc.monitor.tx_metadata_manager import MetadataManager
+
+DEFAULT_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
 
 
 class BasicTx:
@@ -74,11 +79,11 @@ class TransactionCounter:
     include_from: List[ChecksumAddress] = []
     exclude_from: List[ChecksumAddress] = []
 
-    def __init__(self, config_filepath: str, options: dict):
-        with open(config_filepath, 'r') as fin:
+    def __init__(self, args: Namespace, options: dict):
+        with open(args.config, 'r') as fin:
             self.conf = json.load(fin).get('counter', {})
         self.dec_db = TransactionDB(None, self.conf['db_filepath_decoded'])
-        self.meta = MetadataManager(config_filepath, readonly=True)
+        self.meta = MetadataManager(args.config, readonly=True)
         self.dec_db.open(readonly=True)
         self.codesize = self.dec_db.get('codesize') or {}
         self.options = options
@@ -93,22 +98,6 @@ class TransactionCounter:
                         setattr(self, key, re.split('[,\\s]+', rules[key]))
                     else:
                         raise Exception(f'Invalid filter: {key}')
-
-    def fix_startblock(self) -> int:
-        tmp = int(self.conf.get('start_block', 1))
-        if tmp > 0:
-            return tmp
-        tmp += self.dec_db.latest
-        return tmp if tmp > 0 else 1
-
-    def get_blocks(self, days: int = 0, hours: int = 0) -> List[int]:
-        assert days >= 0 and hours >= 0
-        border = -1
-        hours += days * 24
-        if hours > 0:
-            latest = self.dec_db.latest
-            border = latest - (hours * 3600 / 2)  # mine a block every 2 seconds.
-        return self.dec_db.stored_blocks(minimum=border if border > 0 else None)
 
     def generic_filter(self, btx: BasicTx) -> bool:
         if ((self.include_to and btx.addr_to not in self.include_to) or
@@ -139,17 +128,34 @@ class TransactionCounter:
         ret.append(['sender', category, btx.addr_from, f'{btx.contract}.{btx.method}'])
         return ret
 
-    def summarize(self, opt: dict) -> dict:
-        days = int(opt.get('days', 0))
-        hours = int(opt.get('hours', 0))
+    @staticmethod
+    def _get_timestamps(args: Namespace, opt: dict) -> Tuple[int, int]:
+        date_format = (args.date_format if args.date_format else
+                       opt['date_format'] if opt.get('date_format') else
+                       DEFAULT_DATETIME_FORMAT)
+        ts_min = int(datetime.strptime((args.start if args.start else
+                                        opt['start'] if opt.get('start') else
+                                        datetime.fromtimestamp(0).strftime(date_format)
+                                        ),
+                                       date_format).timestamp())
+        ts_max = int(datetime.strptime((args.end if args.end else
+                                        opt['end'] if opt.get('end') else
+                                        datetime.now().strftime(date_format)
+                                        ),
+                                       date_format).timestamp())
+        return ts_min, ts_max
+
+    def summarize(self, args: Namespace, opt: dict) -> dict:
         opt_rev = opt.get('reverted', 'no').lower()
         if opt_rev not in {'both', 'yes', 'no'}:
             raise Exception(f'Invalid option for reverted: {opt.get("reverted")}')
         reverted = (True if opt_rev == 'yes' else
                     False if opt_rev == 'no' else
                     None)
+        ts_start, ts_end = self._get_timestamps(args, opt)
         summary: dict = {}
-        for block in self.get_blocks(days=days, hours=hours):
+        for block in get_blocks_by_timestamp(
+                self.dec_db, min_timestamp=ts_start, max_timestamp=ts_end):
             for tx0 in self.dec_db.load(block, None):
                 if reverted not in {None, tx0.get('x_receipt_status') != 1}:
                     continue
@@ -157,8 +163,8 @@ class TransactionCounter:
                     summary = util.safe_inc(summary, entry)
         return summary
 
-    def run(self, options: dict):
-        summary = self.summarize(options)
+    def run(self, args: Namespace, options: dict):
+        summary = self.summarize(args, options)
         print(json.dumps(summary, indent=2, sort_keys=True, ensure_ascii=False))
 
 
@@ -168,8 +174,8 @@ class Waixu(TransactionCounter):
     include_brokers: List[ChecksumAddress] = []
     exclude_brokers: List[ChecksumAddress] = []
 
-    def __init__(self, config_filepath: str, options: dict):
-        super().__init__(config_filepath, options)
+    def __init__(self, args: Namespace, options: dict):
+        super().__init__(args, options)
         if options.get('waixu_filter'):
             rules = options['waixu_filter']
             for key in ['include_catalogs', 'exclude_catalogs',
@@ -228,16 +234,19 @@ def parse_queries(queries: List[dict]) -> List[Tuple[Type[TransactionCounter], d
     return ret
 
 
-def main(args):
+def main(args: Namespace):
     with open(args.config, 'r') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
     for counter_class, options in parse_queries(queries):
-        counter = counter_class(args.config, options)
-        counter.run(options)
+        counter = counter_class(args, options)
+        counter.run(args, options)
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
     ('-c', '--config', dict(action='store', required=True)),
+    ('-d', '--date_format', dict(action='store', required=False)),
+    ('-s', '--start', dict(action='store', required=False)),
+    ('-e', '--end', dict(action='store', required=False)),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [
