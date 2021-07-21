@@ -117,6 +117,7 @@ class TransactionCounter:
         ret = []
         if btx.contract == '(Unknown)':
             if btx.method == '(deploy)':
+                assert btx.deployed
                 btx.contract = self.meta.get(btx.deployed).get('name', '(Unknown)')
             elif btx.addr_to:
                 btx.contract = self.meta.get(btx.addr_to).get('name') or (
