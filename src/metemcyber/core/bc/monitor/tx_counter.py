@@ -164,10 +164,6 @@ class TransactionCounter:
                     summary = util.safe_inc(summary, entry)
         return summary
 
-    def run(self, args: Namespace, options: dict):
-        summary = self.summarize(args, options)
-        print(json.dumps(summary, indent=2, sort_keys=True, ensure_ascii=False))
-
 
 class Waixu(TransactionCounter):
     include_catalogs: List[ChecksumAddress] = []
@@ -223,24 +219,25 @@ class Waixu(TransactionCounter):
         return ret
 
 
-def parse_queries(queries: List[dict]) -> List[Tuple[Type[TransactionCounter], dict]]:
-    ret = []
-    for query in queries:
-        counter_class = (Waixu if query['class'] == 'Waixu' else
-                         TransactionCounter if query['class'] == 'Simple' else
-                         None)
-        if not counter_class:
-            raise Exception(f'Invalid Counter classname: {query["class"]}')
-        ret.append((counter_class, query.get('options', {})))
-    return ret
+def str2counter(classname: str) -> Type[TransactionCounter]:
+    counter_class = (Waixu if classname == 'Waixu' else
+                     TransactionCounter if classname == 'Simple' else
+                     None)
+    if not counter_class:
+        raise Exception(f'Invalid counter classname: {classname}')
+    return counter_class
 
 
 def main(args: Namespace):
     with open(args.config, 'r') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
-    for counter_class, options in parse_queries(queries):
-        counter = counter_class(args, options)
-        counter.run(args, options)
+    result = []
+    for query in queries:
+        options = query.get('options', {})
+        counter = str2counter(query['class'])(args, options)
+        summary = counter.summarize(args, options)
+        result.append(summary)
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
