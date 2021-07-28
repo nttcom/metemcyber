@@ -220,8 +220,29 @@ class Waixu(TransactionCounter):
         return ret
 
 
+class DailyActivity(TransactionCounter):
+    base_ts: int
+
+    def __init__(self, args: Namespace, options: dict):
+        super().__init__(args, options)
+        self.base_ts, _ = self._get_timestamps(args, options)
+
+    def _ts2offset(self, timestamp: int) -> int:
+        assert self.base_ts is not None
+        return int((timestamp - self.base_ts) / (3600 * 24))
+
+    def tx_to_entry(self, tx0: dict) -> List[List[str]]:
+        if not tx0:
+            return []
+        btx = BasicTx(tx0)
+        if not self.generic_filter(btx):
+            return []
+        return [[str(self._ts2offset(tx0['x_timestamp']))]]
+
+
 def str2counter(classname: str) -> Type[TransactionCounter]:
     counter_class = (Waixu if classname == 'Waixu' else
+                     DailyActivity if classname == 'DailyActivity' else
                      TransactionCounter if classname == 'Simple' else
                      None)
     if not counter_class:
