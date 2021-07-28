@@ -38,7 +38,7 @@ def get_blocks_by_timestamp(
         raise Exception('Wrong type of database. (should be a decoded database)')
     return [block for block, timestamp in tdb.get('timestamps').items()
             if (min_timestamp <= 0 or timestamp >= min_timestamp) and
-               (max_timestamp <= 0 or timestamp <= max_timestamp)
+               (max_timestamp <= 0 or timestamp < max_timestamp)
             ]
 
 
