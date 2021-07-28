@@ -19,6 +19,7 @@ import os
 from argparse import Namespace
 from typing import List
 
+import uvicorn
 from fastapi import FastAPI
 
 from metemcyber.core.bc.monitor.tx_counter import ARGUMENTS, OPTIONS, str2counter
@@ -42,7 +43,7 @@ COUNTER_ARGS = _setup_counter_args()
 app = FastAPI()
 
 
-@app.post('/')
+@app.post('/tx_counter')
 async def post_receiver(queries: List[dict]) -> List[dict]:
     result = []
     for query in queries:
@@ -50,3 +51,7 @@ async def post_receiver(queries: List[dict]) -> List[dict]:
         counter = str2counter(query['class'])(COUNTER_ARGS, options)
         result.append(counter.summarize(COUNTER_ARGS, options))
     return result
+
+
+if __name__ == '__main__':
+    uvicorn.run(app, port=38000, host='0.0.0.0')
