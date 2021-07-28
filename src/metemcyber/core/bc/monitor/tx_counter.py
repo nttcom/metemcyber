@@ -21,6 +21,7 @@ from argparse import Namespace
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Type, Union
 
+import requests
 from eth_typing import ChecksumAddress
 
 import metemcyber.core.bc.monitor.tx_util as util
@@ -228,15 +229,31 @@ def str2counter(classname: str) -> Type[TransactionCounter]:
     return counter_class
 
 
+def _fix_options(args: Namespace, queries: List[dict]) -> List[dict]:
+    for query in queries:
+        if not query.get('options'):
+            query['options'] = {}
+        for key in {'start', 'end', 'date_format'}:
+            if getattr(args, key, None):
+                query['options'][key] = getattr(args, key)
+    return queries
+
+
 def main(args: Namespace):
     with open(args.config, 'r') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
-    result = []
-    for query in queries:
-        options = query.get('options', {})
-        counter = str2counter(query['class'])(args, options)
-        summary = counter.summarize(args, options)
-        result.append(summary)
+    if args.remote:
+        result = requests.post(
+            args.remote,
+            data=json.dumps(_fix_options(args, queries), ensure_ascii=False).encode()
+        ).json()
+    else:
+        result = []
+        for query in queries:
+            options = query.get('options', {})
+            counter = str2counter(query['class'])(args, options)
+            summary = counter.summarize(args, options)
+            result.append(summary)
     print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
 
 
@@ -245,6 +262,7 @@ OPTIONS: List[Tuple[str, str, dict]] = [
     ('-d', '--date_format', dict(action='store', required=False)),
     ('-s', '--start', dict(action='store', required=False)),
     ('-e', '--end', dict(action='store', required=False)),
+    ('-r', '--remote', dict(action='store', required=False, help='query service url')),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [
