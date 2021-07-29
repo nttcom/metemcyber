@@ -20,7 +20,7 @@ from argparse import Namespace
 from typing import List
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from metemcyber.core.bc.monitor.tx_counter import ARGUMENTS, OPTIONS, str2counter
 
@@ -47,9 +47,15 @@ app = FastAPI()
 async def post_receiver(queries: List[dict]) -> List[dict]:
     result = []
     for query in queries:
-        options = query.get('options', {})
-        counter = str2counter(query['class'])(COUNTER_ARGS, options)
-        result.append(counter.summarize(COUNTER_ARGS, options))
+        try:
+            if not query.get('class'):
+                raise Exception('Missing parameter: class')
+            counter_class = str2counter(query['class'])
+            options = query.get('options', {})
+            counter = counter_class(COUNTER_ARGS, options)
+            result.append(counter.summarize(COUNTER_ARGS, options))
+        except Exception as err:
+            raise HTTPException(status_code=400, detail=str(err)) from err
     return result
 
 
