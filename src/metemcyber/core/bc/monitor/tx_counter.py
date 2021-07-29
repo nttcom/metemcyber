@@ -239,6 +239,12 @@ class DailyActivity(TransactionCounter):
             return []
         return [[str(self._ts2offset(tx0['x_timestamp']))]]
 
+    def summarize(self, args: Namespace, opt: dict) -> dict:
+        result = super().summarize(args, opt)
+        return {'activities': [
+            {'days-offset': int(key), 'count': value} for key, value in result.items()
+        ]}
+
 
 def str2counter(classname: str) -> Type[TransactionCounter]:
     counter_class = (Waixu if classname == 'Waixu' else
