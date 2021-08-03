@@ -25,8 +25,6 @@ const fixPath = require('fix-path');
 
 let proc = null;
 
-let keyFilePath = '';
-
 const nodePtyConfig = {
   cols: 1500,
   rows: 1500,
@@ -45,6 +43,9 @@ async function createWindow() {
     console.log("close");
     process.env.METEMCTL_KEYFILE_PASSWORD = null;
   });
+
+  // change EDITOR in environment variable to 'vi'
+  process.env.EDITOR = 'vi';
 
   // and load the index.html of the app.
   mainWindow.loadURL(
@@ -86,7 +87,7 @@ app.on('window-all-closed', function () {
 
 
 ipcMain.on('logout', async (event, arg) => {
-  execLogout();
+  process.env.METEMCTL_KEYFILE_PASSWORD = null;
   event.returnValue = "logout";
 });
 
@@ -353,30 +354,7 @@ ipcMain.on('cancel', async (event, arg) => {
 });
 
 ipcMain.on('get-key', async (event, arg) => {
-  // get key path
-  const keyProc = getProc(["config", "show"]);
-
-  let outputStr = "";
-  keyProc.on('data', (data) => {
-    data.split("\r\n").map((val) => {
-      event.reply('send-log', val);
-      outputStr += val;
-    })
-  });
-  await onEnd(keyProc);
-  let outputs = outputStr.split(" ").filter(val => val !== '');
-
-  //search text 'keyfile'
-  for (let i = 0; i < outputs.length; i++) {
-    if (outputs[i].indexOf('keyfile') > -1) {
-      outputs.splice(0, i + 2);
-      break;
-    }
-  }
-  for (let i = 0; i < outputs.indexOf('='); i++) {
-    keyFilePath += `${outputs[i]}\\ `;
-  }
-  keyFilePath = keyFilePath.slice(0, -11);
+  const keyFilePath = await getKeyFilePath(event);
   event.returnValue = keyFilePath.slice(keyFilePath.lastIndexOf('/') + 1);
 });
 
@@ -391,17 +369,27 @@ ipcMain.on('get-image-dir', async (event, arg) => {
 });
 
 ipcMain.on('set-key', async (event, arg) => {
-  const fileNames = fs.readdirSync(keyFilePath);
-  event.reply('send-log', fileNames);
-  for (let file in fileNames) {
-    fs.unlinkSync(path.join(keyFilePath, fileNames[file]));
-  }
-  event.reply('send-log', path.join(__dirname, `../../../metemcyber_contents/keyfile/${arg.name}`));
+  //get key file name
+  const keyFilePath = await getKeyFilePath(event);
+
+  const lastSlashIndex = keyFilePath.lastIndexOf('/') + 1;
+
+  const keyFileName = keyFilePath.slice(lastSlashIndex);
+  const keyFileDir = keyFilePath.slice(0, lastSlashIndex);
+
+  // change key file name in config
+  proc = getProc(["config", "edit"]);
+  proc.write(`:%s/${keyFileName}/${arg.name}/` + '\n');
+  proc.write(':wq' + '\n');
+  await onEnd(proc);
+
+  // add key file
   try {
-    fs.copyFileSync(arg.path, isDev ? `../keyfile/${arg.name}` : path.join(__dirname, `../../../metemcyber_contents/keyfile/${arg.name}`));
+    fs.copyFileSync(arg.path, `${keyFileDir}${arg.name}`);
   } catch (e) {
     event.reply('send-log', e)
   }
+
   event.returnValue = "success";
 });
 
@@ -434,10 +422,33 @@ ipcMain.on('open-download-dir', async (event, arg) => {
   event.returnValue = "success";
 });
 
+async function getKeyFilePath(event) {
+  // get key path
+  const keyProc = getProc(["config", "show"]);
 
-function execLogout() {
-  // Making
-};
+  let outputStr = "";
+  keyProc.on('data', (data) => {
+    data.split("\r\n").map((val) => {
+      event.reply('send-log', val);
+      outputStr += val;
+    })
+  });
+  await onEnd(keyProc);
+  let outputs = outputStr.split(" ").filter(val => val !== '');
+
+  //search text 'keyfile'
+  for (let i = 0; i < outputs.length; i++) {
+    if (outputs[i].indexOf('keyfile') > -1) {
+      outputs.splice(0, i + 2);
+      break;
+    }
+  }
+  let keyFilePath = '';
+  for (let i = 0; i < outputs.indexOf('='); i++) {
+    keyFilePath += `${outputs[i]}\ `;
+  }
+  return keyFilePath.slice(0, -10);
+}
 
 function getProc(commands) {
   console.log(commands)

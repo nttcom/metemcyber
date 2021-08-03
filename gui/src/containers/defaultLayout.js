@@ -92,6 +92,7 @@ function DefaultLayout(props) {
     };
 
     const handleLogout = () => {
+        clearInterval(intervalId);
         ipcRenderer.sendSync('logout');
         props.history.push('/');
     }
