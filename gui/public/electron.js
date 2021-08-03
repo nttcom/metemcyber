@@ -84,7 +84,7 @@ app.on('window-all-closed', function () {
 
 
 ipcMain.on('logout', async (event, arg) => {
-  execLogout();
+  process.env.METEMCTL_KEYFILE_PASSWORD = null;
   event.returnValue = "logout";
 });
 
@@ -446,11 +446,6 @@ async function getKeyFilePath(event) {
   }
   return keyFilePath.slice(0, -10);
 }
-
-
-function execLogout() {
-  // Making
-};
 
 function getProc(commands) {
   console.log(commands)
