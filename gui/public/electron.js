@@ -44,6 +44,9 @@ async function createWindow() {
     process.env.METEMCTL_KEYFILE_PASSWORD = null;
   });
 
+  // change EDITOR in environment variable to 'vi'
+  process.env.EDITOR = 'vi';
+
   // and load the index.html of the app.
   mainWindow.loadURL(
     isDev
