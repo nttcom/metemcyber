@@ -22,8 +22,7 @@ from typing import ClassVar, List, Tuple, Type
 
 import requests
 
-from metemcyber.core.bc.monitor.tx_counter import TransactionCounter
-from metemcyber.core.bc.monitor.tx_counter import parse_queries as parse_counter_queries
+from metemcyber.core.bc.monitor.tx_counter import str2counter
 
 
 class SectionGenerator:
@@ -176,27 +175,37 @@ class SlackNotifier:
         print(response.text)
 
 
-def parse_queries(queries: List[dict]) -> List[
-        Tuple[Type[SectionGenerator], Type[TransactionCounter], dict]]:
-    ret = []
-    for idx, cquery in enumerate(parse_counter_queries(queries)):
-        generator_class = (Waixu if queries[idx]['class'] == 'Waixu' else
-                           SectionGenerator if queries[idx]['class'] == 'Simple' else
-                           None)
-        if not generator_class:
-            raise Exception(f'Invalid Generator classname: {queries[idx]["class"]}')
-        ret.append((generator_class, cquery[0], cquery[1]))
-    return ret
+def str2generator(classname: str) -> Type[SectionGenerator]:
+    generator_class = (Waixu if classname == 'Waixu' else
+                       SectionGenerator if classname == 'Simple' else
+                       None)
+    if not generator_class:
+        raise Exception(f'Invalid Generator classname: {classname}')
+    return generator_class
+
+
+def _gen_options(args: Namespace, options: dict) -> dict:
+    for key in {'start', 'end', 'date_format'}:
+        if getattr(args, key, None):
+            options[key] = getattr(args, key)
+    return options
 
 
 def main(args: Namespace):
     notifier = SlackNotifier(args.config, testmode=args.testmode)
     with open(args.config, 'r') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
-    for gclass, cclass, options in parse_queries(queries):
-        generator = gclass()
-        counter = cclass(args, options)
-        summary = counter.summarize(args, options)
+    for query in queries:
+        generator = str2generator(query['class'])()
+        options = _gen_options(args, query.get('options', {}))
+        if args.remote:
+            summary = requests.post(
+                args.remote,
+                data=json.dumps([query], ensure_ascii=False).encode()
+            ).json()[0]
+        else:
+            counter = str2counter(query['class'])(args, options)
+            summary = counter.summarize(args, options)
         notifier.add_sections(generator.summary_to_sections(summary, args, options))
     notifier.send_query()
 
@@ -207,6 +216,7 @@ OPTIONS: List[Tuple[str, str, dict]] = [
     ('-d', '--date_format', dict(action='store', required=False)),
     ('-s', '--start', dict(action='store', required=False)),
     ('-e', '--end', dict(action='store', required=False)),
+    ('-r', '--remote', dict(action='store', required=False, help='query service url')),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [

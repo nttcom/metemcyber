@@ -21,6 +21,7 @@ from argparse import Namespace
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Type, Union
 
+import requests
 from eth_typing import ChecksumAddress
 
 import metemcyber.core.bc.monitor.tx_util as util
@@ -164,10 +165,6 @@ class TransactionCounter:
                     summary = util.safe_inc(summary, entry)
         return summary
 
-    def run(self, args: Namespace, options: dict):
-        summary = self.summarize(args, options)
-        print(json.dumps(summary, indent=2, sort_keys=True, ensure_ascii=False))
-
 
 class Waixu(TransactionCounter):
     include_catalogs: List[ChecksumAddress] = []
@@ -223,24 +220,68 @@ class Waixu(TransactionCounter):
         return ret
 
 
-def parse_queries(queries: List[dict]) -> List[Tuple[Type[TransactionCounter], dict]]:
-    ret = []
+class DailyActivity(TransactionCounter):
+    base_ts: int
+
+    def __init__(self, args: Namespace, options: dict):
+        super().__init__(args, options)
+        self.base_ts, _ = self._get_timestamps(args, options)
+
+    def _ts2offset(self, timestamp: int) -> int:
+        assert self.base_ts is not None
+        return int((timestamp - self.base_ts) / (3600 * 24))
+
+    def tx_to_entry(self, tx0: dict) -> List[List[str]]:
+        if not tx0:
+            return []
+        btx = BasicTx(tx0)
+        if not self.generic_filter(btx):
+            return []
+        return [[str(self._ts2offset(tx0['x_timestamp']))]]
+
+    def summarize(self, args: Namespace, opt: dict) -> dict:
+        result = super().summarize(args, opt)
+        return {'activities': [
+            {'days-offset': int(key), 'count': value} for key, value in result.items()
+        ]}
+
+
+def str2counter(classname: str) -> Type[TransactionCounter]:
+    counter_class = (Waixu if classname == 'Waixu' else
+                     DailyActivity if classname == 'DailyActivity' else
+                     TransactionCounter if classname == 'Simple' else
+                     None)
+    if not counter_class:
+        raise Exception(f'Invalid counter classname: {classname}')
+    return counter_class
+
+
+def _fix_options(args: Namespace, queries: List[dict]) -> List[dict]:
     for query in queries:
-        counter_class = (Waixu if query['class'] == 'Waixu' else
-                         TransactionCounter if query['class'] == 'Simple' else
-                         None)
-        if not counter_class:
-            raise Exception(f'Invalid Counter classname: {query["class"]}')
-        ret.append((counter_class, query.get('options', {})))
-    return ret
+        if not query.get('options'):
+            query['options'] = {}
+        for key in {'start', 'end', 'date_format'}:
+            if getattr(args, key, None):
+                query['options'][key] = getattr(args, key)
+    return queries
 
 
 def main(args: Namespace):
     with open(args.config, 'r') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
-    for counter_class, options in parse_queries(queries):
-        counter = counter_class(args, options)
-        counter.run(args, options)
+    if args.remote:
+        result = requests.post(
+            args.remote,
+            data=json.dumps(_fix_options(args, queries), ensure_ascii=False).encode()
+        ).json()
+    else:
+        result = []
+        for query in queries:
+            options = query.get('options', {})
+            counter = str2counter(query['class'])(args, options)
+            summary = counter.summarize(args, options)
+            result.append(summary)
+    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
@@ -248,6 +289,7 @@ OPTIONS: List[Tuple[str, str, dict]] = [
     ('-d', '--date_format', dict(action='store', required=False)),
     ('-s', '--start', dict(action='store', required=False)),
     ('-e', '--end', dict(action='store', required=False)),
+    ('-r', '--remote', dict(action='store', required=False, help='query service url')),
 ]
 
 ARGUMENTS: List[Tuple[str, dict]] = [

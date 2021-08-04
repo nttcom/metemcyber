@@ -79,7 +79,7 @@ class TransactionDB:
         return sorted([int(key) for key in list(shelf.keys())
                        if key.isdecimal() and
                           (minimum is None or int(key) >= minimum) and
-                          (maximum is None or int(key) <= maximum)])
+                          (maximum is None or int(key) < maximum)])
 
     def get(self, *args, **kwargs):
         return self._shelf_wrapper(True, self._get, *args, **kwargs)
