@@ -198,6 +198,7 @@ class Contract():
         return Contract.__minimal_interface['abi']
 
     @classmethod
+    # pylint: disable=unused-private-member
     def __load(cls, version: int):
         if not cls.contract_id:
             raise Exception('contract_id is not defined: {}'.format(cls))
@@ -232,6 +233,7 @@ class Contract():
         cls.contract_interface[version] = contract_interface
 
     @classmethod
+    # pylint: disable=unused-private-member
     def __deploy(cls, account: Account, *args, **kwargs):
         # コントラクトのチェーンへのデプロイ
         latest = cls.latest_version()

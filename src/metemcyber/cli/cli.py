@@ -1181,6 +1181,7 @@ def _solver_start(ctx, enable):
     config = _load_config(ctx)
     endpoint_url = config['general']['endpoint_url']
     solv_cli_py = os.path.dirname(__file__) + '/../core/multi_solver_cli.py'
+    # pylint: disable=consider-using-with
     subprocess.Popen(
         ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server', '-w', APP_DIR],
         shell=False)

@@ -81,6 +81,7 @@ class Catalog():
     def uncache(self, entire: bool = False) -> None:
         if entire:
             del Catalog.__addressed_catalogs
+            # pylint: disable=unused-private-member
             Catalog.__addressed_catalogs = {}
         else:
             assert self.address
