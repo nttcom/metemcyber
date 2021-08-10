@@ -1834,8 +1834,8 @@ def _pymisp_client(ctx: typer.Context):
     return pymisp.PyMISP(url, api_key, _ssl_settings(ssl_cert))
 
 
-@misp_app.command("fetch", help="Export events from your MISP instance.")
-def misp_fetch(
+@misp_app.command("pull", help="Export events from your MISP instance.")
+def misp_pull(
     ctx: typer.Context,
     limit: int = typer.Option(
         1000,
@@ -1856,7 +1856,7 @@ def misp_fetch(
         str((datetime.now() - timedelta(days=60)).timestamp()),
         help='Restrict the results by the timestamp. (Default is 30 days before)'),
     tags: Optional[List[str]] = typer.Option(
-        None,
+        ['tlp:white', 'tlp:green'],
         help='Tags to search or to exclude. You can pass a list.'),
     threatlevel: Optional[List[str]] = typer.Option(
         None,
