@@ -1855,7 +1855,7 @@ def misp_pull(
         str((datetime.now() - timedelta(days=60)).timestamp()),
         help='Restrict the results by the timestamp. (Default is 30 days before)'),
     tags: Optional[List[str]] = typer.Option(
-        None,
+        ['tlp:white', 'tlp:green'],
         help='Tags to search or to exclude. You can pass a list.'),
     threatlevel: Optional[List[str]] = typer.Option(
         None,
