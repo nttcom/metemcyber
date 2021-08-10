@@ -1833,7 +1833,7 @@ def _pymisp_client(ctx: typer.Context):
     return pymisp.PyMISP(url, api_key, _ssl_settings(ssl_cert))
 
 
-@misp_app.command("fetch", help="Export events from your MISP instance.")
+@misp_app.command("pull", help="Export events from your MISP instance.")
 def misp_pull(
     ctx: typer.Context,
     limit: int = typer.Option(
