@@ -1834,7 +1834,7 @@ def _pymisp_client(ctx: typer.Context):
 
 
 @misp_app.command("fetch", help="Export events from your MISP instance.")
-def misp_fetch(
+def misp_pull(
     ctx: typer.Context,
     limit: int = typer.Option(
         1000,
