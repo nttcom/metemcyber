@@ -115,6 +115,7 @@ DEFAULT_CONFIGS = {
         'api_key': 'YOUR_MISP_API_KEY',
         'ssl_cert': '2',
         'download': str(Path(APP_DIR) / 'misp' / 'download'),
+        'upload': str(Path(APP_DIR) / 'misp' / 'upload'),
         'gcp_cloud_iap_cred': '',
         'gcp_client_id': '',
     }
@@ -1910,6 +1911,15 @@ def misp_event(ctx: typer.Context):
         output_line.append(f'{event.date} - {event.uuid}: {event.info}')
 
     typer.echo_via_pager('\n'.join(output_line))
+
+@misp_app.command("push", help="Upload events to your MISP instance.")
+def misp_push(ctx: typer.Context):
+    json_dumpdir = Path(_load_config(ctx)['misp']['upload'])
+    files = json_dumpdir.glob('*.json')
+    for file in files:
+        event = _load_misp_event(file)
+        result = _pymisp_client(ctx).add_event(event, pythonify=True)
+        typer.echo(f'uploaded: {result.uuid} - {result.info}')
 
 
 def setup_kedro(cwd):
