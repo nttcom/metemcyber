@@ -30,7 +30,8 @@ function Login(props) {
     const [loading, setLoading] = useState(false);
     const [currentKeyName, setCurrentKeyName] = useState('');
     const [selectedKey, setSelectedKey] = useState({});
-    const [modalToggle, setModalToggle] = useState(false);
+    const [keyModalToggle, setKeyModalToggle] = useState(false);
+    const [errorModalToggle, setErrorModalToggle] = useState(false);
     const [setup, setSetup] = useState(true);
 
     const handleChange = (e) => {
@@ -41,20 +42,28 @@ function Login(props) {
         setLoading(true);
         ipcRenderer.once('login', (event, arg) => {
             console.log(arg)
-            props.history.push('/contents');
+            if (arg) {
+                props.history.push('/contents');
+            }
+            setErrorModalToggle(true);
+            setLoading(false);
         });
         ipcRenderer.send('login', pass);
     }
 
-    const toggle = (e) => {
+    const toggleKeyModal = (e) => {
         setSelectedKey({});
-        setModalToggle(!modalToggle);
+        setKeyModalToggle(!keyModalToggle);
+    }
+
+    const toggleErrorModal = (e) => {
+        setErrorModalToggle(!errorModalToggle);
     }
 
     const handleOk = (e) => {
         ipcRenderer.sendSync('set-key', { name: selectedKey.name, path: selectedKey.path });
         setCurrentKeyName(selectedKey.name);
-        setModalToggle(false);
+        setKeyModalToggle(false);
     }
 
     useEffect(() => {
@@ -89,7 +98,7 @@ function Login(props) {
                 :
                 <>
                     <Header className="clearfix">
-                        <Button className="float-right" onClick={toggle} size="sm">Import Key File</Button>
+                        <Button className="float-right" onClick={toggleKeyModal} size="sm">Import Key File</Button>
                     </Header>
                     <Container>
                         <LoginRow className="justify-content-center">
@@ -122,8 +131,8 @@ function Login(props) {
                     </Container>
                 </>
             }
-            <KeyModal isOpen={modalToggle} toggle={toggle} >
-                <ModalHeader toggle={toggle}>Import Key File</ModalHeader>
+            <KeyModal isOpen={keyModalToggle} toggle={toggleKeyModal} >
+                <ModalHeader toggle={toggleKeyModal}>Import Key File</ModalHeader>
                 <ModalBody>
                     <DropArea {...getRootProps({ className: 'dropzone' })}>
                         <input {...getInputProps()} />
@@ -137,9 +146,19 @@ function Login(props) {
                 </ModalBody>
                 <ModalFooter>
                     <Button color="primary" onClick={handleOk}>OK</Button>{' '}
-                    <Button color="secondary" onClick={toggle}>Cancel</Button>
+                    <Button color="secondary" onClick={toggleKeyModal}>Cancel</Button>
                 </ModalFooter>
             </KeyModal>
+            <Modal isOpen={errorModalToggle} toggle={toggleErrorModal} >
+                <ModalHeader >Error</ModalHeader>
+                <ModalBody>
+                    Password is incorrect.
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="primary" onClick={toggleErrorModal}>OK</Button>{' '}
+                </ModalFooter>
+            </Modal>
+
         </div>
     );
 }

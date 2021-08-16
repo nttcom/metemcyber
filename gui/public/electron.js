@@ -85,13 +85,17 @@ ipcMain.on('logout', async (event, arg) => {
 ipcMain.on('login', async (event, arg) => {
   process.env.METEMCTL_KEYFILE_PASSWORD = arg;
   const proc = getProc(["account", "show",]);
+  let status = true;
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
+      if (val === 'failed operation: MAC mismatch') {
+        status = false;
+      }
       event.reply('send-log', val);
     })
   });
   await onEnd(proc);
-  event.reply('login', 'success');
+  event.reply('login', status);
 });
 
 ipcMain.on('seeker', async (event, arg) => {
