@@ -46,6 +46,8 @@ from web3 import Web3
 
 from metemcyber import __version__
 from metemcyber.cli.constants import APP_DIR
+from metemcyber.core.asset_manager import DEFAULT_CONFIGS as DC_ASSETMGR
+from metemcyber.core.asset_manager import AssetManagerController
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
 from metemcyber.core.bc.catalog import Catalog, TokenInfo
@@ -106,6 +108,7 @@ DEFAULT_CONFIGS = {
     'solver': {
         'plugin': 'gcs_solver.py',
     },
+    'asset_manager': DC_ASSETMGR['asset_manager'],
     'seeker': DC_SEEKER['seeker'],
     'ngrok': DC_NGROK['ngrok'],
     'standalone_solver': DC_SOLV_ALN['standalone_solver'],
@@ -155,6 +158,8 @@ seeker_app = typer.Typer()
 app.add_typer(seeker_app, name='seeker', help='Manage the CTI seeker subprocess.')
 solver_app = typer.Typer()
 app.add_typer(solver_app, name='solver', help='Manage the CTI solver subprocess.')
+assetmgr_app = typer.Typer()
+app.add_typer(assetmgr_app, name='asset_manager', help='Manage the Asset Manager subprocess.')
 
 config_app = typer.Typer()
 app.add_typer(config_app, name='config', help="Manage your config file of metemctl")
@@ -1308,6 +1313,60 @@ def _solver_obsolete(ctx, token):
     typer.echo(f'obsoleted challenge for token({flx.address}) by solver.')
 
 
+@assetmgr_app.command('start',
+                      help='Start Asset Manager service.')
+def assetmgr_start(ctx: typer.Context):
+    common_logging(_assetmgr_start)(ctx)
+
+
+def _assetmgr_start(ctx):
+    ctrl = AssetManagerController()
+    if ctrl.pid > 0:
+        raise Exception('Asset Manager already running.')
+    config = _load_config(ctx)
+    listen_address = config['asset_manager']['listen_address']
+    listen_port = int(config['asset_manager']['listen_port'])
+    endpoint_url = config['general']['endpoint_url']
+    solver = _load_solver_account(ctx)
+    operator = _load_operator(ctx)
+    assets_rootpath = _address_to_solver_assets_path(ctx, '')
+    ctrl.start(listen_address,
+               listen_port,
+               endpoint_url,
+               solver,
+               operator.address,
+               str(assets_rootpath))
+    typer.echo('Asset Manager started as a subprocess.')
+
+
+@assetmgr_app.command('stop',
+                      help='Stop Asset Manager service.')
+def assetmgr_stop(ctx: typer.Context):
+    common_logging(_assetmgr_stop)(ctx)
+
+
+def _assetmgr_stop(_ctx):
+    ctrl = AssetManagerController()
+    if ctrl.pid == 0:
+        raise Exception('Asset Manager not running')
+    ctrl.stop()
+    typer.echo('Asset Manager stopped.')
+
+
+@assetmgr_app.command('status',
+                      help='Show Asset Manager status.')
+def assetmgr_status(ctx: typer.Context):
+    common_logging(_assetmgr_status)(ctx)
+
+
+def _assetmgr_status(_ctx):
+    ctrl = AssetManagerController()
+    if ctrl.pid == 0:
+        typer.echo('not running.')
+        return
+    typer.echo(f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.')
+
+
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
 def ix_use(ctx: typer.Context, token: str,
            seeker: str = typer.Option(
@@ -1911,6 +1970,7 @@ def misp_event(ctx: typer.Context):
         output_line.append(f'{event.date} - {event.uuid}: {event.info}')
 
     typer.echo_via_pager('\n'.join(output_line))
+
 
 @misp_app.command("push", help="Upload events to your MISP instance.")
 def misp_push(ctx: typer.Context):

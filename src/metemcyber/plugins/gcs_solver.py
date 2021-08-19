@@ -23,7 +23,6 @@ import requests
 from eth_typing import ChecksumAddress
 from web3 import Web3
 
-from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import BaseSolver
@@ -34,12 +33,10 @@ LOGGER = get_logger(name='gcs_solver', file_prefix='core')
 CONFIG_SECTION = 'gcs_solver'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
-        'assets_path': f'{APP_DIR}/workspace/upload',
         'functions_url': 'https://exchange.metemcyber.ntt.com',
         'functions_token': 'YOUR_TOKEN_TO_UPLOAD_GCS',
     }
 }
-# Note: assets_path should be same with "{general.workspace}/upload".
 
 
 class Solver(BaseSolver):
@@ -95,8 +92,8 @@ class Solver(BaseSolver):
             LOGGER.info('finished task %s', task_id)
 
     def upload_to_storage(self, cti_address):
-        file_path = os.path.abspath('{}/{}'.format(
-            self.config.get(CONFIG_SECTION, 'assets_path'), cti_address))
+        file_path = os.path.abspath(
+            f"{self.config['general']['workspace']}/upload/{cti_address}")
         url = self.uploader.upload_file(file_path)
         return url
 
