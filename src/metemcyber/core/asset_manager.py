@@ -14,12 +14,14 @@
 #    limitations under the License.
 #
 
+import json
 import os
 import sys
 from datetime import datetime
 from signal import SIGINT
 from time import sleep
-from typing import List, Tuple
+from typing import List, Tuple, Union
+from urllib.request import Request, urlopen
 
 import uvicorn
 from eth_typing import ChecksumAddress
@@ -32,18 +34,23 @@ from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.cti_token import CTIToken
 from metemcyber.core.bc.ether import Ether
-from metemcyber.core.bc.util import sign_message, verify_message
+from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 
 #CTX: typer.Context = typer.Context(Command('_fake_command_'))
 PIDFILEPATH = f'{APP_DIR}/assetmgr.pid'
 VALID_TIMESTAMP_RANGE = 12 * 3600  # 12 hours in sec
-LOGGER = get_logger(name='asset_mgr', file_prefix='core')
+SERVERLOG = get_logger(name='asset_mgr', file_prefix='core')
+CLIENTLOG = get_logger(name='asset_client', file_prefix='core')
+
+URLPATH_INFO = 'info'
+URLPATH_MISP = 'misp_object'
 
 CONFIG_SECTION = 'asset_manager'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
+        'scheme': 'http',
         'listen_address': '0.0.0.0',
         'listen_port': '48000',
     }
@@ -53,7 +60,7 @@ DEFAULT_CONFIGS = {
 class SignedRequest(BaseModel):
     timestamp: int
     data: str
-    signature: str  # should be sign_message(str(timestamp) + data, private_key)
+    signature: str
 
     @property
     def string_to_sign(self) -> str:
@@ -63,15 +70,15 @@ class SignedRequest(BaseModel):
     def signer(self) -> ChecksumAddress:
         return verify_message(self.string_to_sign, self.signature)
 
-    def gen_signature(self, private_key) -> str:
-        return sign_message(self.string_to_sign, private_key)
+    def sign(self, account: Account):
+        self.signature = account.sign_message(self.string_to_sign)
 
 
 class RequestWithTokenAddress(SignedRequest):
     token_address: ChecksumAddress
 
 
-class PutMispRequest(RequestWithTokenAddress):
+class PostMispRequest(RequestWithTokenAddress):
     auto_support: bool = False
 
 
@@ -107,9 +114,9 @@ class AssetManager:
             raise Exception(f'Solver must be running and enabled: {err}') from err
 
         self.app = FastAPI()
-        self.app.get('/info')(self._get_info)
-        self.app.put('/misp_object')(self._put_asset)
-        self.app.delete('/misp_object')(self._delete_asset)
+        self.app.get(f'/{URLPATH_INFO}')(self._get_info)
+        self.app.post(f'/{URLPATH_MISP}')(self._post_asset)
+        self.app.delete(f'/{URLPATH_MISP}')(self._delete_asset)
 
     def _get_solver(self) -> MCSClient:  # CAUTION: do not cache client.
         solver = MCSClient(self.solver_account, APP_DIR)
@@ -134,6 +141,7 @@ class AssetManager:
             self._get_solver()
             solver_status = 'running'
         except Exception as err:
+            SERVERLOG.error(err)
             solver_status = str(err)
         return {
             'solver_address': self.solver_account.eoa,
@@ -142,7 +150,6 @@ class AssetManager:
         }
 
     def _check_signed_request(self, request: RequestWithTokenAddress):
-        print(request)
         ts_now = int(datetime.now().timestamp())
         ts_diff = abs(ts_now - request.timestamp)
         if ts_diff > VALID_TIMESTAMP_RANGE:
@@ -151,18 +158,17 @@ class AssetManager:
                                 'the request time and the current time is too large')
         try:
             signer = request.signer
-            print(f'Signer: {signer}')
+            SERVERLOG.DEBUG(f'signer: {signer}')
         except Exception as err:
             raise HTTPException(400, f'Wrong Signature: {err}') from err
         try:
             cti_token = CTIToken(self.anonymous).get(request.token_address)
-            print(f'Token owner: {cti_token.publisher}')
         except Exception as err:
             raise HTTPException(400, f'Invalid token address: {err}') from err
         if signer != cti_token.publisher:
-            raise HTTPException(400, 'Not a token publisher')
+            raise HTTPException(403, 'Not a token publisher')
         if not cti_token.is_operator(self.solver_account.eoa, signer):
-            raise HTTPException(400, 'Solver is not authorized')
+            raise HTTPException(401, 'Solver is not authorized')
         # TODO
         # apply whitelist and/or blacklist for access control
 
@@ -170,20 +176,27 @@ class AssetManager:
         assert Web3.isChecksumAddress(token_address)
         return f'{self.assets_rootpath}/{token_address}'
 
-    async def _put_asset(self, request: PutMispRequest) -> dict:
-        self._check_signed_request(request)
+    async def _post_asset(self, request: PostMispRequest) -> dict:
         try:
+            self._check_signed_request(request)
             filepath = self._asset_filepath(request.token_address)
             if os.path.exists(filepath):
                 os.unlink(filepath)  # for the case target already exists as a symlink.
             with open(filepath, 'w') as fout:
                 fout.write(request.data)
+        except HTTPException as err:
+            SERVERLOG.exception(err)
+            raise
         except Exception as err:
+            SERVERLOG.exception(err)
             raise HTTPException(500, f'{err.__class__.__name__}: {err}') from err
+        SERVERLOG.info(f'saved asset file for token: {request.token_address}.')
         if request.auto_support:
             try:
                 self._get_solver().solver('accept_challenges', [request.token_address])
+                SERVERLOG.info(f'let solver accept token: {request.token_address}.')
             except Exception as err:
+                SERVERLOG.exception(err)
                 return {
                     'result': f'uploading file succeeded, but solver control failed: {err}'}
         return {'result': 'ok'}
@@ -194,11 +207,15 @@ class AssetManager:
         try:
             if os.path.exists(filepath):
                 os.unlink(filepath)
+                SERVERLOG.info(f'removed asset file for token: {request.token_address}.')
         except Exception as err:
+            SERVERLOG.exception(err)
             raise HTTPException(500, f'{err.__class__.__name__}: str(err)') from err
         try:
             self._get_solver().solver('refuse_challenges', [request.token_address])
+            SERVERLOG.info(f'let solver refuse token: {request.token_address}.')
         except Exception as err:
+            SERVERLOG.exception(err)
             return {
                 'result': f'removing file succeeded, but solver control failed: {err}'}
         return {'result': 'ok'}
@@ -278,3 +295,58 @@ class AssetManagerController:
             self.pid = 0
         except Exception as err:
             raise Exception(f'Cannot stop AssetManager(pid={self.pid})') from err
+
+
+class AssetManagerClient:
+    base_url: str
+
+    def __init__(self, scheme: str, address: str, port: Union[int, str]):
+        self.base_url = f'{scheme}://{address}:{port}'
+
+    def get_info(self) -> dict:
+        url = f'{self.base_url}/{URLPATH_INFO}'
+        request = Request(url, method='GET')
+        with urlopen(request) as response:
+            rdata = response.read()
+            if isinstance(rdata, bytes):
+                rdata = rdata.decode()
+        jdata = json.loads(rdata)
+        keys = set({
+            'solver_address',
+            'operator_address',
+            'solver_status',
+        })
+        assert set(jdata.keys()).intersection(keys) == keys
+        return jdata
+
+    def post_asset(self, account: Account, token_address: ChecksumAddress, filepath: str,
+                   auto_support: bool = False):
+        url = f'{self.base_url}/{URLPATH_MISP}'
+        request_data = PostMispRequest(timestamp=int(datetime.now().timestamp()),
+                                       token_address=token_address,
+                                       data='',
+                                       signature='',
+                                       auto_support=auto_support)
+        with open(filepath, 'r') as fin:
+            request_data.data = fin.read()
+        request_data.sign(account)
+
+        headers = {'Content-Type': 'application/json'}
+        jdata = request_data.json().encode('utf-8')
+        request = Request(url, method='POST', headers=headers, data=jdata)
+        with urlopen(request) as _response:
+            pass
+
+    def delete_asset(self, account: Account, token_address: ChecksumAddress):
+        url = f'{self.base_url}/{URLPATH_MISP}'
+        request_data = DeleteMispRequest(timestamp=int(datetime.now().timestamp()),
+                                         token_address=token_address,
+                                         data='',
+                                         signature='')
+        request_data.sign(account)
+
+        headers = {'Content-Type': 'application/json'}
+        jdata = request_data.json().encode('utf-8')
+        request = Request(url, method='DELETE', headers=headers, data=jdata)
+        with urlopen(request) as _response:
+            pass

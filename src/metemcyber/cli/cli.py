@@ -47,7 +47,7 @@ from web3 import Web3
 from metemcyber import __version__
 from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.asset_manager import DEFAULT_CONFIGS as DC_ASSETMGR
-from metemcyber.core.asset_manager import AssetManagerController
+from metemcyber.core.asset_manager import AssetManagerClient, AssetManagerController
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
 from metemcyber.core.bc.catalog import Catalog, TokenInfo
@@ -160,6 +160,8 @@ solver_app = typer.Typer()
 app.add_typer(solver_app, name='solver', help='Manage the CTI solver subprocess.')
 assetmgr_app = typer.Typer()
 app.add_typer(assetmgr_app, name='asset_manager', help='Manage the Asset Manager subprocess.')
+assetclient_app = typer.Typer()
+app.add_typer(assetclient_app, name='asset_client', help='Access to the Asset Manager.')
 
 config_app = typer.Typer()
 app.add_typer(config_app, name='config', help="Manage your config file of metemctl")
@@ -1365,6 +1367,60 @@ def _assetmgr_status(_ctx):
         typer.echo('not running.')
         return
     typer.echo(f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.')
+
+
+def _load_assetclient(ctx) -> AssetManagerClient:
+    if 'asset_client' in ctx.meta.keys():
+        return ctx.meta['asset_client']
+    config = _load_config(ctx)['asset_manager']
+    client = AssetManagerClient(config['scheme'], config['listen_address'], config['listen_port'])
+    ctx.meta['asset_client'] = client
+    return client
+
+
+@assetclient_app.command('info')
+def assetclient_getinfo(ctx: typer.Context):
+    def _assetclient_printinfo(ctx):
+        typer.echo(_assetclient_getinfo(ctx))
+
+    common_logging(_assetclient_printinfo)(ctx)
+
+
+def _assetclient_getinfo(ctx) -> dict:
+    return _load_assetclient(ctx).get_info()
+
+
+@assetclient_app.command('upload',
+                         help='Upload a MISP object file.')
+def assetclient_post(ctx: typer.Context,
+                     token: str,
+                     filepath: Path,
+                     support: bool = typer.Option(False, help='Let solver support this token.')):
+    common_logging(_assetclient_post)(ctx, token, filepath, support)
+
+
+def _assetclient_post(ctx, token, filepath, support):
+    account = _load_account(ctx)
+    flx = FlexibleIndexToken(ctx, token)
+    _authorize_solver(ctx, flx.address)
+    _load_assetclient(ctx).post_asset(account, flx.address, filepath, support)
+    typer.echo(f'uploaded asset file for token: {flx.address}.')
+
+
+@assetclient_app.command('remove',
+                         help='Remove and obsolete a MISP object file.')
+def assetclient_delete(ctx: typer.Context,
+                       token: str):
+    common_logging(_assetclient_delete)(ctx, token)
+
+
+def _assetclient_delete(ctx, token):
+    account = _load_account(ctx)
+    flx = FlexibleIndexToken(ctx, token)
+    _authorize_solver(ctx, flx.address)
+    _load_assetclient(ctx).delete_asset(account, flx.address)
+    typer.echo(f'removed asset file for token: {flx.address}.')
+    _revoke_solver(ctx, flx.address)
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
