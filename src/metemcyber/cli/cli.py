@@ -1413,8 +1413,10 @@ def _assetclient_post(ctx, token, filepath, support):
     account = _load_account(ctx)
     flx = FlexibleIndexToken(ctx, token)
     _authorize_eoaa(ctx, flx.address, info['solver_address'])
-    _load_assetclient(ctx).post_asset(account, flx.address, filepath, support)
+    result = _load_assetclient(ctx).post_asset(account, flx.address, filepath, support)
     typer.echo(f'uploaded asset file for token: {flx.address}.')
+    if result != 'ok':
+        typer.echo(f'CAUTION: {result}')
 
 
 @assetclient_app.command('remove',
@@ -1430,8 +1432,10 @@ def _assetclient_delete(ctx, token):
     account = _load_account(ctx)
     flx = FlexibleIndexToken(ctx, token)
     _authorize_eoaa(ctx, flx.address, solver_eoaa)
-    _load_assetclient(ctx).delete_asset(account, flx.address)
+    result = _load_assetclient(ctx).delete_asset(account, flx.address)
     typer.echo(f'removed asset file for token: {flx.address}.')
+    if result != 'ok':
+        typer.echo(f'CAUTION: {result}')
     _revoke_eoaa(ctx, flx.address, solver_eoaa)
 
 

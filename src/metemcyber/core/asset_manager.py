@@ -324,7 +324,7 @@ class AssetManagerClient:
         return jdata
 
     def post_asset(self, account: Account, token_address: ChecksumAddress, filepath: str,
-                   auto_support: bool = False):
+                   auto_support: bool = False) -> str:
         url = f'{self.base_url}/{URLPATH_MISP}'
         request_data = PostMispRequest(timestamp=int(datetime.now().timestamp()),
                                        token_address=token_address,
@@ -338,10 +338,11 @@ class AssetManagerClient:
         headers = {'Content-Type': 'application/json'}
         jdata = request_data.json().encode('utf-8')
         request = Request(url, method='POST', headers=headers, data=jdata)
-        with urlopen(request) as _response:
-            pass
+        with urlopen(request) as response:
+            detail = json.loads(response.read().decode())['result']
+            return detail
 
-    def delete_asset(self, account: Account, token_address: ChecksumAddress):
+    def delete_asset(self, account: Account, token_address: ChecksumAddress) -> str:
         url = f'{self.base_url}/{URLPATH_MISP}'
         request_data = DeleteMispRequest(timestamp=int(datetime.now().timestamp()),
                                          token_address=token_address,
@@ -352,5 +353,6 @@ class AssetManagerClient:
         headers = {'Content-Type': 'application/json'}
         jdata = request_data.json().encode('utf-8')
         request = Request(url, method='DELETE', headers=headers, data=jdata)
-        with urlopen(request) as _response:
-            pass
+        with urlopen(request) as response:
+            detail = json.loads(response.read().decode())['result']
+            return detail
