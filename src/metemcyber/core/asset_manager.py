@@ -46,6 +46,7 @@ CLIENTLOG = get_logger(name='asset_client', file_prefix='core')
 
 URLPATH_INFO = 'info'
 URLPATH_MISP = 'misp_object'
+URLPATH_SOLVER = 'solver'
 
 CONFIG_SECTION = 'asset_manager'
 DEFAULT_CONFIGS = {
@@ -117,6 +118,9 @@ class AssetManager:
         self.app.get(f'/{URLPATH_INFO}')(self._get_info)
         self.app.post(f'/{URLPATH_MISP}')(self._post_asset)
         self.app.delete(f'/{URLPATH_MISP}')(self._delete_asset)
+        # self.app.get(f'/{URLPATH_SOLVER}')(self._get_accepting)
+        # self.app.post(f'/{URLPATH_SOLVER}')(self._post_accepting)
+        # self.app.delete(f'/{URLPATH_SOLVER}')(self._delete_accepting)
 
     def _get_solver(self) -> MCSClient:  # CAUTION: do not cache client.
         solver = MCSClient(self.solver_account, APP_DIR)
@@ -158,7 +162,7 @@ class AssetManager:
                                 'the request time and the current time is too large')
         try:
             signer = request.signer
-            SERVERLOG.DEBUG(f'signer: {signer}')
+            SERVERLOG.debug(f'signer: {signer}')
         except Exception as err:
             raise HTTPException(400, f'Wrong Signature: {err}') from err
         try:

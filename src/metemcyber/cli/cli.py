@@ -700,6 +700,9 @@ def _get_tokens_population(ctx: typer.Context,
 
 
 def _get_accepting_tokens(ctx: typer.Context) -> List[ChecksumAddress]:
+
+    # TODO: support the case using asset manager.
+
     solver = _solver_client(ctx)
     solver.get_solver()
     return solver.solver('accepting_tokens')
@@ -1029,24 +1032,30 @@ def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amou
     return token_address
 
 
-def _authorize_solver(ctx, token_address: ChecksumAddress):
+def _authorize_eoaa(ctx, token_address: ChecksumAddress, eoaa: ChecksumAddress):
     account = _load_account(ctx)
-    solver_account = _load_solver_account(ctx)
     token = Token(account).get(token_address)
-    if solver_account.eoa == account.eoa or token.is_operator(solver_account.eoa, account.eoa):
+    if token.is_operator(eoaa, account.eoa):
         return
-    Token(account).get(token_address).authorize_operator(solver_account.eoa)
-    typer.echo(f'authorized solver({solver_account.eoa}) as a token operator.')
+    token.authorize_operator(eoaa)
+    typer.echo(f'authorized EOA({eoaa}) as a token operator.')
+
+
+def _revoke_eoaa(ctx, token_address: ChecksumAddress, eoaa: ChecksumAddress):
+    account = _load_account(ctx)
+    token = Token(account).get(token_address)
+    if not token.is_operator(eoaa, account.eoa):
+        return
+    token.revoke_operator(eoaa)
+    typer.echo(f'revoked EOA({eoaa}) from token operator.')
+
+
+def _authorize_solver(ctx, token_address: ChecksumAddress):
+    _authorize_eoaa(ctx, token_address, _load_solver_account(ctx).eoa)
 
 
 def _revoke_solver(ctx, token_address: ChecksumAddress):
-    account = _load_account(ctx)
-    solver_account = _load_solver_account(ctx)
-    token = Token(account).get(token_address)
-    if solver_account.eoa == account.eoa or not token.is_operator(solver_account.eoa, account.eoa):
-        return
-    Token(account).get(token_address).revoke_operator(solver_account.eoa)
-    typer.echo(f'revoked solver({solver_account.eoa}) from a token operator.')
+    _revoke_eoaa(ctx, token_address, _load_solver_account(ctx).eoa)
 
 
 @seeker_app.command('status')
@@ -1381,7 +1390,7 @@ def _load_assetclient(ctx) -> AssetManagerClient:
 @assetclient_app.command('info')
 def assetclient_getinfo(ctx: typer.Context):
     def _assetclient_printinfo(ctx):
-        typer.echo(_assetclient_getinfo(ctx))
+        typer.echo(json.dumps(_assetclient_getinfo(ctx), indent=2))
 
     common_logging(_assetclient_printinfo)(ctx)
 
@@ -1400,9 +1409,10 @@ def assetclient_post(ctx: typer.Context,
 
 
 def _assetclient_post(ctx, token, filepath, support):
+    info = _assetclient_getinfo(ctx)
     account = _load_account(ctx)
     flx = FlexibleIndexToken(ctx, token)
-    _authorize_solver(ctx, flx.address)
+    _authorize_eoaa(ctx, flx.address, info['solver_address'])
     _load_assetclient(ctx).post_asset(account, flx.address, filepath, support)
     typer.echo(f'uploaded asset file for token: {flx.address}.')
 
@@ -1415,12 +1425,14 @@ def assetclient_delete(ctx: typer.Context,
 
 
 def _assetclient_delete(ctx, token):
+    info = _assetclient_getinfo(ctx)
+    solver_eoaa = info['solver_address']
     account = _load_account(ctx)
     flx = FlexibleIndexToken(ctx, token)
-    _authorize_solver(ctx, flx.address)
+    _authorize_eoaa(ctx, flx.address, solver_eoaa)
     _load_assetclient(ctx).delete_asset(account, flx.address)
     typer.echo(f'removed asset file for token: {flx.address}.')
-    _revoke_solver(ctx, flx.address)
+    _revoke_eoaa(ctx, flx.address, solver_eoaa)
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
@@ -2228,6 +2240,8 @@ def _publish(
         price,
         initial_amount,
         serve_amount)
+
+    # TODO: support the case using asset manager.
 
     assets_path = _address_to_solver_assets_path(ctx, token_address)
     if os.path.exists(assets_path):
