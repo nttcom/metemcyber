@@ -1388,15 +1388,17 @@ def _load_assetclient(ctx) -> AssetManagerClient:
 
 
 @assetclient_app.command('info')
-def assetclient_getinfo(ctx: typer.Context):
+def assetclient_getinfo(ctx: typer.Context,
+                        nonce: bool = typer.Option(False, help='Generate or get nonce.')):
     def _assetclient_printinfo(ctx):
-        typer.echo(json.dumps(_assetclient_getinfo(ctx), indent=2))
+        eoaa = _load_account(ctx).eoa if nonce else None
+        typer.echo(json.dumps(_assetclient_getinfo(ctx, address=eoaa), indent=2))
 
     common_logging(_assetclient_printinfo)(ctx)
 
 
-def _assetclient_getinfo(ctx) -> dict:
-    return _load_assetclient(ctx).get_info()
+def _assetclient_getinfo(ctx, address: Optional[ChecksumAddress] = None) -> dict:
+    return _load_assetclient(ctx).get_info(address=address)
 
 
 @assetclient_app.command('upload',
@@ -1433,8 +1435,9 @@ def _assetclient_delete(ctx, token):
     flx = FlexibleIndexToken(ctx, token)
     _authorize_eoaa(ctx, flx.address, solver_eoaa)
     result = _load_assetclient(ctx).delete_asset(account, flx.address)
-    typer.echo(f'removed asset file for token: {flx.address}.')
-    if result != 'ok':
+    if result == 'ok':
+        typer.echo(f'removed asset file for token: {flx.address}.')
+    else:
         typer.echo(f'CAUTION: {result}')
     _revoke_eoaa(ctx, flx.address, solver_eoaa)
 

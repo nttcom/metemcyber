@@ -20,7 +20,7 @@ import sys
 from datetime import datetime
 from signal import SIGINT
 from time import sleep
-from typing import List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 from urllib.request import Request, urlopen
 
 import uvicorn
@@ -59,14 +59,19 @@ DEFAULT_CONFIGS = {
 }
 
 
+class GetInfoRequest(BaseModel):
+    address: ChecksumAddress
+
+
 class SignedRequest(BaseModel):
     timestamp: int
+    nonce: int
     data: str
     signature: str
 
     @property
     def string_to_sign(self) -> str:
-        return str(self.timestamp) + self.data
+        return f'{self.timestamp}:{self.nonce}:{self.data}'
 
     @property
     def signer(self) -> ChecksumAddress:
@@ -95,6 +100,7 @@ class AssetManager:
     solver_account: Account
     operator_address: ChecksumAddress
     assets_rootpath: str
+    nonce_map: Dict[ChecksumAddress, int]
     app: FastAPI
 
     def __init__(self,
@@ -110,6 +116,7 @@ class AssetManager:
         self.solver_account = solver_account
         self.operator_address = operator_address
         self.assets_rootpath = assets_rootpath
+        self.nonce_map = {}
         try:
             self._get_solver()
         except Exception as err:
@@ -117,6 +124,7 @@ class AssetManager:
 
         self.app = FastAPI()
         self.app.get(f'/{URLPATH_INFO}')(self._get_info)
+        self.app.post(f'/{URLPATH_INFO}')(self._get_info)
         self.app.post(f'/{URLPATH_MISP}')(self._post_asset)
         self.app.delete(f'/{URLPATH_MISP}')(self._delete_asset)
         # self.app.get(f'/{URLPATH_SOLVER}')(self._get_accepting)
@@ -141,18 +149,30 @@ class AssetManager:
                 f'from configured({self.operator_address})')
         return solver
 
-    async def _get_info(self) -> dict:
+    async def _get_info(self, request: Optional[GetInfoRequest] = None) -> dict:
+        if request:
+            if not Web3.isChecksumAddress(request.address):
+                raise HTTPException(400, 'Not a checksum address')
+            nonce = self.nonce_map.get(request.address)
+            if not nonce:
+                nonce = int(datetime.now().timestamp() * 1000000)
+                self.nonce_map[request.address] = nonce
+        else:
+            nonce = None
         try:
             self._get_solver()
             solver_status = 'running'
         except Exception as err:
             SERVERLOG.error(err)
             solver_status = str(err)
-        return {
+        ret: Dict[str, Union[str, int]] = {
             'solver_address': self.solver_account.eoa,
             'operator_address': self.operator_address,
             'solver_status': solver_status,
         }
+        if nonce:
+            ret['nonce'] = nonce
+        return ret
 
     def _check_signed_request(self, request: RequestWithTokenAddress):
         ts_now = int(datetime.now().timestamp())
@@ -166,6 +186,9 @@ class AssetManager:
             SERVERLOG.debug(f'signer: {signer}')
         except Exception as err:
             raise HTTPException(400, f'Wrong Signature: {err}') from err
+        if request.nonce != self.nonce_map.get(signer, 'xxx_fake'):
+            raise HTTPException(400, 'Nonce mismatch')
+        del self.nonce_map[signer]
         try:
             cti_token = CTIToken(self.anonymous).get(request.token_address)
         except Exception as err:
@@ -213,6 +236,9 @@ class AssetManager:
             if os.path.exists(filepath):
                 os.unlink(filepath)
                 SERVERLOG.info(f'removed asset file for token: {request.token_address}.')
+                ret = {'result': 'ok'}
+            else:
+                ret = {'result': 'asset file does not exist.'}
         except Exception as err:
             SERVERLOG.exception(err)
             raise HTTPException(500, f'{err.__class__.__name__}: str(err)') from err
@@ -223,7 +249,7 @@ class AssetManager:
             SERVERLOG.exception(err)
             return {
                 'result': f'removing file succeeded, but solver control failed: {err}'}
-        return {'result': 'ok'}
+        return ret
 
     def run(self):
         uvicorn.run(self.app, host=self.listen_address, port=self.listen_port, log_level='trace')
@@ -304,13 +330,17 @@ class AssetManagerController:
 
 class AssetManagerClient:
     base_url: str
+    common_headers: dict
 
     def __init__(self, url: str):
         self.base_url = url
+        self.common_headers = {'Content-Type': 'application/json'}
 
-    def get_info(self) -> dict:
+    def get_info(self, address: Optional[ChecksumAddress] = None) -> dict:
         url = f'{self.base_url}/{URLPATH_INFO}'
-        request = Request(url, method='GET')
+        pdata = GetInfoRequest(address=address).json().encode('utf-8') if address else None
+
+        request = Request(url, method='POST', headers=self.common_headers, data=pdata)
         with urlopen(request) as response:
             rdata = response.read()
             if isinstance(rdata, bytes):
@@ -322,12 +352,15 @@ class AssetManagerClient:
             'solver_status',
         })
         assert set(jdata.keys()).intersection(keys) == keys
+        assert not address or 'nonce' in jdata.keys()
         return jdata
 
     def post_asset(self, account: Account, token_address: ChecksumAddress, filepath: str,
                    auto_support: bool = False) -> str:
+        info = self.get_info(address=account.eoa)
         url = f'{self.base_url}/{URLPATH_MISP}'
         request_data = PostMispRequest(timestamp=int(datetime.now().timestamp()),
+                                       nonce=info['nonce'],
                                        token_address=token_address,
                                        data='',
                                        signature='',
@@ -336,24 +369,24 @@ class AssetManagerClient:
             request_data.data = fin.read()
         request_data.sign(account)
 
-        headers = {'Content-Type': 'application/json'}
         jdata = request_data.json().encode('utf-8')
-        request = Request(url, method='POST', headers=headers, data=jdata)
+        request = Request(url, method='POST', headers=self.common_headers, data=jdata)
         with urlopen(request) as response:
             detail = json.loads(response.read().decode())['result']
             return detail
 
     def delete_asset(self, account: Account, token_address: ChecksumAddress) -> str:
+        info = self.get_info(address=account.eoa)
         url = f'{self.base_url}/{URLPATH_MISP}'
         request_data = DeleteMispRequest(timestamp=int(datetime.now().timestamp()),
+                                         nonce=info['nonce'],
                                          token_address=token_address,
                                          data='',
                                          signature='')
         request_data.sign(account)
 
-        headers = {'Content-Type': 'application/json'}
         jdata = request_data.json().encode('utf-8')
-        request = Request(url, method='DELETE', headers=headers, data=jdata)
+        request = Request(url, method='DELETE', headers=self.common_headers, data=jdata)
         with urlopen(request) as response:
             detail = json.loads(response.read().decode())['result']
             return detail
