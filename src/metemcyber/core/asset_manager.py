@@ -27,6 +27,7 @@ import uvicorn
 from eth_typing import ChecksumAddress
 from fastapi import FastAPI, HTTPException
 from psutil import Process
+# pylint: disable=no-name-in-module
 from pydantic import BaseModel
 from web3 import Web3
 
