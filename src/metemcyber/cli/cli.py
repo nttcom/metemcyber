@@ -1382,7 +1382,7 @@ def _load_assetclient(ctx) -> AssetManagerClient:
     if 'asset_client' in ctx.meta.keys():
         return ctx.meta['asset_client']
     config = _load_config(ctx)['asset_manager']
-    client = AssetManagerClient(config['scheme'], config['listen_address'], config['listen_port'])
+    client = AssetManagerClient(config['url'])
     ctx.meta['asset_client'] = client
     return client
 

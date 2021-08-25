@@ -52,7 +52,7 @@ URLPATH_SOLVER = 'solver'
 CONFIG_SECTION = 'asset_manager'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
-        'scheme': 'http',
+        'url': 'http://localhost:48000',  # used by client
         'listen_address': '0.0.0.0',
         'listen_port': '48000',
     }
@@ -305,8 +305,8 @@ class AssetManagerController:
 class AssetManagerClient:
     base_url: str
 
-    def __init__(self, scheme: str, address: str, port: Union[int, str]):
-        self.base_url = f'{scheme}://{address}:{port}'
+    def __init__(self, url: str):
+        self.base_url = url
 
     def get_info(self) -> dict:
         url = f'{self.base_url}/{URLPATH_INFO}'
