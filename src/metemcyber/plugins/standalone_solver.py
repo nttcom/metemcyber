@@ -22,7 +22,6 @@ from typing import ClassVar, Optional
 from eth_typing import ChecksumAddress
 from web3 import Web3
 
-from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import BaseSolver
@@ -37,10 +36,8 @@ CONFIG_SECTION = 'standalone_solver'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
         'listen_address': 'localhost',
-        'assets_path': f'{APP_DIR}/workspace/upload',
     }
 }
-# Note: assets_path should be same with "{general.workspace}/upload".
 
 
 class SimpleHandler(SimpleHTTPRequestHandler):
@@ -116,7 +113,7 @@ class Solver(BaseSolver):
         self.fileserver = LocalHttpServer(
             self.account.eoa,
             self.config[CONFIG_SECTION]['listen_address'],
-            self.config[CONFIG_SECTION]['assets_path'])
+            f"{self.config['general']['workspace']}/upload")
         self.fileserver.start()
 
     def destroy(self):

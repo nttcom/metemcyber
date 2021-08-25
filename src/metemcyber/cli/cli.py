@@ -46,6 +46,8 @@ from web3 import Web3
 
 from metemcyber import __version__
 from metemcyber.cli.constants import APP_DIR
+from metemcyber.core.asset_manager import DEFAULT_CONFIGS as DC_ASSETMGR
+from metemcyber.core.asset_manager import AssetManagerClient, AssetManagerController
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
 from metemcyber.core.bc.catalog import Catalog, TokenInfo
@@ -106,6 +108,7 @@ DEFAULT_CONFIGS = {
     'solver': {
         'plugin': 'gcs_solver.py',
     },
+    'asset_manager': DC_ASSETMGR['asset_manager'],
     'seeker': DC_SEEKER['seeker'],
     'ngrok': DC_NGROK['ngrok'],
     'standalone_solver': DC_SOLV_ALN['standalone_solver'],
@@ -155,6 +158,10 @@ seeker_app = typer.Typer()
 app.add_typer(seeker_app, name='seeker', help='Manage the CTI seeker subprocess.')
 solver_app = typer.Typer()
 app.add_typer(solver_app, name='solver', help='Manage the CTI solver subprocess.')
+assetmgr_app = typer.Typer()
+app.add_typer(assetmgr_app, name='asset_manager', help='Manage the Asset Manager subprocess.')
+assetclient_app = typer.Typer()
+app.add_typer(assetclient_app, name='asset_client', help='Access to the Asset Manager.')
 
 config_app = typer.Typer()
 app.add_typer(config_app, name='config', help="Manage your config file of metemctl")
@@ -693,6 +700,9 @@ def _get_tokens_population(ctx: typer.Context,
 
 
 def _get_accepting_tokens(ctx: typer.Context) -> List[ChecksumAddress]:
+
+    # TODO: support the case using asset manager.
+
     solver = _solver_client(ctx)
     solver.get_solver()
     return solver.solver('accepting_tokens')
@@ -1022,24 +1032,30 @@ def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amou
     return token_address
 
 
-def _authorize_solver(ctx, token_address: ChecksumAddress):
+def _authorize_eoaa(ctx, token_address: ChecksumAddress, eoaa: ChecksumAddress):
     account = _load_account(ctx)
-    solver_account = _load_solver_account(ctx)
     token = Token(account).get(token_address)
-    if solver_account.eoa == account.eoa or token.is_operator(solver_account.eoa, account.eoa):
+    if token.is_operator(eoaa, account.eoa):
         return
-    Token(account).get(token_address).authorize_operator(solver_account.eoa)
-    typer.echo(f'authorized solver({solver_account.eoa}) as a token operator.')
+    token.authorize_operator(eoaa)
+    typer.echo(f'authorized EOA({eoaa}) as a token operator.')
+
+
+def _revoke_eoaa(ctx, token_address: ChecksumAddress, eoaa: ChecksumAddress):
+    account = _load_account(ctx)
+    token = Token(account).get(token_address)
+    if not token.is_operator(eoaa, account.eoa):
+        return
+    token.revoke_operator(eoaa)
+    typer.echo(f'revoked EOA({eoaa}) from token operator.')
+
+
+def _authorize_solver(ctx, token_address: ChecksumAddress):
+    _authorize_eoaa(ctx, token_address, _load_solver_account(ctx).eoa)
 
 
 def _revoke_solver(ctx, token_address: ChecksumAddress):
-    account = _load_account(ctx)
-    solver_account = _load_solver_account(ctx)
-    token = Token(account).get(token_address)
-    if solver_account.eoa == account.eoa or not token.is_operator(solver_account.eoa, account.eoa):
-        return
-    Token(account).get(token_address).revoke_operator(solver_account.eoa)
-    typer.echo(f'revoked solver({solver_account.eoa}) from a token operator.')
+    _revoke_eoaa(ctx, token_address, _load_solver_account(ctx).eoa)
 
 
 @seeker_app.command('status')
@@ -1306,6 +1322,121 @@ def _solver_obsolete(ctx, token):
     _revoke_solver(ctx, flx.address)
     solver.solver('refuse_challenges', [flx.address])
     typer.echo(f'obsoleted challenge for token({flx.address}) by solver.')
+
+
+@assetmgr_app.command('start',
+                      help='Start Asset Manager service.')
+def assetmgr_start(ctx: typer.Context):
+    common_logging(_assetmgr_start)(ctx)
+
+
+def _assetmgr_start(ctx):
+    ctrl = AssetManagerController()
+    if ctrl.pid > 0:
+        raise Exception('Asset Manager already running.')
+    config = _load_config(ctx)
+    listen_address = config['asset_manager']['listen_address']
+    listen_port = int(config['asset_manager']['listen_port'])
+    endpoint_url = config['general']['endpoint_url']
+    solver = _load_solver_account(ctx)
+    operator = _load_operator(ctx)
+    assets_rootpath = _address_to_solver_assets_path(ctx, '')
+    ctrl.start(listen_address,
+               listen_port,
+               endpoint_url,
+               solver,
+               operator.address,
+               str(assets_rootpath))
+    typer.echo('Asset Manager started as a subprocess.')
+
+
+@assetmgr_app.command('stop',
+                      help='Stop Asset Manager service.')
+def assetmgr_stop(ctx: typer.Context):
+    common_logging(_assetmgr_stop)(ctx)
+
+
+def _assetmgr_stop(_ctx):
+    ctrl = AssetManagerController()
+    if ctrl.pid == 0:
+        raise Exception('Asset Manager not running')
+    ctrl.stop()
+    typer.echo('Asset Manager stopped.')
+
+
+@assetmgr_app.command('status',
+                      help='Show Asset Manager status.')
+def assetmgr_status(ctx: typer.Context):
+    common_logging(_assetmgr_status)(ctx)
+
+
+def _assetmgr_status(_ctx):
+    ctrl = AssetManagerController()
+    if ctrl.pid == 0:
+        typer.echo('not running.')
+        return
+    typer.echo(f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.')
+
+
+def _load_assetclient(ctx) -> AssetManagerClient:
+    if 'asset_client' in ctx.meta.keys():
+        return ctx.meta['asset_client']
+    config = _load_config(ctx)['asset_manager']
+    client = AssetManagerClient(config['scheme'], config['listen_address'], config['listen_port'])
+    ctx.meta['asset_client'] = client
+    return client
+
+
+@assetclient_app.command('info')
+def assetclient_getinfo(ctx: typer.Context):
+    def _assetclient_printinfo(ctx):
+        typer.echo(json.dumps(_assetclient_getinfo(ctx), indent=2))
+
+    common_logging(_assetclient_printinfo)(ctx)
+
+
+def _assetclient_getinfo(ctx) -> dict:
+    return _load_assetclient(ctx).get_info()
+
+
+@assetclient_app.command('upload',
+                         help='Upload a MISP object file.')
+def assetclient_post(ctx: typer.Context,
+                     token: str,
+                     filepath: Path,
+                     support: bool = typer.Option(False, help='Let solver support this token.')):
+    common_logging(_assetclient_post)(ctx, token, filepath, support)
+
+
+def _assetclient_post(ctx, token, filepath, support):
+    info = _assetclient_getinfo(ctx)
+    account = _load_account(ctx)
+    flx = FlexibleIndexToken(ctx, token)
+    _authorize_eoaa(ctx, flx.address, info['solver_address'])
+    result = _load_assetclient(ctx).post_asset(account, flx.address, filepath, support)
+    typer.echo(f'uploaded asset file for token: {flx.address}.')
+    if result != 'ok':
+        typer.echo(f'CAUTION: {result}')
+
+
+@assetclient_app.command('remove',
+                         help='Remove and obsolete a MISP object file.')
+def assetclient_delete(ctx: typer.Context,
+                       token: str):
+    common_logging(_assetclient_delete)(ctx, token)
+
+
+def _assetclient_delete(ctx, token):
+    info = _assetclient_getinfo(ctx)
+    solver_eoaa = info['solver_address']
+    account = _load_account(ctx)
+    flx = FlexibleIndexToken(ctx, token)
+    _authorize_eoaa(ctx, flx.address, solver_eoaa)
+    result = _load_assetclient(ctx).delete_asset(account, flx.address)
+    typer.echo(f'removed asset file for token: {flx.address}.')
+    if result != 'ok':
+        typer.echo(f'CAUTION: {result}')
+    _revoke_eoaa(ctx, flx.address, solver_eoaa)
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
@@ -1912,6 +2043,7 @@ def misp_event(ctx: typer.Context):
 
     typer.echo_via_pager('\n'.join(output_line))
 
+
 @misp_app.command("push", help="Upload events to your MISP instance.")
 def misp_push(ctx: typer.Context):
     json_dumpdir = Path(_load_config(ctx)['misp']['upload'])
@@ -2112,6 +2244,8 @@ def _publish(
         price,
         initial_amount,
         serve_amount)
+
+    # TODO: support the case using asset manager.
 
     assets_path = _address_to_solver_assets_path(ctx, token_address)
     if os.path.exists(assets_path):
