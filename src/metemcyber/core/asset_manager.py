@@ -47,12 +47,12 @@ CLIENTLOG = get_logger(name='asset_client', file_prefix='core')
 
 URLPATH_INFO = 'info'
 URLPATH_MISP = 'misp_object'
-URLPATH_SOLVER = 'solver'
+URLPATH_LIST = 'list_tokens'
+URLPATH_ACCEPT = 'accept_tokens'
 
 CONFIG_SECTION = 'asset_manager'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
-        'url': 'http://localhost:48000',  # used by client
         'listen_address': '0.0.0.0',
         'listen_port': '48000',
     }
@@ -64,14 +64,17 @@ class GetInfoRequest(BaseModel):
 
 
 class SignedRequest(BaseModel):
-    timestamp: int
     nonce: int
-    data: str
-    signature: str
+    timestamp: int = 0
+    signature: str = ''
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.timestamp = int(datetime.now().timestamp())
 
     @property
     def string_to_sign(self) -> str:
-        return f'{self.timestamp}:{self.nonce}:{self.data}'
+        return f'{self.timestamp}:{self.nonce}'
 
     @property
     def signer(self) -> ChecksumAddress:
@@ -86,11 +89,16 @@ class RequestWithTokenAddress(SignedRequest):
 
 
 class PostMispRequest(RequestWithTokenAddress):
+    data: str = ''
     auto_support: bool = False
 
 
 class DeleteMispRequest(RequestWithTokenAddress):
     pass
+
+
+class AcceptingRequest(SignedRequest):
+    token_addresses: List[ChecksumAddress]
 
 
 class AssetManager:
@@ -127,9 +135,9 @@ class AssetManager:
         self.app.post(f'/{URLPATH_INFO}')(self._get_info)
         self.app.post(f'/{URLPATH_MISP}')(self._post_asset)
         self.app.delete(f'/{URLPATH_MISP}')(self._delete_asset)
-        # self.app.get(f'/{URLPATH_SOLVER}')(self._get_accepting)
-        # self.app.post(f'/{URLPATH_SOLVER}')(self._post_accepting)
-        # self.app.delete(f'/{URLPATH_SOLVER}')(self._delete_accepting)
+        self.app.post(f'/{URLPATH_LIST}')(self._list_accepting)
+        self.app.post(f'/{URLPATH_ACCEPT}')(self._post_accepting)
+        self.app.delete(f'/{URLPATH_ACCEPT}')(self._delete_accepting)
 
     def _get_solver(self) -> MCSClient:  # CAUTION: do not cache client.
         solver = MCSClient(self.solver_account, APP_DIR)
@@ -174,7 +182,7 @@ class AssetManager:
             ret['nonce'] = nonce
         return ret
 
-    def _check_signed_request(self, request: RequestWithTokenAddress):
+    def _check_signed_request(self, request: SignedRequest):
         ts_now = int(datetime.now().timestamp())
         ts_diff = abs(ts_now - request.timestamp)
         if ts_diff > VALID_TIMESTAMP_RANGE:
@@ -186,27 +194,33 @@ class AssetManager:
             SERVERLOG.debug(f'signer: {signer}')
         except Exception as err:
             raise HTTPException(400, f'Wrong Signature: {err}') from err
-        if request.nonce != self.nonce_map.get(signer, 'xxx_fake'):
+        if request.nonce != self.nonce_map.get(signer, -ts_now):
             raise HTTPException(400, 'Nonce mismatch')
-        del self.nonce_map[signer]
+        del self.nonce_map[signer]  # remove used nonce
+        # TODO
+        # apply whitelist and/or blacklist for access control
+
+    def _check_request_with_token(self, request: RequestWithTokenAddress,
+                                  check_authorized: bool = False):
         try:
             cti_token = CTIToken(self.anonymous).get(request.token_address)
         except Exception as err:
             raise HTTPException(400, f'Invalid token address: {err}') from err
-        if signer != cti_token.publisher:
+        if request.signer != cti_token.publisher:
             raise HTTPException(403, 'Not a token publisher')
-        if not cti_token.is_operator(self.solver_account.eoa, signer):
-            raise HTTPException(401, 'Solver is not authorized')
-        # TODO
-        # apply whitelist and/or blacklist for access control
+        if check_authorized:
+            if not cti_token.is_operator(self.solver_account.eoa, cti_token.publisher):
+                raise HTTPException(401, 'Solver is not authorized')
 
     def _asset_filepath(self, token_address: ChecksumAddress) -> str:
-        assert Web3.isChecksumAddress(token_address)
+        if not Web3.isChecksumAddress(token_address):
+            raise HTTPException(400, 'Not a checksum address')
         return f'{self.assets_rootpath}/{token_address}'
 
     async def _post_asset(self, request: PostMispRequest) -> dict:
         try:
             self._check_signed_request(request)
+            self._check_request_with_token(request, check_authorized=True)
             filepath = self._asset_filepath(request.token_address)
             if os.path.exists(filepath):
                 os.unlink(filepath)  # for the case target already exists as a symlink.
@@ -230,15 +244,19 @@ class AssetManager:
         return {'result': 'ok'}
 
     async def _delete_asset(self, request: DeleteMispRequest) -> dict:
-        self._check_signed_request(request)
-        filepath = self._asset_filepath(request.token_address)
         try:
+            self._check_signed_request(request)
+            self._check_request_with_token(request)
+            filepath = self._asset_filepath(request.token_address)
             if os.path.exists(filepath):
                 os.unlink(filepath)
                 SERVERLOG.info(f'removed asset file for token: {request.token_address}.')
                 ret = {'result': 'ok'}
             else:
                 ret = {'result': 'asset file does not exist.'}
+        except HTTPException as err:
+            SERVERLOG.exception(err)
+            raise
         except Exception as err:
             SERVERLOG.exception(err)
             raise HTTPException(500, f'{err.__class__.__name__}: str(err)') from err
@@ -251,8 +269,69 @@ class AssetManager:
                 'result': f'removing file succeeded, but solver control failed: {err}'}
         return ret
 
+    def _check_request_for_accepting(self, request: AcceptingRequest,
+                                     check_authorized: bool = False,
+                                     check_assetfile: bool = False):
+        signer = request.signer
+        for address in request.token_addresses:
+            try:
+                cti_token = CTIToken(self.anonymous).get(address)
+            except Exception as err:
+                raise HTTPException(400, f'Bad Request: {err}') from err
+            if cti_token.publisher != signer:
+                raise HTTPException(403, 'Not a token publisher')
+            if check_authorized:
+                if not cti_token.is_operator(self.solver_account.eoa, cti_token.publisher):
+                    raise HTTPException(401, 'Solver is not authorized')
+            if check_assetfile:
+                if not os.path.exists(self._asset_filepath(address)):
+                    raise HTTPException(404, 'Asset file not yet uploaded')
+
+    async def _list_accepting(self, request: AcceptingRequest) -> dict:
+        try:
+            self._check_signed_request(request)
+            self._check_request_for_accepting(request)
+        except HTTPException as err:
+            SERVERLOG.exception(err)
+            raise
+        except Exception as err:
+            SERVERLOG.exception(err)
+            raise HTTPException(500, f'{err.__class__.__name__}: str(err)') from err
+        try:
+            solver = self._get_solver()
+            acceptings = solver.solver('accepting_tokens')
+        except Exception as err:
+            SERVERLOG.exception(err)
+            raise HTTPException(500, f'Cannot connect to solver: {err}') from err
+        return {'result': list(set(acceptings).intersection(set(request.token_addresses)))}
+
+    def _acception_control(self, request: AcceptingRequest, method: str) -> dict:
+        if method not in {'POST', 'DELETE'}:
+            raise HTTPException(500, f'InternalError: unexpected method: {method}')
+        try:
+            self._check_signed_request(request)
+            flg = (method == 'POST')
+            self._check_request_for_accepting(request, check_authorized=flg, check_assetfile=flg)
+            solver = self._get_solver()
+            solver.solver(
+                'accept_challenges' if method == 'POST' else 'refuse_challenges',
+                request.token_addresses)
+        except HTTPException as err:
+            SERVERLOG.exception(err)
+            raise
+        except Exception as err:
+            SERVERLOG.exception(err)
+            raise HTTPException(500, f'{err.__class__.__name__}: {str(err)}') from err
+        return {'result': 'ok'}
+
+    async def _post_accepting(self, request: AcceptingRequest) -> dict:
+        return self._acception_control(request, 'POST')
+
+    async def _delete_accepting(self, request: AcceptingRequest) -> dict:
+        return self._acception_control(request, 'DELETE')
+
     def run(self):
-        uvicorn.run(self.app, host=self.listen_address, port=self.listen_port, log_level='trace')
+        uvicorn.run(self.app, host=self.listen_address, port=self.listen_port, log_level='info')
 
 
 class AssetManagerController:
@@ -356,14 +435,11 @@ class AssetManagerClient:
         return jdata
 
     def post_asset(self, account: Account, token_address: ChecksumAddress, filepath: str,
-                   auto_support: bool = False) -> str:
-        info = self.get_info(address=account.eoa)
+                   auto_support: bool = False, nonce: Optional[int] = None) -> str:
+        nonce = nonce if nonce else self.get_info(address=account.eoa)['nonce']
         url = f'{self.base_url}/{URLPATH_MISP}'
-        request_data = PostMispRequest(timestamp=int(datetime.now().timestamp()),
-                                       nonce=info['nonce'],
+        request_data = PostMispRequest(nonce=nonce,
                                        token_address=token_address,
-                                       data='',
-                                       signature='',
                                        auto_support=auto_support)
         with open(filepath, 'r') as fin:
             request_data.data = fin.read()
@@ -375,14 +451,12 @@ class AssetManagerClient:
             detail = json.loads(response.read().decode())['result']
             return detail
 
-    def delete_asset(self, account: Account, token_address: ChecksumAddress) -> str:
-        info = self.get_info(address=account.eoa)
+    def delete_asset(self, account: Account, token_address: ChecksumAddress,
+                     nonce: Optional[int] = None) -> str:
+        nonce = nonce if nonce else self.get_info(address=account.eoa)['nonce']
         url = f'{self.base_url}/{URLPATH_MISP}'
-        request_data = DeleteMispRequest(timestamp=int(datetime.now().timestamp()),
-                                         nonce=info['nonce'],
-                                         token_address=token_address,
-                                         data='',
-                                         signature='')
+        request_data = DeleteMispRequest(nonce=nonce,
+                                         token_address=token_address)
         request_data.sign(account)
 
         jdata = request_data.json().encode('utf-8')
@@ -390,3 +464,40 @@ class AssetManagerClient:
         with urlopen(request) as response:
             detail = json.loads(response.read().decode())['result']
             return detail
+
+    def list_accepting(self, account: Account, token_addresses: List[ChecksumAddress],
+                       nonce: Optional[int] = None) -> List[ChecksumAddress]:
+        nonce = nonce if nonce else self.get_info(address=account.eoa)['nonce']
+        url = f'{self.base_url}/{URLPATH_LIST}'
+        request_data = AcceptingRequest(nonce=nonce,
+                                        token_addresses=token_addresses)
+        request_data.sign(account)
+
+        jdata = request_data.json().encode('utf-8')
+        request = Request(url, method='POST', headers=self.common_headers, data=jdata)
+        with urlopen(request) as response:
+            tokens = json.loads(response.read().decode())['result']
+            return tokens
+
+    def _acception_control(self, account: Account, token_addresses: List[ChecksumAddress],
+                           method: str, nonce: Optional[int] = None) -> str:
+        assert method in {'POST', 'DELETE'}
+        nonce = nonce if nonce else self.get_info(address=account.eoa)['nonce']
+        url = f'{self.base_url}/{URLPATH_ACCEPT}'
+        request_data = AcceptingRequest(nonce=nonce,
+                                        token_addresses=token_addresses)
+        request_data.sign(account)
+
+        jdata = request_data.json().encode('utf-8')
+        request = Request(url, method=method, headers=self.common_headers, data=jdata)
+        with urlopen(request) as response:
+            detail = json.loads(response.read().decode())['result']
+            return detail
+
+    def post_accepting(self, account: Account, token_addresses: List[ChecksumAddress],
+                       nonce: Optional[int] = None) -> str:
+        return self._acception_control(account, token_addresses, 'POST', nonce=nonce)
+
+    def delete_accepting(self, account: Account, token_addresses: List[ChecksumAddress],
+                         nonce: Optional[int] = None) -> str:
+        return self._acception_control(account, token_addresses, 'DELETE', nonce=nonce)
