@@ -179,11 +179,13 @@ class BaseSolver:
             CTIOperator(self.account).get(self.operator_address).register_tokens(token_addresses)
         return self.notify_first_accept() if need_notify else None
 
-    def refuse_challenges(self, token_addresses):
-        LOGGER.info('BaseSolver: refuse: %s', token_addresses)
-        if self.listener:
-            self.listener.refuse_tokens(token_addresses)
-        CTIOperator(self.account).get(self.operator_address).unregister_tokens(token_addresses)
+    def refuse_challenges(self, tokens: List[ChecksumAddress]):
+        LOGGER.info('BaseSolver: refuse: %s', tokens)
+        targets = [t for t in tokens if t in self.accepting_tokens()]
+        if targets:
+            assert self.listener
+            self.listener.refuse_tokens(targets)
+            CTIOperator(self.account).get(self.operator_address).unregister_tokens(targets)
 
     def accept_task(self, task_id):
         try:
