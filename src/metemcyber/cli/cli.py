@@ -1349,13 +1349,15 @@ def _local_solver_link(ctx, token, force=False):
     flx = FlexibleIndexToken(ctx, token)
     src_path = _uuid_to_misp_download_path(ctx, flx.info.uuid)
     dst_path = _address_to_solver_assets_path(ctx, flx.address)
+    if not os.path.exists(src_path):
+        raise Exception(f'Source file does not exist for UUID: {flx.info.uuid}')
     if os.path.exists(dst_path):
         if force:
             os.unlink(dst_path)
         else:
-            raise Exception('Destination file exists. Try --force option to overwrite it')
+            raise Exception('Destination file exists. Give --force option to overwrite it')
     os.symlink(src_path, dst_path)
-    typer.echo(f'created symlink for token: {flx.address}, uuid: {flx.info.uuid}.')
+    typer.echo(f'created symlink for token: {flx.address}, UUID: {flx.info.uuid}.')
 
 
 @solver_app.command('remove')
