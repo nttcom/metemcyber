@@ -161,8 +161,6 @@ solver_app = typer.Typer()
 app.add_typer(solver_app, name='solver', help='Manage the CTI solver subprocess.')
 assetmgr_app = typer.Typer()
 app.add_typer(assetmgr_app, name='asset_manager', help='Manage the Asset Manager subprocess.')
-assetclient_app = typer.Typer()
-app.add_typer(assetclient_app, name='asset_client', help='Access to the Asset Manager.')
 
 config_app = typer.Typer()
 app.add_typer(config_app, name='config', help="Manage your config file of metemctl")
@@ -702,9 +700,8 @@ def _get_tokens_population(ctx: typer.Context,
 
 def _get_accepting_tokens(ctx: typer.Context, addresses: List[ChecksumAddress]
                           ) -> List[ChecksumAddress]:
-    shared_solver = _load_sharedsolver(ctx)
-    if shared_solver:
-        return _assetclient_list_accepting(ctx, addresses=addresses)
+    if _shared_solver_enabled(ctx):
+        return _shared_solver_list_accepting(ctx, addresses=addresses)
 
     solver = _solver_client(ctx)
     solver.get_solver()
@@ -1157,26 +1154,24 @@ def solver_status(ctx: typer.Context,
                   nonce: bool = typer.Option(
                       False, help='Generate or get nonce. (only for Shared Solver)')):
     def callback(ctx):
-        if _load_sharedsolver(ctx):
+        if _shared_solver_enabled(ctx):
             eoaa = _load_account(ctx).eoa if nonce else None
-            typer.echo(json.dumps(_assetclient_getinfo(ctx, address=eoaa), indent=2))
+            typer.echo(json.dumps(_shared_solver_getinfo(ctx, address=eoaa), indent=2))
         else:
             typer.echo(_local_solver_status(ctx)[1])
 
     common_logging(callback)(ctx)
 
 
-def _solver_status(ctx: typer.Context) -> Tuple[bool, str]:
+def _solver_is_ready(ctx: typer.Context) -> bool:
     logger = getLogger()
-    solver = _load_sharedsolver(ctx)
-    if solver:
+    if _shared_solver_enabled(ctx):
         try:
-            detail = _assetclient_getinfo(ctx)['solver_status']
-            return detail == 'running', detail
+            return _shared_solver_getinfo(ctx)['solver_status'] == 'running'
         except Exception as err:
             logger.exception(err)
-            return False, str(err)
-    return _local_solver_status(ctx)
+            return False
+    return _local_solver_status(ctx)[0]
 
 
 def _local_solver_status(ctx: typer.Context) -> Tuple[bool, str]:
@@ -1319,13 +1314,81 @@ def _solver_disable(ctx):
     typer.echo('Solver is now running without your operator.')
 
 
+@solver_app.command('put')
+def solver_put(ctx: typer.Context, token: str, filepath: str):
+    def callback(ctx):
+        if _shared_solver_enabled(ctx):
+            _shared_solver_post(ctx, token, filepath)
+        else:
+            _local_solver_put(ctx, token, filepath)
+
+    common_logging(callback)(ctx)
+
+
+def _local_solver_put(ctx, token, filepath):
+    flx = FlexibleIndexToken(ctx, token)
+    asset_filepath = _address_to_solver_assets_path(ctx, flx.address)
+    if os.path.exists(asset_filepath):
+        os.unlink(asset_filepath)
+    shutil.copy(filepath, asset_filepath, follow_symlinks=True)
+    typer.echo(f'copied asset file for token: {flx.address}.')
+
+
+@solver_app.command('link')
+def solver_link(ctx: typer.Context, token: str,
+                force: bool = typer.Option(False, help='overwrite destination file')):
+    def callback(ctx):
+        if _shared_solver_enabled(ctx):
+            raise Exception('Not supported for Shared Solver')
+        _local_solver_link(ctx, token, force)
+
+    common_logging(callback)(ctx)
+
+
+def _local_solver_link(ctx, token, force=False):
+    flx = FlexibleIndexToken(ctx, token)
+    src_path = _uuid_to_misp_download_path(ctx, flx.info.uuid)
+    dst_path = _address_to_solver_assets_path(ctx, flx.address)
+    if os.path.exists(dst_path):
+        if force:
+            os.unlink(dst_path)
+        else:
+            raise Exception('Destination file exists. Try --force option to overwrite it')
+    os.symlink(src_path, dst_path)
+    typer.echo(f'created symlink for token: {flx.address}, uuid: {flx.info.uuid}.')
+
+
+@solver_app.command('remove')
+def solver_remove(ctx: typer.Context, token: str):
+    def callback(ctx):
+        if _shared_solver_enabled(ctx):
+            _shared_solver_delete(ctx, token)
+        else:
+            _local_solver_remove(ctx, token)
+
+    common_logging(callback)(ctx)
+
+
+def _local_solver_remove(ctx, token):
+    flx = FlexibleIndexToken(ctx, token)
+    asset_filepath = _address_to_solver_assets_path(ctx, flx.address)
+    os.unlink(asset_filepath)
+    typer.echo(f'removed asset file for token: {flx.address}.')
+
+
 @solver_app.command('support',
                     help='Register token to accept challenge.')
 def solver_support(ctx: typer.Context, token: str):
-    common_logging(_solver_support)(ctx, token)
+    def callback(ctx):
+        if _shared_solver_enabled(ctx):
+            _shared_solver_support(ctx, token)
+        else:
+            _local_solver_support(ctx, token)
+
+    common_logging(callback)(ctx)
 
 
-def _solver_support(ctx, token):
+def _local_solver_support(ctx, token):
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
@@ -1340,10 +1403,16 @@ def _solver_support(ctx, token):
 @solver_app.command('obsolete',
                     help='Unregister token not to accept challenge.')
 def solver_obsolete(ctx: typer.Context, token: str):
-    common_logging(_solver_obsolete)(ctx, token)
+    def callback(ctx):
+        if _shared_solver_enabled(ctx):
+            _shared_solver_obsolete(ctx, token)
+        else:
+            _local_solver_obsolete(ctx, token)
+
+    common_logging(callback)(ctx)
 
 
-def _solver_obsolete(ctx, token):
+def _local_solver_obsolete(ctx, token):
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
     solver.get_solver()
@@ -1406,10 +1475,13 @@ def _assetmgr_status(_ctx):
     typer.echo(f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.')
 
 
-def _load_sharedsolver(ctx) -> Optional[AssetManagerClient]:
+def _shared_solver_enabled(ctx) -> bool:
+    return bool(_load_config(ctx)['solver']['shared_solver_url'])
+
+
+def _load_shared_solver(ctx) -> AssetManagerClient:
     url = _load_config(ctx)['solver']['shared_solver_url']
-    if not url:  # disabled
-        return None
+    assert url
     if 'asset_client' in ctx.meta.keys():
         return ctx.meta['asset_client']
     client = AssetManagerClient(url)
@@ -1417,51 +1489,36 @@ def _load_sharedsolver(ctx) -> Optional[AssetManagerClient]:
     return client
 
 
-def _assetclient_getinfo(ctx, address: Optional[ChecksumAddress] = None) -> dict:
-    shared_solver = _load_sharedsolver(ctx)
-    assert shared_solver
-    return shared_solver.get_info(address=address)
+def _shared_solver_getinfo(ctx, address: Optional[ChecksumAddress] = None) -> dict:
+    return _load_shared_solver(ctx).get_info(address=address)
 
 
-@assetclient_app.command('upload',
-                         help='Upload a MISP object file.')
-def assetclient_post(ctx: typer.Context,
-                     token: str,
-                     filepath: Path,
-                     support: bool = typer.Option(False, help='Let solver support this token.')):
-    common_logging(_assetclient_post)(ctx, token, filepath, support)
-
-
-def _assetclient_post(ctx, token, filepath, support):
+def _shared_solver_post(ctx, token, filepath, support=False):
     account = _load_account(ctx)
-    info = _assetclient_getinfo(ctx, address=account.eoa)
+    info = _shared_solver_getinfo(ctx, address=account.eoa)
     flx = FlexibleIndexToken(ctx, token)
     _authorize_eoaa(ctx, flx.address, info['solver_address'])
-    result = _load_sharedsolver(ctx).post_asset(account,
-                                                flx.address,
-                                                filepath,
-                                                support,
-                                                nonce=info['nonce'])
-    typer.echo(f'uploaded asset file for token: {flx.address}.')
-    if result != 'ok':
+    result = _load_shared_solver(ctx).post_asset(account,
+                                                 flx.address,
+                                                 filepath,
+                                                 support,
+                                                 nonce=info['nonce'])
+    typer.echo(f'uploaded asset file for token: {flx.address} onto shared solver.')
+    if result == 'ok':
+        if support:
+            typer.echo(f'and token is now supported (shared solver is accepting challenges).')
+    else:
         typer.echo(f'CAUTION: {result}')
 
 
-@assetclient_app.command('remove',
-                         help='Remove and obsolete a MISP object file.')
-def assetclient_delete(ctx: typer.Context,
-                       token: str):
-    common_logging(_assetclient_delete)(ctx, token)
-
-
-def _assetclient_delete(ctx, token):
+def _shared_solver_delete(ctx, token):
     account = _load_account(ctx)
-    info = _assetclient_getinfo(ctx, address=account.eoa)
+    info = _shared_solver_getinfo(ctx, address=account.eoa)
     solver_eoaa = info['solver_address']
     flx = FlexibleIndexToken(ctx, token)
-    result = _load_sharedsolver(ctx).delete_asset(account,
-                                                  flx.address,
-                                                  nonce=info['nonce'])
+    result = _load_shared_solver(ctx).delete_asset(account,
+                                                   flx.address,
+                                                   nonce=info['nonce'])
     if result == 'ok':
         typer.echo(f'removed asset file for token: {flx.address}.')
     else:
@@ -1469,39 +1526,27 @@ def _assetclient_delete(ctx, token):
     _revoke_eoaa(ctx, flx.address, solver_eoaa)
 
 
-@assetclient_app.command('support')
-def assetclient_support(ctx: typer.Context,
-                        token: str):
-    common_logging(_assetclient_support)(ctx, token)
-
-
-def _assetclient_support(ctx, token):
+def _shared_solver_support(ctx, token):
     account = _load_account(ctx)
-    info = _assetclient_getinfo(ctx, address=account.eoa)
+    info = _shared_solver_getinfo(ctx, address=account.eoa)
     flx = FlexibleIndexToken(ctx, token)
     _authorize_eoaa(ctx, flx.address, info['solver_address'])
-    result = _load_sharedsolver(ctx).post_accepting(account,
-                                                    [flx.address],
-                                                    nonce=info['nonce'])
+    result = _load_shared_solver(ctx).post_accepting(account,
+                                                     [flx.address],
+                                                     nonce=info['nonce'])
     if result == 'ok':
         typer.echo(f'Now, Token({flx.address}) is supported by Shared Solver.')
     else:
         typer.echo(result)
 
 
-@assetclient_app.command('obsolete')
-def assetclient_obsolete(ctx: typer.Context,
-                         token: str):
-    common_logging(_assetclient_obsolete)(ctx, token)
-
-
-def _assetclient_obsolete(ctx, token):
+def _shared_solver_obsolete(ctx, token):
     account = _load_account(ctx)
-    info = _assetclient_getinfo(ctx, address=account.eoa)
+    info = _shared_solver_getinfo(ctx, address=account.eoa)
     flx = FlexibleIndexToken(ctx, token)
-    result = _load_sharedsolver(ctx).delete_accepting(account,
-                                                      [flx.address],
-                                                      nonce=info['nonce'])
+    result = _load_shared_solver(ctx).delete_accepting(account,
+                                                       [flx.address],
+                                                       nonce=info['nonce'])
     if result == 'ok':
         typer.echo(f'Token({flx.address}) is obsoleted by Shared Solver.')
     else:
@@ -1509,22 +1554,9 @@ def _assetclient_obsolete(ctx, token):
     _revoke_eoaa(ctx, flx.address, info['solver_address'])
 
 
-@assetclient_app.command('list_accepting')
-def assetclient_list_accepting(ctx: typer.Context):
-    def _assetclient_printlist(ctx):
-        population = _get_tokens_population(
-            ctx, mine=True, mine_only=True, soldout=True, own=True, own_only=False)
-        addresses = [ex.address for ex_list in population.values() for ex in ex_list]
-        typer.echo(json.dumps(_assetclient_list_accepting(ctx, addresses=addresses), indent=2))
-
-    common_logging(_assetclient_printlist)(ctx)
-
-
-def _assetclient_list_accepting(ctx, addresses: List[ChecksumAddress]) -> List[ChecksumAddress]:
+def _shared_solver_list_accepting(ctx, addresses: List[ChecksumAddress]) -> List[ChecksumAddress]:
     account = _load_account(ctx)
-    shared_solver = _load_sharedsolver(ctx)
-    assert shared_solver
-    return shared_solver.list_accepting(account=account, token_addresses=addresses)
+    return _load_shared_solver(ctx).list_accepting(account=account, token_addresses=addresses)
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
@@ -2221,7 +2253,7 @@ def publish(
 
 
 def _uuid_to_misp_download_path(_ctx, uuid) -> Path:
-    return Path(f'{APP_DIR}/misp/download/{str(UUID(uuid))}.json')
+    return Path(f'{APP_DIR}/misp/download/{UUID(str(uuid))}.json')
 
 
 def _address_to_solver_assets_path(ctx, address) -> Path:
@@ -2237,7 +2269,7 @@ def _is_misp_object(load_filepath):
     return False
 
 
-def _store_misp_object(ctx, load_filepath) -> Tuple[str, str]:
+def _store_misp_object(ctx, load_filepath) -> Tuple[str, str, Path]:
     typer.echo(f'loading: {load_filepath}')
     event = _load_misp_event(load_filepath)
 
@@ -2250,7 +2282,7 @@ def _store_misp_object(ctx, load_filepath) -> Tuple[str, str]:
             except Exception as err:
                 raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
         else:
-            return event.uuid, event.info
+            return event.uuid, event.info, download_filepath
 
     # save the loadable MISP objects
     misp_object = pymisp.AbstractMISP()
@@ -2261,7 +2293,7 @@ def _store_misp_object(ctx, load_filepath) -> Tuple[str, str]:
         json.dump(json.loads(misp_object.to_json()), fout, ensure_ascii=False, indent=2)
         typer.echo(f'saved MISP object as {download_filepath}')
 
-    return event.uuid, event.info
+    return event.uuid, event.info, download_filepath
 
 
 def _fix_amounts(ctx, token_address, initial_amount, serve_amount
@@ -2322,7 +2354,7 @@ def _publish(
     if price < 0:
         raise Exception(f'Invalid price: {price}')
 
-    uuid, title = _store_misp_object(ctx, misp_object)
+    uuid, title, fixed_filepath = _store_misp_object(ctx, misp_object)
     token_address = _token_publish(
         ctx,
         catalog,
@@ -2333,21 +2365,17 @@ def _publish(
         initial_amount,
         serve_amount)
 
-    # TODO: support the case using asset manager.
-
-    assets_path = _address_to_solver_assets_path(ctx, token_address)
-    if os.path.exists(assets_path):
-        os.unlink(assets_path)  # force overwrite
-    os.symlink(_uuid_to_misp_download_path(ctx, uuid), assets_path)
-    typer.echo(f'created a symlink of MISP object as a solver asset for token: {token_address}.')
-
-    if _solver_status(ctx)[0]:
-        try:
-            _solver_support(ctx, token_address)
-            return
-        except Exception as err:
-            typer.echo(f'failed solver support: {err}')
-    typer.echo(f'Run \"metemctl solver support {token_address}\" after enabling Solver')
+    if _load_shared_solver(ctx):
+        _shared_solver_post(ctx, token_address, fixed_filepath, support=True)
+    else:
+        _local_solver_link(ctx, f'{catalog}-{token_address}')
+        if _solver_is_ready(ctx):
+            try:
+                _local_solver_support(ctx, token_address)
+            except Exception as err:
+                typer.echo(f'failed solver support: {err}')
+        else:
+            typer.echo(f'Run \"metemctl solver support {token_address}\" after enabling Solver')
 
 
 @app.command(help="Unregister disseminated CTI token from catalog.")
@@ -2369,10 +2397,7 @@ def _discontinue(ctx, catalog_and_token):
         typer.echo(f'took back all({amount}) of token({flx_token.address}) from broker.')
     catalog.unregister_cti(flx_token.address)
     typer.echo(f'unregistered token({flx_token.address}) from catalog({catalog.address}).')
-    if _solver_status(ctx)[0]:
-        _solver_obsolete(ctx, flx_token.address)
-    else:
-        _load_operator(ctx).unregister_tokens([flx_token.address])
+    solver_obsolete(ctx, flx_token.address)
 
 
 @account_app.command("show", help="Show the current account information.")
