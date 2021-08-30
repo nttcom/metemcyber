@@ -2367,7 +2367,7 @@ def _publish(
         initial_amount,
         serve_amount)
 
-    if _load_shared_solver(ctx):
+    if _shared_solver_enabled(ctx):
         _shared_solver_post(ctx, token_address, fixed_filepath, support=True)
     else:
         _local_solver_link(ctx, f'{catalog}-{token_address}')
