@@ -107,7 +107,7 @@ metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 >```sh
 >cat ~/.ngrok2/ngrok.yml
 >```
-> Change the configurations so that the daemon to receive data uses ngrok (from 0 to 1):
+>Change the configurations so that the daemon to receive data uses ngrok (from 0 to 1):
 >```sh
 >metemctl config edit
 >...
