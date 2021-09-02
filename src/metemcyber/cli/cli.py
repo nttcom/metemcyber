@@ -18,6 +18,7 @@
 
 import errno
 import hashlib
+import ipaddress
 import json
 import os
 import shutil
@@ -1121,6 +1122,11 @@ def _seeker_start(ctx):
             ngrok_mgr.start()
         typer.echo(f'ngrok started on process {ngrok_mgr.pid}, '
                    f'with public url: {ngrok_mgr.public_url}.')
+    elif seeker.address:
+        seeker_ip = ipaddress.ip_address(seeker.address)
+        if seeker_ip.is_loopback:
+            typer.echo(f'loopback detected (no ngrok): {seeker.address}')
+            typer.echo('SET "ngrok = 1" in [seeker] of metemctl config to use ngrok.')
 
 
 @seeker_app.command('stop')
