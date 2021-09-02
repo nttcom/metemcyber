@@ -93,7 +93,7 @@ Enter the index number of the CTI token to be purchased. The CTI token address c
 metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 ```
 
-> ⚠️ **You need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup a local ngrok environment](https://dashboard.ngrok.com/get-started/setup).
+> ⚠️ If you don't have a global IP address or can't traverse a firewall or NAT, **you need an account to use [ngrok](https://dashboard.ngrok.com/).** [Setup a local ngrok environment](https://dashboard.ngrok.com/get-started/setup).
 >Download [ngrok](https://dashboard.ngrok.com/) and extract it.
 >Open the application directory to **put the ngrok executable file there**:
 >```sh
@@ -107,17 +107,30 @@ metemctl ix buy $TOKEN_INDEX_OR_ADDRESS
 >```sh
 >cat ~/.ngrok2/ngrok.yml
 >```
->Start a daemon to receive data using ngrok:
+>Change the configurations so that the daemon to receive data uses ngrok (from 0 to 1):
 >```sh
->metemctl seeker start --ngrok
->metemctl seeker status
->```
+>metemctl config edit
+>...
+>[seeker]
+>...
+>ngrok = 1
 
-Use CTI token to receive the MISP object on your public URL of the ngrok.
+Start a seeker daemon to receive data.
+```sh
+metemctl seeker start
+metemctl seeker status
+```
+
+Use the CTI token to receive MISP objects at the configured public IP/URL.
 
 ```sh
 metemctl ix use $TOKEN_INDEX_OR_ADDRESS
 ```
+
+> If you want to use **specific IP/URL**, you need to tell the Solver daemon your global IP/URL and port number:
+>```sh
+>metemctl ix use --seeker http(s)://$ADDR:$PORT $TOKEN_INDEX_OR_ADDRESS
+>```
 
 ## ♻️ Run the Intelligence Cycle
 
