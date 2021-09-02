@@ -18,6 +18,7 @@
 
 import errno
 import hashlib
+import ipaddress
 import json
 import os
 import shutil
@@ -31,6 +32,7 @@ from shutil import copyfile, copytree
 from subprocess import CalledProcessError
 from time import sleep
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
+from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 import eth_account
@@ -1121,6 +1123,8 @@ def _seeker_start(ctx):
             ngrok_mgr.start()
         typer.echo(f'ngrok started on process {ngrok_mgr.pid}, '
                    f'with public url: {ngrok_mgr.public_url}.')
+    elif seeker.address:
+        _display_ngrok_support_message(seeker.address)
 
 
 @seeker_app.command('stop')
@@ -1577,10 +1581,21 @@ def _ix_use(ctx, token, seeker_url, monitor):
     operator = _load_operator(ctx)
     if not seeker_url:
         seeker_url = _seeker_url(ctx, auto_start=True)
+    _display_ngrok_support_message(urlparse(seeker_url).hostname)
     Token(account).get(flx.address).send(operator.address, amount=1, data=seeker_url)
     typer.echo(f'Started challenge with token({flx.address}).')
     if monitor:
         _monitor_seeker_message()
+
+
+def _display_ngrok_support_message(address: str):
+    try:
+        dest_ip = ipaddress.ip_address(address)
+        if dest_ip.is_loopback:
+            typer.echo(f'loopback detected (no ngrok): {dest_ip}')
+            typer.echo('SET "ngrok = 1" in [seeker] of metemctl config to use ngrok.')
+    except ValueError:
+        pass
 
 
 def _monitor_seeker_message():
