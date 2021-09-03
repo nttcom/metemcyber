@@ -360,7 +360,7 @@ class SolverThread():
             self.cond.notify_all()
             self.cond.release()
         if self.thread:
-            tracelog(SERVERLOG, '%d: joinning thread', self.index)
+            tracelog(SERVERLOG, '%d: joining thread', self.index)
             self.thread.join()
         self.thread = None
         tracelog(SERVERLOG, '%d: thread stopped', self.index)
@@ -508,7 +508,7 @@ class SolverThread():
                 break
             self.pool.append(self)
             tracelog(SERVERLOG, '%d: released', self.index)
-        tracelog(SERVERLOG, '%d: shuttting down', self.index)
+        tracelog(SERVERLOG, '%d: shutting down', self.index)
 
 
 class MCSServer():
