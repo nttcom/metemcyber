@@ -61,7 +61,7 @@ contract("CTIToken", (accounts) => {
     editableToken = await CTIToken.new(10, [], true, {from: owner});
   });
 
-  it("editable controll", async() => {
+  it("editable control", async() => {
     let editable = await editableToken.editable({from: owner});
     assert.equal(editable, true, "unexpected result for editableToken");
     await expectRevert(editableToken.setEditable(false, {from: guest}), "not permitted");
