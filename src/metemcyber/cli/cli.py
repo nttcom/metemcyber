@@ -1274,7 +1274,7 @@ def _solver_enable(ctx, plugin):
         msg = solver.solver('accept_registered', token_addresses)
         acceptings = solver.solver('accepting_tokens')
     except Exception as err:
-        raise Exception(f'accepting registerd tokens failed: {err}') from err
+        raise Exception(f'accepting registered tokens failed: {err}') from err
     if acceptings:
         typer.echo(f'and accepting {len(acceptings)} token(s) already registered.')
     else:
@@ -1753,7 +1753,7 @@ def _get_challenges(ctx: typer.Context
 def ix_challenge_show(ctx: typer.Context,
                       done: bool = typer.Option(False, help='show finished and cancelled'),
                       mine_only: bool = typer.Option(True, help='show yours only'),
-                      verbose: bool = typer.Option(False, help='show seekr and solver')):
+                      verbose: bool = typer.Option(False, help='show seeker and solver')):
     common_logging(_ix_challenge_show)(ctx, done, mine_only, verbose)
 
 
@@ -2134,7 +2134,7 @@ def misp_pull(
         help='Distribution level(s) (0,1,2,3).'),
     org: Optional[List[Union[str]]] = typer.Option(
         None,
-        help='Search by the creator organisation by supplying the organisation identifier.')
+        help='Search by the creator organization by supplying the organization identifier.')
 ):
     results = _pymisp_client(ctx).search(
         limit=limit,
@@ -2212,7 +2212,7 @@ def run(ctx: typer.Context, setup: bool = typer.Option(
         typer.echo(f'An error occurred while running the workflow. {err}')
 
 
-@app.command(help="Validate the current intelligence cylcle")
+@app.command(help="Validate the current intelligence cycle")
 def check(
     ctx: typer.Context,
     setup: bool = typer.Option(
@@ -2365,7 +2365,7 @@ def _publish(
         misp_object = _find_project_report(ctx)
         if not misp_object:
             raise Exception(
-                'MISP obeject not found in the current project. '
+                'MISP object not found in the current project. '
                 'Try \"metemctl publish --misp_object MISP_OBJECT_PATH\".')
 
     if price < 0:
@@ -2590,7 +2590,7 @@ def issue_():
     typer.launch('https://github.com/nttcom/metemcyber/issues')
 
 
-@app.command(help="Access the application directoy of Metemcyber")
+@app.command(help="Access the application directory of Metemcyber")
 def open_app_dir(
     print_only: bool = typer.Option(
         False,
