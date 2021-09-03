@@ -27,7 +27,7 @@ from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import BaseSolver
 from metemcyber.core.util import get_random_local_port, merge_config
 
-LOGGER = get_logger(name='standaone_solver', file_prefix='core')
+LOGGER = get_logger(name='standalone_solver', file_prefix='core')
 
 GET_RANDOM_RETRY_MAX = 10
 JOIN_TIMEOUT_SEC = 30
