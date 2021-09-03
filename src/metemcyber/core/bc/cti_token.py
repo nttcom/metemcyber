@@ -136,7 +136,7 @@ class CTIToken(Contract):
         func = self.contract.functions.removeCandidates(indexes)
         tx_hash = func.transact()
         tx_receipt = self.web3.eth.waitForTransactionReceipt(tx_hash)
-        self.gaslog('removeCandidatas', tx_receipt)
+        self.gaslog('removeCandidates', tx_receipt)
         if tx_receipt['status'] != 1:
             raise ValueError('Transaction failed: removeCandidates')
         self.log_success()
