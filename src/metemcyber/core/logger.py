@@ -35,7 +35,7 @@ class MetemcyberLogger():
 
     def __init__(self, name: str, app_dir: str = "",
                  file_prefix: str = "") -> None:
-        """Initilizates a Logger for Metemcyber Clis.
+        """Initializes a Logger for Metemcyber Clis.
 
         :param name: Strings of logger name.
         :param log_file: Strings of log file name.
