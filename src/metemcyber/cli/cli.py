@@ -435,8 +435,8 @@ def create_workflow_config(
     config['project_name'] = event_id
     config['repo_name'] = event_id
     config['python_package'] = "metemcyber_" + event_id.replace('-', '_')
-    config['intelligece_category'] = category
-    config['intelligece_contents'] = contents
+    config['intelligence_category'] = category
+    config['intelligence_contents'] = contents
 
     logger.info(f"Write the workflow config to: {dst}")
     with open(dst, 'w') as fout:
@@ -2221,8 +2221,8 @@ def check(
         viz: bool = typer.Option(
             False,
         help='Show the visualized current workflow')):
-    # TODO: check the available intelligece workflow
-    # TODO: check available intelligece contents
+    # TODO: check the available intelligence workflow
+    # TODO: check available intelligence contents
     logger = getLogger()
     logger.info(f"Run command: kedro test")
     try:
