@@ -104,7 +104,7 @@ class CTICatalog(Contract):
             self.version = max(self.version, 1)
             if func == 'setMembers':
                 self.meta['members'] = tx0['input']['members_']
-        elif func in {'setPrivate', 'setPublic', 'authrizeUser', 'revokeUser'}:
+        elif func in {'setPrivate', 'setPublic', 'authorizeUser', 'revokeUser'}:
             self.version = 0
         elif func in {'registerCti', 'modifyCti'}:
             token_address = tx0['input']['tokenURI']
