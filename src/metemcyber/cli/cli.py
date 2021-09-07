@@ -21,6 +21,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import pickle
 import shutil
 import subprocess
 import urllib.request
@@ -2169,14 +2170,33 @@ def _load_misp_event(filepath):
 @misp_app.command("event", help="Show exported MISP events")
 def misp_event(ctx: typer.Context):
     json_dumpdir = Path(_load_config(ctx)['misp']['download'])
+    # load metadata pickle for efficiency
+    metadata_cache_path = Path(_load_config(ctx)['misp']['download'], '../metadata_cache.pkl')
+    if os.path.exists(metadata_cache_path):
+        with open(metadata_cache_path, 'rb') as fp:
+            metadata_cache = pickle.load(fp)
+    else:
+        metadata_cache = {}
 
     files = json_dumpdir.glob('*.json')
-    files_sort_by_date = sorted(list(files), key=lambda f: _load_misp_event(f).date, reverse=True)
+    # found misp hash for this time
+    found = set()
+    for file in files:
+        with open(file, 'rb') as fp:
+            misp_hash = hashlib.sha256(fp.read()).hexdigest()
+            found.add(misp_hash)
+        if misp_hash not in metadata_cache:
+            event = _load_misp_event(file)
+            metadata_cache[misp_hash] = (event.date, event.uuid, event.info)
+    # delete metadata of not-found misp hash
+    for not_found in set(metadata_cache.keys()) - found:
+        metadata_cache.pop(not_found)
+    with open(metadata_cache_path, 'wb') as fp:
+        pickle.dump(metadata_cache, fp)
 
     output_line = []
-    for file in files_sort_by_date:
-        event = _load_misp_event(file)
-        output_line.append(f'{event.date} - {event.uuid}: {event.info}')
+    for metadata in sorted(metadata_cache.values(), reverse=True):
+        output_line.append(f'{metadata[0]} - {metadata[1]}: {metadata[2]}')
 
     typer.echo_via_pager('\n'.join(output_line))
 
