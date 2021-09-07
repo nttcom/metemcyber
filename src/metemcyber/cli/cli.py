@@ -2174,7 +2174,11 @@ def misp_event(ctx: typer.Context):
     metadata_cache_path = Path(_load_config(ctx)['misp']['download'], '../metadata_cache.pkl')
     if os.path.isfile(metadata_cache_path):
         with open(metadata_cache_path, 'rb') as fp:
-            metadata_cache = pickle.load(fp)
+            try:
+                metadata_cache = pickle.load(fp)
+            except pickle.UnpicklingError as err:
+                typer.echo(err)
+                os.remove(metadata_cache_path)
     else:
         metadata_cache = {}
 
