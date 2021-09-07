@@ -2171,7 +2171,8 @@ def _load_misp_event(filepath):
 def misp_event(ctx: typer.Context):
     json_dumpdir = Path(_load_config(ctx)['misp']['download'])
     # load metadata pickle for efficiency
-    metadata_cache_path = Path(_load_config(ctx)['misp']['download'], '../metadata_cache.pkl')
+    if os.path.isdir(json_dumpdir):
+        metadata_cache_path = Path(json_dumpdir, 'metadata_cache.pkl')
     if os.path.isfile(metadata_cache_path):
         with open(metadata_cache_path, 'rb') as fp:
             try:
