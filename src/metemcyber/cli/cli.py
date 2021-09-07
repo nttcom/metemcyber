@@ -2194,8 +2194,8 @@ def misp_event(ctx: typer.Context):
             event = _load_misp_event(file)
             metadata_cache[misp_hash] = (event.date, event.uuid, event.info)
     # delete metadata of not-found misp hash
-    for not_found in set(metadata_cache.keys()) - found:
-        metadata_cache.pop(not_found)
+    for deleted in set(metadata_cache.keys()) - found:
+        metadata_cache.pop(deleted)
     with open(metadata_cache_path, 'wb') as fp:
         pickle.dump(metadata_cache, fp)
 
