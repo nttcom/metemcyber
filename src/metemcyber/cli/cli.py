@@ -21,6 +21,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import pickle
 import shutil
 import subprocess
 import urllib.request
@@ -2169,14 +2170,39 @@ def _load_misp_event(filepath):
 @misp_app.command("event", help="Show exported MISP events")
 def misp_event(ctx: typer.Context):
     json_dumpdir = Path(_load_config(ctx)['misp']['download'])
+    # load metadata pickle for efficiency
+    if not os.path.isdir(json_dumpdir):
+        raise FileNotFoundError(f'The directory of MISP download does not exist. ({json_dumpdir})')
+    metadata_cache_path = Path(json_dumpdir, '_download_metadata_cache.pkl')
+    if os.path.isfile(metadata_cache_path):
+        with open(metadata_cache_path, 'rb') as fp:
+            try:
+                metadata_cache = pickle.load(fp)
+            except pickle.UnpicklingError as err:
+                typer.echo(err)
+                os.remove(metadata_cache_path)
+    else:
+        metadata_cache = {}
 
     files = json_dumpdir.glob('*.json')
-    files_sort_by_date = sorted(list(files), key=lambda f: _load_misp_event(f).date, reverse=True)
+    # found misp hash for this time
+    found = set()
+    for file in files:
+        with open(file, 'rb') as fp:
+            misp_hash = hashlib.sha256(fp.read()).hexdigest()
+            found.add(misp_hash)
+        if misp_hash not in metadata_cache:
+            event = _load_misp_event(file)
+            metadata_cache[misp_hash] = (event.date, event.uuid, event.info)
+    # delete metadata of not-found misp hash
+    for deleted in set(metadata_cache.keys()) - found:
+        metadata_cache.pop(deleted)
+    with open(metadata_cache_path, 'wb') as fp:
+        pickle.dump(metadata_cache, fp)
 
     output_line = []
-    for file in files_sort_by_date:
-        event = _load_misp_event(file)
-        output_line.append(f'{event.date} - {event.uuid}: {event.info}')
+    for metadata in sorted(metadata_cache.values(), reverse=True):
+        output_line.append(f'{metadata[0]} - {metadata[1]}: {metadata[2]}')
 
     typer.echo_via_pager('\n'.join(output_line))
 
