@@ -69,6 +69,7 @@ function Login(props) {
     useEffect(() => {
         sessionStorage.setItem('imageDir', `${ipcRenderer.sendSync('get-image-dir')}metemcyber_logo.png`);
         setCurrentKeyName(ipcRenderer.sendSync('get-key'));
+        setPass(ipcRenderer.sendSync('get-password'));
         if (sessionStorage.getItem('init') === null) {
             ipcRenderer.send('exec-init');
             ipcRenderer.once('finish-init', (event, arg) => {
