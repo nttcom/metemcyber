@@ -78,7 +78,7 @@ app.on('window-all-closed', function () {
 
 
 ipcMain.on('logout', async (event, arg) => {
-  process.env.METEMCTL_KEYFILE_PASSWORD = null;
+  process.env.METEMCTL_KEYFILE_PASSWORD = '';
   event.returnValue = "logout";
 });
 
@@ -415,6 +415,9 @@ ipcMain.on('open-download-dir', async (event, arg) => {
   downloadDir = downloadDir.slice(0, -16);
   exec(`open ${downloadDir}`);
   event.returnValue = "success";
+});
+ipcMain.on('get-password', async (event, arg) => {
+  event.returnValue = require('shell-env').sync().METEMCTL_KEYFILE_PASSWORD;
 });
 
 async function getKeyFilePath(event) {
