@@ -16,7 +16,7 @@
 
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Badge, Button, Col, Row, Collapse, Container, Navbar, NavbarToggler, NavbarBrand, UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem, NavbarText, List, ListInlineItem, Nav, NavItem, NavLink, Spinner, Toast, ToastBody, ToastHeader } from 'reactstrap';
+import { Badge, Button, Col, Row, Collapse, Container, Navbar, NavbarToggler, NavbarBrand, UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem, NavbarText, List, ListInlineItem, Modal, ModalHeader, ModalBody, ModalFooter, Nav, NavItem, NavLink, Spinner, Toast, ToastBody, ToastHeader } from 'reactstrap';
 import { Route, Switch } from 'react-router-dom';
 import Account from './account';
 import Buy from './buycti';
@@ -33,6 +33,8 @@ function DefaultLayout(props) {
     const [tokenList, setTokenList] = useState([]);
     const [challangeList, setChallangeList] = useState([]);
     const [seekerStatus, setSeekerStatus] = useState(false);
+    const [errorModalToggle, setErrorModalToggle] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(async () => {
         await Promise.all(getInfo());
@@ -109,6 +111,11 @@ function DefaultLayout(props) {
         ipcRenderer.sendSync('open-download-dir');
     }
 
+    const toggleErrorModal = (message) => {
+        setErrorMessage(message);
+        setErrorModalToggle(!errorModalToggle);
+    }
+
     return (
         <div>
             {isLoading ?
@@ -158,7 +165,7 @@ function DefaultLayout(props) {
                                             <Route path="/contents/account" name="account" render={() => <Account {...props} content={accountInfo} />} />
                                             <Route path="/contents/buy" name="token-buy" render={() => <Buy {...props} content={tokenList} refreshInfo={refreshInfo} />} />
                                             <Route path="/contents/challange/execution" name="challange-execution" render={() => <ChallangeExecution {...props} accountInfo={accountInfo} tokenList={tokenList} setChallangeResult={setChallangeResult} setToastOpen={setToastOpen} refreshInfo={refreshInfo} />} />
-                                            <Route path="/contents/challange/cancel" name="challange-cancel" render={() => <ChallangeCancel {...props} content={challangeList} refreshInfo={refreshInfo}/>} />
+                                            <Route path="/contents/challange/cancel" name="challange-cancel" render={() => <ChallangeCancel {...props} content={challangeList} refreshInfo={refreshInfo} />} />
                                             <Route path="/contents" name="account" render={() => <Account {...props} content={accountInfo} />} />
                                         </Switch>
                                     </MainContent>
@@ -191,6 +198,15 @@ function DefaultLayout(props) {
                     <Button color="secondary" onClick={openDownloadDir}>Open download directory</Button>
                 </ToastBody>
             </Toast>
+            <Modal isOpen={errorModalToggle} toggle={toggleErrorModal} >
+                <ModalHeader >Error</ModalHeader>
+                <ModalBody>
+                    {errorMessage}
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="primary" onClick={toggleErrorModal}>OK</Button>{' '}
+                </ModalFooter>
+            </Modal>
         </div>
     );
 }
