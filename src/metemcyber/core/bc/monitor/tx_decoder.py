@@ -138,7 +138,8 @@ class TransactionDecoder:
         return tmp if tmp > 0 else 1
 
     def simplify_tx(self, tx0: dict) -> dict:
-        skip_keys = {'blockHash', 'hash', 'nonce', 'r', 's', 'v', 'x_tx_receipt', 'x_block'}
+        skip_keys = {'blockHash', 'hash', 'nonce', 'r', 's', 'v', 'x_tx_receipt', 'x_block',
+                     'chainId', 'publicKey', 'raw'}
         skip_keys_on_zero = {'to', 'input', 'value'}
         tx0['x_receipt_status'] = tx0['x_tx_receipt'].status
         if tx0.get('input'):
