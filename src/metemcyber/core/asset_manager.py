@@ -26,6 +26,7 @@ from urllib.request import Request, urlopen
 import uvicorn
 from eth_typing import ChecksumAddress
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from psutil import Process
 # pylint: disable=no-name-in-module
 from pydantic import BaseModel
@@ -45,10 +46,11 @@ VALID_TIMESTAMP_RANGE = 12 * 3600  # 12 hours in sec
 SERVERLOG = get_logger(name='asset_mgr', file_prefix='core')
 CLIENTLOG = get_logger(name='asset_client', file_prefix='core')
 
-URLPATH_INFO = 'info'
-URLPATH_MISP = 'misp_object'
-URLPATH_LIST = 'list_tokens'
-URLPATH_ACCEPT = 'accept_tokens'
+URLPATH_PREFIX = 'solver/api'
+URLPATH_INFO = f'{URLPATH_PREFIX}/info'
+URLPATH_MISP = f'{URLPATH_PREFIX}/misp_object'
+URLPATH_LIST = f'{URLPATH_PREFIX}/list_tokens'
+URLPATH_ACCEPT = f'{URLPATH_PREFIX}/accept_tokens'
 
 CONFIG_SECTION = 'asset_manager'
 DEFAULT_CONFIGS = {
@@ -138,6 +140,18 @@ class AssetManager:
         self.app.post(f'/{URLPATH_LIST}')(self._list_accepting)
         self.app.post(f'/{URLPATH_ACCEPT}')(self._post_accepting)
         self.app.delete(f'/{URLPATH_ACCEPT}')(self._delete_accepting)
+
+        # Enable Cross-Origin Resource Sharing with localhost
+        origins = [
+            'http://localhost:3000'  # webpotal-api
+        ]
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=True,
+            allow_headers=['*'],
+            allow_methods=['DELETE', 'GET', 'OPTION', 'POST']
+        )
 
     def _get_solver(self) -> MCSClient:  # CAUTION: do not cache client.
         solver = MCSClient(self.solver_account, APP_DIR)
