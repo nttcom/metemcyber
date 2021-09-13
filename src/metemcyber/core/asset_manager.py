@@ -143,7 +143,6 @@ class AssetManager:
 
         # Enable Cross-Origin Resource Sharing with localhost
         origins = [
-            'http://localhost',
             'http://localhost:3000'  # webpotal-api
         ]
         self.app.add_middleware(
