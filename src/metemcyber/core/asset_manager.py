@@ -26,6 +26,7 @@ from urllib.request import Request, urlopen
 import uvicorn
 from eth_typing import ChecksumAddress
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from psutil import Process
 # pylint: disable=no-name-in-module
 from pydantic import BaseModel
@@ -138,6 +139,19 @@ class AssetManager:
         self.app.post(f'/{URLPATH_LIST}')(self._list_accepting)
         self.app.post(f'/{URLPATH_ACCEPT}')(self._post_accepting)
         self.app.delete(f'/{URLPATH_ACCEPT}')(self._delete_accepting)
+
+        # Enable Cross-Origin Resource Sharing with localhost
+        origins = [
+            'http://localhost',
+            'http://localhost:3000'
+        ]
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origin=origins,
+            allow_credentials=True,
+            allow_headers=['*'],
+            allow_methods=['DELETE', 'GET', 'OPTION', 'POST']
+        )
 
     def _get_solver(self) -> MCSClient:  # CAUTION: do not cache client.
         solver = MCSClient(self.solver_account, APP_DIR)
