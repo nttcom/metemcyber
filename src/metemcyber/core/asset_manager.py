@@ -70,7 +70,8 @@ class SignedRequest(BaseModel):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.timestamp = int(datetime.now().timestamp())
+        if self.timestamp == 0:
+            self.timestamp = int(datetime.now().timestamp())
 
     @property
     def string_to_sign(self) -> str:
