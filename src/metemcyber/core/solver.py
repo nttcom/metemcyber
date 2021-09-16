@@ -218,13 +218,13 @@ class BaseSolver:
                 seeker: ChecksumAddress, task_id: int, token_address: ChecksumAddress
                 ) -> None:
         data_obj = {
-            "from": self.account.eoa,
-            "to": seeker,
+            "solver": self.account.eoa,
+            "seeker": seeker,
             "task_id": task_id,
             "token_address": token_address,
             "download_url": download_url,
         }
-        data = json.dumps(data_obj)
+        data = json.dumps(data_obj, sort_keys=True)
         sign = self.account.sign_message(str(data))
         headers = {"Content-Type": "application/json",
                    SIGNATURE_HEADER: sign}

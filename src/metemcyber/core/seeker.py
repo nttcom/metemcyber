@@ -148,9 +148,9 @@ class Resolver(WebhookReceiver):
     def _precheck_request(self, body: str, sign: str) -> dict:
         account = Account(Ether(self.endpoint_url))
         jdata = json.loads(body)
-        if jdata['from'] != verify_message(body, sign):
+        if jdata['solver'] != verify_message(body, sign):
             raise Exception('Signer mismatch.')
-        tty_message(f'Data sender: {jdata["from"]}.')
+        tty_message(f'Data sender: {jdata["solver"]}.')
         operator = CTIOperator(account).get(self.operator_address)
         task = None
         offset = 0
@@ -167,7 +167,7 @@ class Resolver(WebhookReceiver):
         if task is None:
             raise Exception(f'No such task id: {jdata["task_id"]}')
         _, t_addr, t_solver, _, _ = task
-        if t_addr != jdata['token_address'] or t_solver != jdata['from']:
+        if t_addr != jdata['token_address'] or t_solver != jdata['solver']:
             raise Exception('Task info mismatch')
         token = CTIToken(account).get(t_addr)
         if not token.is_operator(t_solver, token.publisher):
