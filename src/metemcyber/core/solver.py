@@ -224,7 +224,7 @@ class BaseSolver:
             "token_address": token_address,
             "download_url": download_url,
         }
-        data = json.dumps(data_obj)
+        data = json.dumps(data_obj, sort_keys=True)
         sign = self.account.sign_message(str(data))
         headers = {"Content-Type": "application/json",
                    SIGNATURE_HEADER: sign}
