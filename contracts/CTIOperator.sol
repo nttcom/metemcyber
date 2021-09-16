@@ -167,10 +167,15 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
         if (tokens.length == 0)
             return;
         for (uint i = 0; i < tokens.length; i++) {
+            CTIToken token = CTIToken(tokens[i]);
             require(
                 MetemcyberUtil.isSameStrings(
-                    CTIToken(tokens[i]).contractId(), CTIToken_ContractId),
+                    token.contractId(), CTIToken_ContractId),
                 "not a token address"
+            );
+            require(
+                token.isOperatorFor(msg.sender, token.publisher()),
+                "not authorized"
             );
             if (!_isRegistered(tokens[i], msg.sender)) {
                 uint j = 0;
@@ -221,6 +226,11 @@ contract CTIOperator is IERC777Recipient, ERC1820Implementer {
         require(
             _isRegistered(_tasks[taskId].token, msg.sender),
             "Not registered."
+        );
+        CTIToken token = CTIToken(_tasks[taskId].token);
+        require(
+            token.isOperatorFor(msg.sender, token.publisher()),
+            "not authorized"
         );
 
         _tasks[taskId].solver = msg.sender;
