@@ -218,8 +218,8 @@ class BaseSolver:
                 seeker: ChecksumAddress, task_id: int, token_address: ChecksumAddress
                 ) -> None:
         data_obj = {
-            "from": self.account.eoa,
-            "to": seeker,
+            "solver": self.account.eoa,
+            "seeker": seeker,
             "task_id": task_id,
             "token_address": token_address,
             "download_url": download_url,
