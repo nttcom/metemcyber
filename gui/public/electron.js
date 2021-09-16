@@ -22,6 +22,8 @@ const fs = require('fs');
 const exec = require('util').promisify(require('child_process').exec);
 const fixPath = require('fix-path');
 
+require('dotenv').config();
+
 const nodePtyConfig = {
   cols: 1500,
   rows: 1500,
@@ -416,6 +418,32 @@ ipcMain.on('open-download-dir', async (event, arg) => {
   exec(`open ${downloadDir}`);
   event.returnValue = "success";
 });
+
+ipcMain.on('get-transaction', async (event, arg) => {
+  const request = require('request');
+  console.log(arg);
+  request.post({
+    uri: `${process.env.TRANSACTION_API_HOST}/tx_counter`,
+    headers: { "Content-type": "application/json" },
+    json: [{
+      "class": "DailyActivity",
+      "options": {
+        "generic_filter": {
+          "include_from": arg.address
+        },
+        "start": `${arg.startYear}-${arg.startMonth}-${arg.startDate}T15:00:00`,
+        "end": `${arg.endYear}-${arg.endMonth}-${arg.endDate}T15:00:00`
+      }
+    }]
+  }, (err, res, data) => {
+    if (res.statusCode === 200) {
+      event.reply('send-transaction', data[0]);
+    } else {
+      event.reply('send-transaction', false);
+    }
+  });
+});
+
 ipcMain.on('get-password', async (event, arg) => {
   event.returnValue = require('shell-env').sync().METEMCTL_KEYFILE_PASSWORD;
 });
