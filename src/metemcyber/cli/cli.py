@@ -46,6 +46,7 @@ from eth_typing import ChecksumAddress
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 from web3 import Web3
+from web3.datastructures import AttributeDict
 
 from metemcyber import __version__
 from metemcyber.cli.constants import APP_DIR
@@ -56,6 +57,7 @@ from metemcyber.core.bc.broker import Broker
 from metemcyber.core.bc.catalog import Catalog, TokenInfo
 from metemcyber.core.bc.catalog_manager import CatalogManager
 from metemcyber.core.bc.ether import Ether
+from metemcyber.core.bc.eventlistener import BasicEventListener
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
@@ -1586,6 +1588,7 @@ def _ix_use(ctx, token, seeker_url, monitor):
     Token(account).get(flx.address).send(operator.address, amount=1, data=seeker_url)
     typer.echo(f'Started challenge with token({flx.address}).')
     if monitor:
+        _watch_token_sent(ctx, flx.address)
         _monitor_seeker_message()
 
 
@@ -1597,6 +1600,37 @@ def _display_ngrok_support_message(address: str):
             typer.echo('SET "ngrok = 1" in [seeker] of metemctl config to use ngrok.')
     except ValueError:
         pass
+
+
+def _load_eventlistener(ctx) -> BasicEventListener:
+    if 'eventlistener' not in ctx.meta.keys():
+        listener = BasicEventListener('CommonEventListener')
+        listener.start()
+        ctx.meta['eventlistener'] = listener
+    return ctx.meta['eventlistener']
+
+
+def _watch_token_sent(ctx, token_address):
+    account = _load_account(ctx)
+    operator = _load_operator(ctx)
+    listener = _load_eventlistener(ctx)
+    filter_key = f'Sent:{operator.address}'
+
+    def _callback(event: AttributeDict):
+        ext_msg = f' with message: {event["args"]["data"].decode("utf-8")}' \
+            if event['args'].get('data') else ''
+        typer.echo(f'Challenge token({token_address}) returned{ext_msg}.')
+        listener.remove_event_filter_in_callback(filter_key)
+
+    event_filter = Token(account).get(token_address).event_filter(
+        'Sent',
+        fromBlock='latest',
+        argument_filters={
+            'from': operator.address,
+            'to': account.eoa,
+        },
+    )
+    listener.add_event_filter(filter_key, event_filter, _callback)
 
 
 def _monitor_seeker_message():

@@ -101,6 +101,9 @@ class Token():
     def revoke_operator(self, *args, **kwargs):
         self._passthrough(*args, **kwargs)
 
+    def event_filter(self, *args, **kwargs):
+        return self._passthrough(*args, **kwargs)
+
     @property
     def editable(self) -> bool:
         return self._passthrough()
