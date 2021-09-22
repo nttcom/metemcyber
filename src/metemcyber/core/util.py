@@ -42,15 +42,18 @@ def get_random_local_port() -> int:
 def merge_config(file_path: Union[None, Path, str], defaults: Dict[str, Dict[str, str]],
                  base_config: Optional[ConfigParser] = None) -> ConfigParser:
     config = base_config if base_config else ConfigParser()
+    prime_config = ConfigParser()
     if file_path:
-        if str(file_path) not in config.read(file_path):
+        if str(file_path) not in prime_config.read(file_path):
             raise Exception(f'Load config failed: {file_path}')
-    for sect, sect_item in defaults.items():
+    for sect, sect_item in defaults.items():  # defaults MUST have entire sections and options
         if not config.has_section(sect):
             config.add_section(sect)
         for key, val in sect_item.items():
-            if not config[sect].get(key):
-                config.set(sect, key, val)
+            if prime_config.has_section(sect) and prime_config[sect].get(key):
+                config.set(sect, key, prime_config[sect][key])  # apply primary
+            elif not config[sect].get(key):
+                config.set(sect, key, val)  # apply default
             tmp = config[sect][key]
             if tmp.startswith('~'):
                 config[sect][key] = str(Path(tmp).expanduser())

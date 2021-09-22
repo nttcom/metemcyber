@@ -122,7 +122,7 @@ class BaseSolver:
         self.account: Account = account
         self.operator_address: ChecksumAddress = operator_address
         self.listener: Optional[ChallengeListener] = None
-        self.config: ConfigParser = merge_config(config_path, {})
+        self.config: ConfigParser = merge_config(config_path, {})  # default is empty
 
     def destroy(self):
         LOGGER.info('destructing solver %s for %s', self, self.operator_address)

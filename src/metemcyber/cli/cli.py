@@ -25,11 +25,11 @@ import pickle
 import shutil
 import subprocess
 import urllib.request
-from configparser import ConfigParser
+from configparser import ConfigParser, NoOptionError
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from shutil import copyfile, copytree
+from shutil import copyfile, copytree, ignore_patterns
 from subprocess import CalledProcessError
 from time import sleep
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
@@ -76,7 +76,12 @@ from metemcyber.plugins.standalone_solver import DEFAULT_CONFIGS as DC_SOLV_ALN
 
 CONFIG_FILE_NAME = "metemctl.ini"
 CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
+DESIRED_WORKSPACE_PREFIX = f'{APP_DIR}/workspace.'
 WORKSPACE_CONFIG_FILENAME = 'config.ini'
+WORKSPACE_MINIMAL_DIRS = {
+    'upload',
+    'download',
+}
 WORKFLOW_FILE_NAME = "workflow.yml"
 DATA_FILE_NAME = "source_of_truth.yml"
 METEM_STARTER_ALIASES = {
@@ -94,7 +99,7 @@ DEFAULT_CONFIGS = {
         'keyfile': '/PATH/TO/YOUR/KEYFILE',
         'solver_keyfile': '',
         'solver_keyfile_password': '',
-        'workspace': str(Path(APP_DIR) / 'workspace'),
+        'workspace': f'{DESIRED_WORKSPACE_PREFIX}pricom-mainnet',
     },
     'catalog': {
         'actives': '',
@@ -169,6 +174,8 @@ app.add_typer(assetmgr_app, name='asset_manager', help='Manage the Asset Manager
 
 config_app = typer.Typer()
 app.add_typer(config_app, name='config', help="Manage your config file of metemctl")
+workspace_app = typer.Typer()
+app.add_typer(workspace_app, name='workspace', help='Manage your workspace.')
 
 
 # pylint: disable=invalid-name
@@ -181,24 +188,28 @@ def _workspace_confpath(ctx):
 
 
 def _load_config(ctx: typer.Context, reload: bool = False) -> ConfigParser:
+    logger = getLogger()
     if 'config' in ctx.meta.keys():
         if not reload:
             return ctx.meta['config']
         del ctx.meta['config']
     # at first, load default config and overwrite with metemctl.ini.
+    base_config = ConfigParser()
     if os.path.exists(CONFIG_FILE_PATH):
-        logger = getLogger()
+        if str(CONFIG_FILE_PATH) not in base_config.read(CONFIG_FILE_PATH):
+            raise Exception(f'Load config failed: {CONFIG_FILE_PATH}')
         logger.info(f"Load config file from {CONFIG_FILE_PATH}")
-        config = merge_config(CONFIG_FILE_PATH, DEFAULT_CONFIGS)
-    else:
-        config = merge_config(None, DEFAULT_CONFIGS)
-    # at next, overwrite with workspace/config.ini if exists.
-    tmp_workspace = config['general']['workspace']
+    base_config = merge_config(None, DEFAULT_CONFIGS, base_config)
+    # at next, overwrite with config.ini in workspace.
+    tmp_workspace = base_config['general'].get('workspace')
+    if not tmp_workspace:
+        raise Exception(f'Config error. Missing parameter: general.workspace')
     work_conf_file = f'{tmp_workspace}/{WORKSPACE_CONFIG_FILENAME}'
-    if os.path.exists(work_conf_file):
-        config = merge_config(work_conf_file, {}, config)
-        if Path(tmp_workspace) != Path(config['general']['workspace']):
-            raise Exception('contradictory configuration: general.workspace.')
+    if not os.path.exists(work_conf_file):
+        raise Exception(f'Wrong workspace. Workspace config file does not exist: {work_conf_file}')
+    config = merge_config(work_conf_file, DEFAULT_CONFIGS, base_config)
+    if Path(tmp_workspace) != Path(config['general']['workspace']):
+        raise Exception('contradictory configuration: general.workspace.')
     # ok. cache and return
     ctx.meta['config'] = config
     return config
@@ -213,13 +224,34 @@ def _save_config(ctx: typer.Context, config: ConfigParser) -> None:
                 config[sect][opt] = str(Path(val).expanduser())
     try:
         workspace_conf = _workspace_confpath(ctx)
-        filepath = workspace_conf if os.path.exists(workspace_conf) else CONFIG_FILE_PATH
+        if os.path.exists(workspace_conf):
+            filepath = workspace_conf
+            if config.has_section('general'):
+                config.remove_option('general', 'workspace')  # avoid contradiction
+        else:
+            filepath = CONFIG_FILE_PATH
         with open(filepath, 'wt') as fout:
             config.write(fout)
     except Exception as err:
         logger.exception(f'Cannot save configuration: {err}')
         raise
     logger.debug('updated config file')
+
+
+def _load_raw_config(ctx: typer.Context, general: bool) -> ConfigParser:
+    tgt = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
+    config = ConfigParser()
+    config.read(tgt)
+    return config
+
+
+def _save_raw_config(ctx: typer.Context, general: bool, config: ConfigParser):
+    tgt = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
+    if not general:
+        if config['general']:
+            config.remove_option('general', 'workspace')
+    with open(tgt, 'wt') as fout:
+        config.write(fout)
 
 
 def find_ngrok(config: ConfigParser):
@@ -229,33 +261,37 @@ def find_ngrok(config: ConfigParser):
 
 
 def _init_app_dir(ctx: typer.Context) -> None:
-    logger = getLogger()
+    typer.echo(f'initializing metemcyber application directory: {APP_DIR}')
     os.makedirs(APP_DIR, exist_ok=True)
 
     template_app_dir = Path(__file__).with_name('app_dir')
     entries = os.listdir(template_app_dir)
 
+    typer.echo(f'copying template files from {template_app_dir}.')
     for entry in entries:
         src = Path(template_app_dir) / entry
         dst = Path(APP_DIR) / entry
         if os.path.isdir(src):
-            copytree(src, dst, symlinks=True)
+            copytree(src, dst, symlinks=True, ignore=ignore_patterns('.gitkeep'))
         else:
             copyfile(src, dst, follow_symlinks=False)
 
+    typer.echo(f'setting up default workspace. (try "metemctl workspace list" to check)')
+    default_workspace_path = DEFAULT_CONFIGS['general']['workspace']
+    init_config = ConfigParser()
+    init_config.add_section('general')
+    init_config.set('general', 'workspace', default_workspace_path)
+    _save_raw_config(ctx, True, init_config)  # generate metemctl.ini
+    _make_minimal_workspace(default_workspace_path)
+
     config = _load_config(ctx)
     config = find_ngrok(config)
-    _save_config(ctx, config)
-
-    default_workspace = Path(APP_DIR) / 'workspace.pricom-mainnet'
-    workspace = Path(APP_DIR) / 'workspace'
-    try:
-        os.symlink(default_workspace, workspace)
-    except (NotImplementedError, OSError) as err:
-        logger.warning(f'Cannot create a symbolic link: {err}')
-        copytree(default_workspace, workspace)
-
+    _save_config(ctx, config)  # update config.ini in workspace
     _load_config(ctx, reload=True)
+
+    typer.echo('initialized metemcyber application directory. ')
+    typer.echo('execute "metemctl open-app-dir --print-only" to print application directory.')
+    typer.echo('')
 
 
 def _get_keyfile_password() -> str:
@@ -1473,15 +1509,17 @@ def _assetmgr_stop(_ctx):
 @assetmgr_app.command('status',
                       help='Show Asset Manager status.')
 def assetmgr_status(ctx: typer.Context):
-    common_logging(_assetmgr_status)(ctx)
+    def callback(ctx):
+        typer.echo(_assetmgr_status(ctx)[1])
+
+    common_logging(callback)(ctx)
 
 
-def _assetmgr_status(_ctx):
+def _assetmgr_status(_ctx) -> Tuple[bool, str]:
     ctrl = AssetManagerController()
     if ctrl.pid == 0:
-        typer.echo('not running.')
-        return
-    typer.echo(f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.')
+        return False, 'not running.'
+    return True, f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.'
 
 
 def _shared_solver_enabled(ctx) -> bool:
@@ -2621,12 +2659,145 @@ def _config_edit(ctx, raw, general):
     else:
         config = _load_config(ctx)
         contents = typer.edit(config2str(config))
-        filepath = workspace_conf if os.path.exists(workspace_conf) else CONFIG_FILE_PATH
-        if contents:
-            with open(filepath, 'wt') as fout:
-                fout.write(contents)
-            if '~' in contents:
-                _save_config(ctx, config)  # expanduser
+        if not contents:
+            return
+        new_config = ConfigParser()
+        new_config.read_string(contents)
+        if new_config.has_section('general'):
+            try:
+                new_workspace = new_config.get('general', 'workspace')
+                if new_workspace and new_workspace != config['general']['workspace']:
+                    raise Exception('Not supported: use "metemctl workspace switch" '
+                                    'to switch workspace')
+            except NoOptionError:  # new_config does not have general.config.
+                pass
+        _save_config(ctx, new_config)
+
+
+@workspace_app.command('list')
+def workspace_list(ctx: typer.Context):
+    def callback(ctx):
+        current = _current_workspace(ctx)
+        workspaces = set(_workspace_list(ctx) + [current])
+        for space in sorted(workspaces):
+            typer.echo(f'{" *" if space == current else "  "}{space}')
+
+    common_logging(callback)(ctx)
+
+
+def _current_workspace(ctx) -> str:
+    length = len(DESIRED_WORKSPACE_PREFIX)
+    workspace = _load_config(ctx)['general']['workspace']
+    if workspace[:length] == DESIRED_WORKSPACE_PREFIX:
+        return workspace[length:]
+    return os.path.basename(workspace)
+
+
+def _workspace_list(_ctx) -> List[str]:
+    workspace_dir, prefix = DESIRED_WORKSPACE_PREFIX.rsplit('/', 1)
+    spaces = [str(tmp)[len(DESIRED_WORKSPACE_PREFIX):]
+              for tmp in Path(workspace_dir).glob(f'{prefix}*')
+              if os.path.isdir(tmp) and os.path.isfile(f'{tmp}/{WORKSPACE_CONFIG_FILENAME}')]
+    return spaces
+
+
+@workspace_app.command('switch')
+def workspace_switch(ctx: typer.Context, name: str):
+    common_logging(_workspace_switch)(ctx, name)
+
+
+def _workspace_switch(ctx, name):
+    if name == _current_workspace(ctx):
+        raise Exception(f'already in workspace: {name}')
+    if name not in _workspace_list(ctx):
+        raise Exception(f'No such workspace: {name}')
+    if _seeker_status(ctx)[0]:
+        raise Exception('Cannot switch workspace while your seeker is running')
+    if _local_solver_status(ctx)[0]:
+        raise Exception('Cannot switch workspace while your local solver is running')
+    if _assetmgr_status(ctx)[0]:
+        raise Exception('Cannot switch workspace while your asset manager is running')
+
+    general_config = _load_raw_config(ctx, True)
+    general_config['general']['workspace'] = f'{DESIRED_WORKSPACE_PREFIX}{name}'
+    _save_raw_config(ctx, True, general_config)
+    typer.echo(f'switched workspace: {name}')
+
+
+@workspace_app.command('create')
+def workspace_create(ctx: typer.Context, name: str):
+    common_logging(_workspace_create)(ctx, name)
+
+
+def _workspace_create(ctx, name):
+    spaces = _workspace_list(ctx)
+    if name in spaces:
+        raise Exception(f'Workspace already exists: {name}')
+    _make_minimal_workspace(f'{DESIRED_WORKSPACE_PREFIX}{name}')
+    typer.echo(f'created a new workspace: {name}')
+    typer.echo(f'switch to {name} workspace and fix your configuration.')
+
+
+def _make_minimal_workspace(workspace_dir: str):
+    if os.path.isdir(workspace_dir):
+        typer.echo(f'reuse existing directory as a workspace: {workspace_dir}')
+    else:
+        typer.echo(f'creating workspace directory: {workspace_dir}')
+        os.makedirs(workspace_dir, exist_ok=False)
+    for tgt in WORKSPACE_MINIMAL_DIRS:
+        tgt_path = f'{workspace_dir}/{tgt}'
+        if os.path.isdir(tgt_path):
+            typer.echo(f'reuse existing directory: {tgt_path}')
+        else:
+            typer.echo(f'creating directory: {tgt_path}')
+            os.makedirs(tgt_path, exist_ok=True)
+    conf_path = f'{workspace_dir}/{WORKSPACE_CONFIG_FILENAME}'
+    if os.path.isfile(conf_path):
+        typer.echo(f'reuse workspace config: {conf_path}')
+    else:
+        typer.echo(f'creating workspace conf file: {conf_path}')
+        with open(conf_path, 'w') as _fout:
+            pass  # nothing to write
+
+
+@workspace_app.command('destroy')
+def workspace_destroy(ctx: typer.Context, name: str,
+                      force: bool = typer.Option(False, help='Force remove workspace directory.')):
+    common_logging(_workspace_destroy)(ctx, name, force)
+
+
+def _workspace_destroy(ctx, name, force):
+    tgt_path = (_load_config(ctx)['general']['workspace'] if name == _current_workspace(ctx)
+                else f'{DESIRED_WORKSPACE_PREFIX}{name}')
+    if not force:
+        typer.echo(f'Please remove unnecessary files (at least {WORKSPACE_CONFIG_FILENAME})'
+                   f' and directories under {tgt_path} by hand.'
+                   f' Or give --force option to remove the entire directory above.')
+        return
+    shutil.rmtree(tgt_path)
+    typer.echo(f'removed workspace: {name}')
+
+
+@workspace_app.command('copy')
+def workspace_copy(ctx: typer.Context, src: str, dst: str):
+    common_logging(_workspace_copy)(ctx, src, dst)
+
+
+def _workspace_copy(ctx, src, dst):
+    spaces = _workspace_list(ctx)
+    if src not in spaces and src != _current_workspace(ctx):
+        raise Exception(f'No such workspace: {src}')
+    if dst in spaces:
+        raise Exception(f'Workspace already exists: {dst}')
+    src_conf = f'{DESIRED_WORKSPACE_PREFIX}{src}/{WORKSPACE_CONFIG_FILENAME}'
+    if not os.path.isfile(src_conf):  # maybe src is current and not desired workspace
+        src_conf = _workspace_confpath(ctx)
+    dst_dir = f'{DESIRED_WORKSPACE_PREFIX}{dst}'
+
+    _make_minimal_workspace(dst_dir)
+    copyfile(src_conf, f'{dst_dir}/{WORKSPACE_CONFIG_FILENAME}', follow_symlinks=True)
+    typer.echo(f'copied {WORKSPACE_CONFIG_FILENAME} from {src} to {dst} workspace.')
+    typer.echo(f'switch to {dst} workspace and fix your configuration.')
 
 
 @app.command(help="Start an interactive intelligence cycle.")
