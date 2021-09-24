@@ -1602,8 +1602,7 @@ def _shared_solver_obsolete(ctx, token):
 
 
 def _shared_solver_list_accepting(ctx, addresses: List[ChecksumAddress]) -> List[ChecksumAddress]:
-    account = _load_account(ctx)
-    return _load_shared_solver(ctx).list_accepting(account=account, token_addresses=addresses)
+    return _load_shared_solver(ctx).list_accepting(token_addresses=addresses)
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")

@@ -104,6 +104,10 @@ class AcceptingRequest(SignedRequest):
     token_addresses: List[ChecksumAddress]
 
 
+class AnonymousAcceptingRequest(BaseModel):
+    token_addresses: List[ChecksumAddress]
+
+
 class AssetManager:
     listen_address: str
     listen_port: int
@@ -302,16 +306,7 @@ class AssetManager:
                 if not os.path.exists(self._asset_filepath(address)):
                     raise HTTPException(404, 'Asset file not yet uploaded')
 
-    async def _list_accepting(self, request: AcceptingRequest) -> dict:
-        try:
-            self._check_signed_request(request)
-            self._check_request_for_accepting(request)
-        except HTTPException as err:
-            SERVERLOG.exception(err)
-            raise
-        except Exception as err:
-            SERVERLOG.exception(err)
-            raise HTTPException(500, f'{err.__class__.__name__}: str(err)') from err
+    async def _list_accepting(self, request: AnonymousAcceptingRequest) -> dict:
         try:
             solver = self._get_solver()
             acceptings = solver.solver('accepting_tokens')
@@ -480,13 +475,9 @@ class AssetManagerClient:
             detail = json.loads(response.read().decode())['result']
             return detail
 
-    def list_accepting(self, account: Account, token_addresses: List[ChecksumAddress],
-                       nonce: Optional[int] = None) -> List[ChecksumAddress]:
-        nonce = nonce if nonce else self.get_info(address=account.eoa)['nonce']
+    def list_accepting(self, token_addresses: List[ChecksumAddress]) -> List[ChecksumAddress]:
         url = f'{self.base_url}/{URLPATH_LIST}'
-        request_data = AcceptingRequest(nonce=nonce,
-                                        token_addresses=token_addresses)
-        request_data.sign(account)
+        request_data = AnonymousAcceptingRequest(token_addresses=token_addresses)
 
         jdata = request_data.json().encode('utf-8')
         request = Request(url, method='POST', headers=self.common_headers, data=jdata)
