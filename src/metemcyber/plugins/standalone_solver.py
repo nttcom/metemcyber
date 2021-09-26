@@ -107,13 +107,13 @@ class LocalHttpServer():
 
 class Solver(BaseSolver):
     def __init__(self, account: Account, operator_address: ChecksumAddress,
-                 config_path: Optional[str]) -> None:
-        super().__init__(account, operator_address)
+                 workspace: str, config_path: Optional[str]) -> None:
+        super().__init__(account, operator_address, workspace, config_path)
         self.config = merge_config(config_path, DEFAULT_CONFIGS, self.config)
         self.fileserver = LocalHttpServer(
             self.account.eoa,
             self.config[CONFIG_SECTION]['listen_address'],
-            f"{self.config['general']['workspace']}/upload")
+            f'{workspace}/upload')
         self.fileserver.start()
 
     def destroy(self):

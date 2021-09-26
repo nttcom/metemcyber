@@ -116,13 +116,20 @@ class ChallengeListener(BasicEventListener):
 
 
 class BaseSolver:
+    account: Account
+    operator_address: ChecksumAddress
+    listener: Optional[ChallengeListener]
+    config: ConfigParser
+    workspace: str
+
     def __init__(self, account: Account, operator_address: ChecksumAddress,
-                 config_path: Optional[str] = None) -> None:
+                 workspace: str, config_path: Optional[str] = None) -> None:
         LOGGER.info('initializing solver %s for %s', self, operator_address)
-        self.account: Account = account
-        self.operator_address: ChecksumAddress = operator_address
-        self.listener: Optional[ChallengeListener] = None
-        self.config: ConfigParser = merge_config(config_path, {})  # default is empty
+        self.account = account
+        self.operator_address = operator_address
+        self.listener = None
+        self.config = merge_config(config_path, {})  # default is empty
+        self.workspace = workspace
 
     def destroy(self):
         LOGGER.info('destructing solver %s for %s', self, self.operator_address)

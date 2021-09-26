@@ -1263,11 +1263,15 @@ def _solver_start(ctx, enable):
         pass
     config = _load_config(ctx)
     endpoint_url = config['general']['endpoint_url']
+    workspace = config['general']['workspace']
     solv_cli_py = os.path.dirname(__file__) + '/../core/multi_solver_cli.py'
     # pylint: disable=consider-using-with
-    subprocess.Popen(
-        ['python3', solv_cli_py, '-e', endpoint_url, '-m', 'server', '-w', APP_DIR],
-        shell=False)
+    subprocess.Popen(['python3', solv_cli_py,
+                      '-e', endpoint_url,
+                      '-m', 'server',
+                      '-a', APP_DIR,
+                      '-w', workspace,
+                      ], shell=False)
     typer.echo('Solver started as a subprocess.')
     if enable:
         typer.echo('Enabling your operator.')

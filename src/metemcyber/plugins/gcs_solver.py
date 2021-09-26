@@ -41,8 +41,8 @@ DEFAULT_CONFIGS = {
 
 class Solver(BaseSolver):
     def __init__(self, account: Account, operator_address: ChecksumAddress,
-                 config_file: Optional[str]) -> None:
-        super().__init__(account, operator_address)
+                 workspace: str, config_file: Optional[str]) -> None:
+        super().__init__(account, operator_address, workspace, config_file)
         self.config = merge_config(config_file, DEFAULT_CONFIGS, self.config)
         try:
             url = self.config[CONFIG_SECTION]['functions_url']
@@ -92,8 +92,7 @@ class Solver(BaseSolver):
             LOGGER.info('finished task %s', task_id)
 
     def upload_to_storage(self, cti_address):
-        file_path = os.path.abspath(
-            f"{self.config['general']['workspace']}/upload/{cti_address}")
+        file_path = os.path.abspath(f"{self.workspace}/upload/{cti_address}")
         url = self.uploader.upload_file(file_path)
         return url
 
@@ -114,7 +113,7 @@ class Uploader:
             with open(upload_path, 'r') as fin:
                 jdata = json.load(fin)
         except Exception as err:
-            raise Exception(f'Not a expected data format: {upload_path}') from err
+            raise Exception(f'Cannot open asset: {upload_path}: {err}') from err
         response = requests.post(
             self.url,
             json=jdata,
