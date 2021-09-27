@@ -133,7 +133,8 @@ class AssetManager:
         self.assets_rootpath = assets_rootpath
         self.nonce_map = {}
         try:
-            self._get_solver()
+            solver = self._get_solver()
+            solver.disconnect()
         except Exception as err:
             raise Exception(f'Solver must be running and enabled: {err}') from err
 
@@ -165,6 +166,8 @@ class AssetManager:
         try:
             addr = solver.get_solver()
         except MCSError as err:
+            if solver:
+                solver.disconnect()
             if err.code == MCSErrno.ENOENT:
                 msg = f'Solver is running, but not yet enabled'
             else:
@@ -187,8 +190,9 @@ class AssetManager:
         else:
             nonce = None
         try:
-            self._get_solver()
+            solver = self._get_solver()
             solver_status = 'running'
+            solver.disconnect()
         except Exception as err:
             SERVERLOG.error(err)
             solver_status = str(err)
@@ -254,12 +258,16 @@ class AssetManager:
         SERVERLOG.info(f'saved asset file for token: {request.token_address}.')
         if request.auto_support:
             try:
-                self._get_solver().solver('accept_challenges', [request.token_address])
+                solver = self._get_solver()
+                solver.solver('accept_challenges', [request.token_address])
                 SERVERLOG.info(f'let solver accept token: {request.token_address}.')
             except Exception as err:
                 SERVERLOG.exception(err)
                 return {
                     'result': f'uploading file succeeded, but solver control failed: {err}'}
+            finally:
+                if solver:
+                    solver.disconnect()
         return {'result': 'ok'}
 
     async def _delete_asset(self, request: DeleteMispRequest) -> dict:
@@ -280,12 +288,16 @@ class AssetManager:
             SERVERLOG.exception(err)
             raise HTTPException(500, f'{err.__class__.__name__}: str(err)') from err
         try:
-            self._get_solver().solver('refuse_challenges', [request.token_address])
+            solver = self._get_solver()
+            solver.solver('refuse_challenges', [request.token_address])
             SERVERLOG.info(f'let solver refuse token: {request.token_address}.')
         except Exception as err:
             SERVERLOG.exception(err)
             return {
                 'result': f'removing file succeeded, but solver control failed: {err}'}
+        finally:
+            if solver:
+                solver.disconnect()
         return ret
 
     def _check_request_for_accepting(self, request: AcceptingRequest,
@@ -313,6 +325,9 @@ class AssetManager:
         except Exception as err:
             SERVERLOG.exception(err)
             raise HTTPException(500, f'Cannot connect to solver: {err}') from err
+        finally:
+            if solver:
+                solver.disconnect()
         return {'result': list(set(acceptings).intersection(set(request.token_addresses)))}
 
     def _acception_control(self, request: AcceptingRequest, method: str) -> dict:
@@ -322,16 +337,20 @@ class AssetManager:
             self._check_signed_request(request)
             flg = (method == 'POST')
             self._check_request_for_accepting(request, check_authorized=flg, check_assetfile=flg)
+        except HTTPException as err:
+            SERVERLOG.exception(err)
+            raise
+        try:
             solver = self._get_solver()
             solver.solver(
                 'accept_challenges' if method == 'POST' else 'refuse_challenges',
                 request.token_addresses)
-        except HTTPException as err:
-            SERVERLOG.exception(err)
-            raise
         except Exception as err:
             SERVERLOG.exception(err)
             raise HTTPException(500, f'{err.__class__.__name__}: {str(err)}') from err
+        finally:
+            if solver:
+                solver.disconnect()
         return {'result': 'ok'}
 
     async def _post_accepting(self, request: AcceptingRequest) -> dict:
