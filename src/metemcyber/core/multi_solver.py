@@ -50,12 +50,12 @@ ARGS_DELIMITER = '\t'   # for command line input
 EOM = '\v'  # End of Message
 
 
-def socket_filepath(work_dir: str) -> str:
-    return f'{work_dir}/mcs.sock'
+def socket_filepath(app_dir: str) -> str:
+    return f'{app_dir}/mcs.sock'
 
 
-def snapshot_filepath(work_dir: str) -> str:
-    return f'{work_dir}/.mcs.snapshot'
+def snapshot_filepath(app_dir: str) -> str:
+    return f'{app_dir}/.mcs.snapshot'
 
 
 def tracelog(logger, *args, **kwargs):
@@ -164,7 +164,7 @@ class SolverManager():
     """ Class to manage Solver instances
     """
 
-    def __init__(self, endpoint_url: Optional[str], snapshot_filepath_: str):
+    def __init__(self, endpoint_url: Optional[str], workspace: str, snapshot_filepath_: str):
         self.plugin = PluginManager()
         self.plugin.load()
         self.plugin.set_default_solverclass('gcs_solver.py')
@@ -175,14 +175,16 @@ class SolverManager():
 
         if endpoint_url:
             self.endpoint_url = endpoint_url
+            self.workspace = workspace
             self.snapshot = {
                 'endpoint_url': endpoint_url,
+                'workspace': workspace,
                 'key': Fernet.generate_key().decode(),
                 'solvers': {},
             }
             self._save_snapshot()
         else:
-            self._load_snapshot()
+            self._load_snapshot()  # recover mode
 
     def destroy(self):
         for solver in [v['solver'] for v in self.solvers.values()]:
@@ -219,6 +221,7 @@ class SolverManager():
             with open(self.snapshot_filepath, 'r') as fin:
                 self.snapshot = json.load(fin)
             self.endpoint_url = self.snapshot['endpoint_url']
+            self.workspace = self.snapshot['workspace']
             for entry in self.snapshot['solvers'].values():
                 pkey = Fernet(self.snapshot['key']).decrypt(entry['pkey'].encode()).decode()
                 solver, account = self._new_solver(
@@ -258,7 +261,7 @@ class SolverManager():
         if solver_plugin:
             self.plugin.set_solverclass(operator_address, solver_plugin)
         solverclass = self.plugin.get_solverclass(operator_address)
-        solver = solverclass(account, operator_address, solver_config)
+        solver = solverclass(account, operator_address, self.workspace, solver_config)
 
         return solver, account
 
@@ -515,10 +518,10 @@ class MCSServer():
     """ Class as a service
     """
 
-    def __init__(self, work_dir: str, endpoint_url: Optional[str]):
+    def __init__(self, app_dir: str, endpoint_url: Optional[str], workspace: str):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.mgr = SolverManager(endpoint_url, snapshot_filepath(work_dir))
-        self.work_dir = work_dir
+        self.mgr = SolverManager(endpoint_url, workspace, snapshot_filepath(app_dir))
+        self.app_dir = app_dir
         self.threadlist: List[SolverThread] = []  # all threads
         self.threadpool: List[SolverThread] = []  # non-active threads
         self.shutdown = False
@@ -528,7 +531,7 @@ class MCSServer():
             self.threadlist.append(sol_thr)
             self.threadpool.append(sol_thr)
         # overwrite socket file. precheck status to avoid this.
-        socket_file = socket_filepath(self.work_dir)
+        socket_file = socket_filepath(self.app_dir)
         if os.path.exists(socket_file):
             os.unlink(socket_file)
 
@@ -541,7 +544,7 @@ class MCSServer():
         self.threadpool.clear()  # accept no more
 
     def run(self):
-        socket_file = socket_filepath(self.work_dir)
+        socket_file = socket_filepath(self.app_dir)
         try:
             self.sock.bind(socket_file)
             self.sock.listen()
@@ -573,9 +576,9 @@ class MCSClient():
     """ Class as a client
     """
 
-    def __init__(self, account: Account, work_dir: str):
+    def __init__(self, account: Account, app_dir: str):
         self.account = account
-        self.work_dir = work_dir
+        self.app_dir = app_dir
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.operator_address: Optional[ChecksumAddress] = None
         self.solver_class = None
@@ -588,7 +591,7 @@ class MCSClient():
 
     def connect(self):
         try:
-            self.sock.connect(socket_filepath(self.work_dir))
+            self.sock.connect(socket_filepath(self.app_dir))
         except FileNotFoundError as err:
             raise Exception('Socket not found. Solver daemon may be down.') from err
         except OSError as err:
@@ -646,7 +649,7 @@ class MCSClient():
                    pluginfile: Optional[str] = None, configfile: Optional[str] = None,
                    ) -> ChecksumAddress:
         fnt_key = self._get_fernet_key()
-        tmp_filepath = f'{self.work_dir}/{fnt_key.decode()}'
+        tmp_filepath = f'{self.app_dir}/{fnt_key.decode()}'
         if os.path.exists(tmp_filepath):
             raise Exception(f'temporal filepath already exists: {tmp_filepath}')
         try:
@@ -706,11 +709,11 @@ class MCSClient():
         raise MCSError(code=cast(MCSErrno, resp.code), msg=resp.kwargs.get('data'))
 
 
-def mcs_console(account, work_dir):
+def mcs_console(account, app_dir):
     """ Simple CUI to use MCSClient
     """
 
-    client = MCSClient(account, work_dir)
+    client = MCSClient(account, app_dir)
     try:
         client.connect()
     except Exception as err:

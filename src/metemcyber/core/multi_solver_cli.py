@@ -28,7 +28,7 @@ LOGGER = get_logger(name='solver_client', file_prefix='core')
 
 def main(args):
     if args.mode == 'server':
-        server = MCSServer(args.work_dir, args.endpoint_url)
+        server = MCSServer(args.app_dir, args.endpoint_url, args.workspace)
         server.run()
     else:
         if args.keyfile:
@@ -54,9 +54,12 @@ OPTIONS: List[Tuple[str, str, dict]] = [
     ('-e', '--endpoint', dict(
         action='store', dest='endpoint_url', required=False,
         help='Ethereum Provider Endpoint URL')),
-    ('-w', '--workdir', dict(
-        action='store', dest='work_dir', required=True,
-        help='working dir where socket file is placed')),
+    ('-a', '--app_dir', dict(
+        action='store', dest='app_dir', required=True,
+        help='application dir where socket file is placed')),
+    ('-w', '--workspace', dict(
+        action='store', dest='workspace', required=False,
+        help='workspace dir (server mode only)')),
 ]
 
 if __name__ == '__main__':
