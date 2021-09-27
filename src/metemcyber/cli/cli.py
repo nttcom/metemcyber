@@ -1107,13 +1107,23 @@ def seeker_status(ctx: typer.Context):
     typer.echo(_seeker_status(ctx)[1])
 
 
+def _seeker_client(ctx) -> Seeker:
+    config = _load_config(ctx)
+    seeker = Seeker(APP_DIR,
+                    config['general']['endpoint_url'],
+                    config['general']['workspace'],
+                    _load_operator(ctx).address)
+    return seeker
+
+
 def _seeker_status(ctx) -> Tuple[bool, str]:
     logger = getLogger()
     try:
-        seeker = Seeker(APP_DIR, _load_operator(ctx).address)
+        seeker = _seeker_client(ctx)
         if seeker.pid == 0:
             return False, 'not running'
-        msg = f'running on pid {seeker.pid}, listening {seeker.address}:{seeker.port}.'
+        msg = (f'running on pid {seeker.pid}, '
+               f'listening {seeker.listen_address}:{seeker.listen_port}.')
         ngrok_mgr = NgrokMgr(APP_DIR)
         if ngrok_mgr.pid > 0:
             msg += ('\n'
@@ -1126,7 +1136,7 @@ def _seeker_status(ctx) -> Tuple[bool, str]:
 
 
 def _seeker_url(ctx, auto_start: bool = False) -> str:
-    seeker = Seeker(APP_DIR, _load_operator(ctx).address)
+    seeker = _seeker_client(ctx)
     if seeker.pid == 0:
         if auto_start:
             typer.echo('auto starting seeker...')
@@ -1134,7 +1144,7 @@ def _seeker_url(ctx, auto_start: bool = False) -> str:
             return _seeker_url(ctx, auto_start=False)
         raise Exception('Seeker not running')
     ngrok_mgr = NgrokMgr(APP_DIR)
-    return ngrok_mgr.public_url or f'http://{seeker.address}:{seeker.port}'
+    return ngrok_mgr.public_url or f'http://{seeker.listen_address}:{seeker.listen_port}'
 
 
 @seeker_app.command('start')
@@ -1143,17 +1153,15 @@ def seeker_start(ctx: typer.Context):
 
 
 def _seeker_start(ctx):
-    ngrok = int(_load_config(ctx)['seeker']['ngrok']) > 0
-    endpoint_url = _load_config(ctx)['general']['endpoint_url']
-    if not endpoint_url:
-        raise Exception('Missing configuration: endpoint_url')
-    config = _workspace_confpath(ctx)
-    seeker = Seeker(APP_DIR, _load_operator(ctx).address, endpoint_url, config)
-    seeker.start()
+    config = _load_config(ctx)
+    ngrok = int(config['seeker']['ngrok']) > 0
+    seeker = _seeker_client(ctx)
+    seeker.start(config['seeker']['listen_address'],
+                 int(config['seeker']['listen_port']))
     typer.echo(f'seeker started on process {seeker.pid}, '
-               f'listening {seeker.address}:{seeker.port}.')
+               f'listening {seeker.listen_address}:{seeker.listen_port}.')
     if ngrok:
-        ngrok_mgr = NgrokMgr(APP_DIR, seeker.port, config)
+        ngrok_mgr = NgrokMgr(APP_DIR, seeker.listen_port, _workspace_confpath(ctx))
         if ngrok_mgr.pid == 0:
             ngrok_mgr.start()
         else:
@@ -1162,8 +1170,8 @@ def _seeker_start(ctx):
             ngrok_mgr.start()
         typer.echo(f'ngrok started on process {ngrok_mgr.pid}, '
                    f'with public url: {ngrok_mgr.public_url}.')
-    elif seeker.address:
-        _display_ngrok_support_message(seeker.address)
+    elif seeker.listen_address:
+        _display_ngrok_support_message(seeker.listen_address)
 
 
 @seeker_app.command('stop')
@@ -1172,7 +1180,7 @@ def seeker_stop(ctx: typer.Context):
 
 
 def _seeker_stop(ctx):
-    seeker = Seeker(APP_DIR, _load_operator(ctx).address)
+    seeker = _seeker_client(ctx)
     seeker.stop()
     typer.echo('seeker stopped.')
     ngrok_mgr = NgrokMgr(APP_DIR)
