@@ -35,7 +35,7 @@ def main(args):
             eoaa, pkey = decode_keyfile(args.keyfile)
         else:
             eoaa, pkey = args.name, args.pkey
-        mcs_console(Account(Ether(args.endpoint_url), eoaa, pkey), args.work_dir)
+        mcs_console(Account(Ether(args.endpoint_url), eoaa, pkey), args.app_dir)
 
 
 OPTIONS: List[Tuple[str, str, dict]] = [
