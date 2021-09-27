@@ -14,13 +14,15 @@
 #    limitations under the License.
 #
 
+import argparse
 import json
 import os
-import sys
+from argparse import Namespace
 from signal import SIGINT
 from subprocess import Popen
+from threading import Thread
 from time import sleep
-from typing import List, Optional, Tuple, cast
+from typing import List, Optional, Tuple
 from urllib.request import Request, urlopen
 
 from eth_typing import ChecksumAddress
@@ -35,7 +37,6 @@ from metemcyber.core.bc.ether import Ether
 from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import SIGNATURE_HEADER
-from metemcyber.core.util import merge_config
 from metemcyber.core.webhook import WebhookReceiver
 
 LOGGER = get_logger(name='seeker', file_prefix='core')
@@ -45,7 +46,6 @@ LIMIT_ATONCE = 16
 CONFIG_SECTION = 'seeker'
 DEFAULT_CONFIGS = {
     CONFIG_SECTION: {
-        'downloaded_cti_path': f'{APP_DIR}/workspace/download',
         'listen_address': '127.0.0.1',
         'listen_port': '0',
         'ngrok': '0',
@@ -67,7 +67,11 @@ def seeker_pid_filepath(app_dir: str) -> str:
     return f'{app_dir}/seeker.pid'
 
 
-def download_json(download_url: str, token_address: ChecksumAddress, dir_path: str) -> None:
+def asset_download_path(workspace: str, token_address: ChecksumAddress) -> str:
+    return f'{workspace}/download/{token_address}.json'
+
+
+def download_json(download_url: str, token_address: ChecksumAddress, workspace: str):
     try:
         request = Request(download_url, method='GET')
         with urlopen(request) as response:
@@ -91,9 +95,9 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
     tty_message(msg)
 
     try:
-        if not os.path.isdir(dir_path):
-            os.makedirs(dir_path)
-        filepath = f'{dir_path}/{token_address}.json'
+        if not os.path.isdir(workspace):
+            os.makedirs(workspace)
+        filepath = asset_download_path(workspace, token_address)
         with open(filepath, 'w') as fout:
             json.dump(jdata, fout, ensure_ascii=False, indent=2)
         msg = f'Saved downloaded data in {filepath}.'
@@ -108,13 +112,26 @@ def download_json(download_url: str, token_address: ChecksumAddress, dir_path: s
     tty_message('(type CTRL-C to quit monitoring)')
 
 
-class Resolver(WebhookReceiver):
+class Resolver:
+    webhook_server: WebhookReceiver
+    endpoint_url: str
+    operator_address: ChecksumAddress
+    workspace: str
+
+    @property
+    def thread(self) -> Optional[Thread]:
+        return self.webhook_server.thread
+
     def __init__(self, listen_address: str, listen_port: int,
-                 download_path: str, endpoint_url: str, operator_address: ChecksumAddress):
-        super().__init__(listen_address, listen_port)
-        self.download_path = download_path
+                 workspace: str, endpoint_url: str, operator_address: ChecksumAddress):
         self.endpoint_url = endpoint_url
         self.operator_address = operator_address
+        self.workspace = workspace
+        self.webhook_server = WebhookReceiver(listen_address, listen_port,
+                                              callback=self.resolve_request)
+
+    def start(self) -> Tuple[str, int]:  # [listen_address, listen_port]
+        return self.webhook_server.start()
 
     def resolve_request(self, headers: EnvironHeaders, body: str):
         sign = headers.get(SIGNATURE_HEADER)
@@ -143,7 +160,7 @@ class Resolver(WebhookReceiver):
               f'token({jdata["token_address"]}): {jdata["download_url"]}'
         LOGGER.info(msg)
         tty_message(msg)
-        download_json(jdata['download_url'], jdata['token_address'], self.download_path)
+        download_json(jdata['download_url'], jdata['token_address'], self.workspace)
 
     def _precheck_request(self, body: str, sign: str) -> dict:
         account = Account(Ether(self.endpoint_url))
@@ -176,33 +193,36 @@ class Resolver(WebhookReceiver):
 
 
 class Seeker():
-    cmd_args_base = ['python3', __file__]
+    cmd_args_base: List[str] = ['python3', __file__]
+    app_dir: str
+    endpoint_url: str
+    workspace: str
+    operator_address: ChecksumAddress
+    pid: int = 0
+    listen_address: str
+    listen_port: int
 
     @property
     def cmd_args(self) -> List[str]:
-        args = Seeker.cmd_args_base + [
-            self.config[CONFIG_SECTION]['listen_address'],
-            self.config[CONFIG_SECTION]['listen_port'],
+        return Seeker.cmd_args_base + [  # see ARGUMENTS of this file
             self.app_dir,
-            self.operator_address,
             self.endpoint_url,
+            self.workspace,
+            self.operator_address,
+            self.listen_address,
+            str(self.listen_port),
         ]
-        if self.config_path:
-            args += [self.config_path]
-        return args
 
-    def __init__(self, app_dir: str, operator_address: ChecksumAddress, endpoint_url: str = '',
-                 config_path: Optional[str] = None
-                 ) -> None:
+    def __init__(self, app_dir: str, endpoint_url: str, workspace: str,
+                 operator_address: ChecksumAddress):
         self.app_dir = app_dir
-        self.config_path = config_path
-        self.config = merge_config(config_path, DEFAULT_CONFIGS)
-        pid, address, port = self.check_running()
-        self.pid: int = pid
-        self.address: Optional[str] = address
-        self.port: int = port
-        self.operator_address = operator_address
         self.endpoint_url = endpoint_url
+        self.workspace = workspace
+        self.listen_address = ''  # set on start()
+        self.listen_port = 0  # set on start()
+        self.operator_address = operator_address
+
+        self.pid, self.listen_address, self.listen_port = self.check_running()
         if operator_address and endpoint_url:
             operator = CTIOperator(Account(Ether(endpoint_url))).get(operator_address)
             if operator.version < 1:
@@ -211,14 +231,14 @@ class Seeker():
                     'not support anonymous access.')
 
     #                               (pid|0, listen_address, listen_port)
-    def check_running(self) -> Tuple[int, Optional[str], int]:
+    def check_running(self) -> Tuple[int, str, int]:
         try:
             with open(seeker_pid_filepath(self.app_dir), 'r') as fin:
                 str_data = fin.readline().strip()
             str_pid, address, str_port = str_data.split('\t', 2)
             pid = int(str_pid)
         except Exception:
-            return 0, None, 0
+            return 0, '', 0
         try:
             proc = Process(pid)
             running_seeker = proc.cmdline()[:len(Seeker.cmd_args_base)]
@@ -229,23 +249,26 @@ class Seeker():
             # found pid, but it's not a seeker. remove defunct data.
             LOGGER.info(f'got pid({pid}) which is not a seeker. remove defunct.')
             os.unlink(seeker_pid_filepath(self.app_dir))
-            return 0, None, 0
+            return 0, '', 0
         except NoSuchProcess:
-            return 0, None, 0
+            return 0, '', 0
 
-    def start(self) -> None:
+    def start(self, listen_address: str, listen_port: int) -> None:
         """launch Resolver by calling main() as another process
         """
         if self.pid:
             raise Exception(f'Already running on pid({self.pid}).')
+        self.listen_address = listen_address
+        self.listen_port = listen_port
         # Seeker needs to keep running in the background.
         # pylint pylint: disable=R1732
         proc = Popen(self.cmd_args, shell=False, start_new_session=True)
         for _cnt in range(5):
             sleep(1)
-            self.pid, self.address, self.port = self.check_running()
+            self.pid, self.listen_address, self.listen_port = self.check_running()
             if self.pid:
-                LOGGER.info(f'started. pid={self.pid}, address={self.address}, port={self.port}.')
+                LOGGER.info(f'started. pid={self.pid}, '
+                            f'address={self.listen_address}, port={self.listen_port}.')
                 return
         LOGGER.error('Cannot start webhook.')
         proc.kill()
@@ -262,16 +285,12 @@ class Seeker():
             raise Exception(f'Cannot stop webhook(pid={pid})') from err
 
 
-def main(argv: List[str]):
-    listen_address, listen_port, app_dir, operator_address, endpoint_url = argv[:5]
-    config_path = argv[5] if len(argv) > 5 else None
-    pid_file = seeker_pid_filepath(app_dir)
+def main(args: Namespace):
+    pid_file = seeker_pid_filepath(args.app_dir)
     try:
-        config = merge_config(config_path, DEFAULT_CONFIGS)
-        resolver = Resolver(listen_address, int(listen_port),
-                            config[CONFIG_SECTION]['downloaded_cti_path'],
-                            endpoint_url,
-                            cast(ChecksumAddress, operator_address))
+        resolver = Resolver(
+            args.listen_address, args.listen_port,
+            args.workspace, args.endpoint_url, args.operator_address)
         address, port = resolver.start()
         pid = os.getpid()
         with open(pid_file, 'w') as fout:
@@ -285,7 +304,22 @@ def main(argv: List[str]):
             os.unlink(pid_file)
 
 
+OPTIONS: List[Tuple[str, str, dict]] = [
+]
+ARGUMENTS: List[Tuple[str, dict]] = [
+    ('app_dir', dict(action='store', type=str, help='application directory')),
+    ('endpoint_url', dict(action='store', type=str, help='Block chain RPC provider URL')),
+    ('workspace', dict(action='store', type=str, help='metemctl workspace directory')),
+    ('operator_address', dict(action='store', type=ChecksumAddress, help='CTIOperator address')),
+    ('listen_address', dict(action='store', type=str, help='seeker listen address')),
+    ('listen_port', dict(action='store', type=int, help='seeker listen port (0 for auto-detect)')),
+]
+
 if __name__ == '__main__':
-    if len(sys.argv) < 5:
-        raise Exception('Not enough arguments')
-    main(sys.argv[1:])
+    PARSER = argparse.ArgumentParser()
+    for sname, lname, opts in OPTIONS:
+        PARSER.add_argument(sname, lname, **opts)
+    for name, opts in ARGUMENTS:
+        PARSER.add_argument(name, **opts)
+    ARGS = PARSER.parse_args()
+    main(ARGS)
