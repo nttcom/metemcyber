@@ -43,7 +43,7 @@ from metemcyber.core.solver import BaseSolver
 SERVERLOG = get_logger(name='solv_server', file_prefix='core')
 CLIENTLOG = get_logger(name='solv_client', file_prefix='core')
 
-NUM_THREADS = 4
+NUM_THREADS = 16
 BUFSIZ = 4096
 
 ARGS_DELIMITER = '\t'   # for command line input
