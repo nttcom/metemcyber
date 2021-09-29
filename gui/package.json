@@ -51,8 +51,7 @@
     ],
     "development": [
       "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
+      "last 1 firefox version"
     ]
   },
   "devDependencies": {
@@ -71,6 +70,7 @@
     "mac": {
       "target": "dmg",
       "icon": "public/logo512.png"
-    }
+    },
+    "publish": null
   }
 }
