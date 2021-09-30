@@ -1,0 +1,59 @@
+name: "Build and release electron installer"
+on:
+  push:
+    tags:
+      - "gui-v*"
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest]
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v1
+
+      - name: Install Node.js, NPM and Yarn
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14.15.5
+
+      - name: Build Electron app
+        uses: samuelmeuli/action-electron-builder@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          package_root: gui/
+          release: false
+
+      - name: Set App path
+        id: set_app_path
+        run: |
+          ARTIFACT_PATHNAME=$(ls gui/dist/*.dmg | head -n 1)
+          ARTIFACT_NAME=$(basename $ARTIFACT_PATHNAME)
+          echo "::set-output name=ARTIFACT_PATHNAME::$ARTIFACT_PATHNAME"
+          echo "::set-output name=ARTIFACT_NAME::$ARTIFACT_NAME"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: "Release ${{ github.ref }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.set_app_path.outputs.ARTIFACT_PATHNAME }}
+          asset_name: ${{ steps.set_app_path.outputs.ARTIFACT_NAME }}
+          asset_content_type: application/x-apple-diskimage

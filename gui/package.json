@@ -71,6 +71,7 @@
     "mac": {
       "target": "dmg",
       "icon": "public/logo512.png"
-    }
+    },
+    "publish": null
   }
 }
