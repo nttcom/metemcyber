@@ -42,7 +42,7 @@ class BasicEventListener:
         self.__event_filters: Dict[str, Dict[str, Any]] = {}
         self.__lock: Lock = Lock()
         #                           {key:x, filter:x, callback:x}
-        self.__pending_filters: List[Dict[str, Any]] = list()
+        self.__pending_filters: List[Dict[str, Any]] = []
         self.__pending_lock: Lock = Lock()
 
     def destroy(self) -> None:
