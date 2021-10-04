@@ -230,7 +230,7 @@ def _save_config(ctx: typer.Context, config: ConfigParser) -> None:
                 config.remove_option('general', 'workspace')  # avoid contradiction
         else:
             filepath = CONFIG_FILE_PATH
-        with open(filepath, 'wt') as fout:
+        with open(filepath, 'wt', encoding='utf-8') as fout:
             config.write(fout)
     except Exception as err:
         logger.exception(f'Cannot save configuration: {err}')
@@ -250,7 +250,7 @@ def _save_raw_config(ctx: typer.Context, general: bool, config: ConfigParser):
     if not general:
         if config['general']:
             config.remove_option('general', 'workspace')
-    with open(tgt, 'wt') as fout:
+    with open(tgt, 'wt', encoding='utf-8') as fout:
         config.write(fout)
 
 
@@ -478,7 +478,7 @@ def create_workflow_config(
     config['intelligence_contents'] = contents
 
     logger.info(f"Write the workflow config to: {dst}")
-    with open(dst, 'w') as fout:
+    with open(dst, 'w', encoding='utf-8') as fout:
         yaml.dump(config, fout)
         logger.info(f"Write successful.")
 
@@ -489,7 +489,7 @@ def create_data_for_workflow(yml_filepath: Path):
     repo_name = None
 
     logger.info(f"check the config from: {yml_filepath}")
-    with open(yml_filepath) as fin:
+    with open(yml_filepath, encoding='utf-8') as fin:
         config = yaml.safe_load(fin)
         if 'output_dir' in config:
             output_dir = config['output_dir']
@@ -522,7 +522,7 @@ def create_workflow(event_id, category, contents, starter):
     logger.info(f"Load the workflow config from: {yml_filepath}")
 
     dist_yml_filepath = Path(os.getcwd()) / f'{event_id}-{WORKFLOW_FILE_NAME}'
-    with open(yml_filepath) as fin:
+    with open(yml_filepath, encoding='utf-8') as fin:
         config = yaml.safe_load(fin)
         logger.info(f"Loaded the workflow config.")
         create_workflow_config(
@@ -1734,14 +1734,14 @@ def _download_contents(external_files: Dict[str, Dict[str, str]]) -> Dict[str, D
 def _extract_contents(misp_object: Path):
     event = pymisp.mispevent.MISPEvent()
     event.load_file(misp_object)
-    external_files: Dict[str, Dict[str, str]] = dict()
+    external_files: Dict[str, Dict[str, str]] = {}
     for attr in event.attributes:
         if attr.type == "link":
-            external_files[attr.comment] = dict()
+            external_files[attr.comment] = {}
             external_files[attr.comment]['link'] = attr.value
     for attr in event.attributes:
         if attr.type == "sha256":
-            if attr.comment in external_files.keys():
+            if attr.comment in external_files:
                 external_files[attr.comment]['sha256'] = attr.value
     if external_files:
         return external_files
@@ -2127,7 +2127,7 @@ class IAPAuth(requests.auth.AuthBase):
 
     def __call__(self, r):
         open_id_connect_token = id_token.fetch_id_token(Request(), self.client_id)
-        r.headers['Proxy-Authorization'] = 'Bearer {}'.format(open_id_connect_token)
+        r.headers['Proxy-Authorization'] = f'Bearer {open_id_connect_token}'
         return r
 
 
@@ -2143,7 +2143,7 @@ def _dump_json(data, dumpdir, force=False, indent=None):
     fpath = Path(dumpdir) / filename
     if os.path.isfile(fpath) and not force:
         raise Exception(f'already exists: {fpath}')
-    with open(fpath, 'w') as fout:
+    with open(fpath, 'w', encoding='utf-8') as fout:
         json.dump(data, fout, indent=indent, ensure_ascii=False)
 
     return fpath
@@ -2388,7 +2388,7 @@ def _address_to_solver_assets_path(ctx, address) -> Path:
 
 
 def _is_misp_object(load_filepath):
-    with open(load_filepath) as fin:
+    with open(load_filepath, encoding='utf-8') as fin:
         dict_object = json.load(fin)
         if 'Event' in dict_object.keys():
             return True
@@ -2413,7 +2413,7 @@ def _store_misp_object(ctx, load_filepath) -> Tuple[str, str, Path]:
     # save the loadable MISP objects
     misp_object = pymisp.AbstractMISP()
     misp_object.Event = event
-    with open(download_filepath, 'w') as fout:
+    with open(download_filepath, 'w', encoding='utf-8') as fout:
         # dump json correctly with ensure_ascii=False
         # cannot set ensure_ascii=False in fout.write(misp_object.to_json())
         json.dump(json.loads(misp_object.to_json()), fout, ensure_ascii=False, indent=2)
@@ -2578,7 +2578,7 @@ def _account_create(ctx: typer.Context):
     created_time = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S.%f000Z')
     keyfile_name = f'UTC--{created_time}--{int(acct.address, 16):x}'
     keyfile_path = Path(APP_DIR) / keyfile_name
-    with open(keyfile_path, mode='w') as fout:
+    with open(keyfile_path, mode='w', encoding='utf-8') as fout:
         json.dump(encrypted, fout)
 
     typer.echo(f'- Public address of the key:\t{acct.address}')
@@ -2648,7 +2648,7 @@ def config_show(ctx: typer.Context,
 def _config_show(ctx, raw, general):
     if raw:
         filepath = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
-        with open(filepath) as fin:
+        with open(filepath, encoding='utf-8') as fin:
             typer.echo(fin.read())
     else:
         typer.echo(config2str(_load_config(ctx)))
@@ -2767,7 +2767,7 @@ def _make_minimal_workspace(workspace_dir: str):
         typer.echo(f'reuse workspace config: {conf_path}')
     else:
         typer.echo(f'creating workspace conf file: {conf_path}')
-        with open(conf_path, 'w') as _fout:
+        with open(conf_path, 'w', encoding='utf-8') as _fout:
             pass  # nothing to write
 
 
@@ -2819,7 +2819,7 @@ def console():
 @app.command(help="Show practical security services.")
 def external_link():
     json_path = Path(APP_DIR) / 'external-links.json'
-    with open(json_path) as fin:
+    with open(json_path, encoding='utf-8') as fin:
         services = json.load(fin)
         for service in services:
             # https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda

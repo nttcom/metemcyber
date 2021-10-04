@@ -57,7 +57,7 @@ class ABIManager:
             contract_ver = bname.split('-')[-1]
             contract_id = f'{contract_name}.sol:{contract_name}'
             key = f'{contract_id}-{contract_ver}'
-            with open(comb_fname, 'r') as fin:
+            with open(comb_fname, 'r', encoding='utf-8') as fin:
                 comb_json = json.load(fin)['contracts'][contract_id]
             abi = json.loads(comb_json['metadata'])['output']['abi']
             self.abis[key] = abi
@@ -87,7 +87,7 @@ class ABIManager:
                 tx0['input'] = f'(data length = {len(input_data)})'
             return tx0
 
-        if to_addr in self.cached_contracts.keys():  # use try cache
+        if to_addr in self.cached_contracts:  # use try cache
             cache = self.cached_contracts[to_addr]
             contract_key = self.contracts[cache]
             try:
@@ -119,7 +119,7 @@ class TransactionDecoder:
     conf: dict
 
     def __init__(self, config_filepath):
-        with open(config_filepath, 'r') as fin:
+        with open(config_filepath, 'r', encoding='utf-8') as fin:
             self.conf = json.load(fin).get('decoder', {})
         self.tdb_raw = TransactionDB(None, self.conf['db_filepath_raw'])
         endpoint = self.tdb_raw.get('endpoint') or ''

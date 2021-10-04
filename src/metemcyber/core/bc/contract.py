@@ -146,7 +146,7 @@ class Contract():
     def get(self, address: ChecksumAddress, id_check: bool = True):
         assert address
         if not Web3.isChecksumAddress(address):
-            raise Exception('Invalid address: {}'.format(address))
+            raise Exception(f'Invalid address: {address}')
         if not id_check:  # the case called from new()
             latest = self.__class__.latest_version()
             # pylint: disable=protected-access
@@ -177,7 +177,7 @@ class Contract():
         #   https://solidity.readthedocs.io/en/latest/using-the-compiler.html
         assert address
         assert cls.contract_id
-        if cls.contract_id in Contract.__deployed_libs.keys():
+        if cls.contract_id in Contract.__deployed_libs:
             raise Exception('already registered')
         if not placeholder:
             keccak = Web3.keccak(text=cls.contract_id).hex()[2:]  # cut 0x
@@ -191,7 +191,7 @@ class Contract():
     def __minimal_abi() -> str:
         if not Contract.__minimal_interface:
             minimal_file = combined_json_path(MINIMAL_CONTRACT_ID)
-            with open(minimal_file, 'r') as fin:
+            with open(minimal_file, 'r', encoding='utf-8') as fin:
                 meta_str = json.loads(fin.read())['contracts'][MINIMAL_CONTRACT_ID]['metadata']
             Contract.__minimal_interface['abi'] = json.loads(meta_str)['output']['abi']
             # omit bytecode
@@ -201,7 +201,7 @@ class Contract():
     # pylint: disable=unused-private-member
     def __load(cls, version: int):
         if not cls.contract_id:
-            raise Exception('contract_id is not defined: {}'.format(cls))
+            raise Exception(f'contract_id is not defined: {cls}')
         if cls.contract_interface.get(version):
             return
 
@@ -209,7 +209,7 @@ class Contract():
         try:
             combined_file = combined_json_path(cls.contract_id) + (
                 '' if version < 0 else f'-{version}')  # no suffix for latest
-            with open(combined_file, 'r') as fin:
+            with open(combined_file, 'r', encoding='utf-8') as fin:
                 combined_json = json.loads(fin.read())['contracts'][cls.contract_id]
 
             # Metadata (json nested in json) の追加
@@ -259,8 +259,7 @@ class Contract():
         tx_receipt = account.web3.eth.waitForTransactionReceipt(tx_hash)
         cls.gaslog('deploy', tx_receipt)
         if tx_receipt['status'] != 1:
-            raise ValueError(
-                'Contract deploy failed: {}'.format(cls.contract_id))
+            raise ValueError(f'Contract deploy failed: {cls.contract_id}')
 
         LOGGER.info('deployed %s on address: %s',
                     cls.__name__, tx_receipt['contractAddress'])

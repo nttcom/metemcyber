@@ -106,11 +106,11 @@ class Uploader:
 
     def upload_file(self, upload_path: str) -> str:
         headers = {
-            'Authorization': 'Bearer {}'.format(self.functions_token),
+            f'Authorization': 'Bearer {self.functions_token}',
             'Content-Type': 'application/json'}
         try:
             # Note: gcs(exchange.metemcyber.ntt.com) accepts json data only.
-            with open(upload_path, 'r') as fin:
+            with open(upload_path, 'r', encoding='utf-8') as fin:
                 jdata = json.load(fin)
         except Exception as err:
             raise Exception(f'Cannot open asset: {upload_path}: {err}') from err

@@ -56,7 +56,7 @@ class NgrokMgr():
     def check_running(self) -> Tuple[int, Optional[str]]:  # (pid|0, public_url)
         pid_file = ngrok_pid_filepath(self.app_dir)
         try:
-            with open(pid_file, 'r') as fin:
+            with open(pid_file, 'r', encoding='utf-8') as fin:
                 str_data = fin.readline().strip()
             str_pid, public_url, str_saved_args = str_data.split('\t', 2)
             pid = int(str_pid)
@@ -99,7 +99,7 @@ class NgrokMgr():
             args = [self.ngrok_path, 'http', '--config', tmp_fname, str(self.seeker_port)]
             while retry > 0:
                 port = web_port if web_port else get_random_local_port()
-                with open(tmp_fname, 'w') as fout:
+                with open(tmp_fname, 'w', encoding='utf-8') as fout:
                     fout.write('console_ui: false\n'
                                f'web_addr: localhost:{port}\n')
                 # ngrok needs to keep running in the background
@@ -116,7 +116,7 @@ class NgrokMgr():
             if retry == 0:
                 raise Exception('Failed launching ngrok')
             public_url = self._get_public_url(port)
-            with open(ngrok_pid_filepath(self.app_dir), 'w') as fout:
+            with open(ngrok_pid_filepath(self.app_dir), 'w', encoding='utf-8') as fout:
                 assert proc
                 fout.write('\t'.join([str(proc.pid), public_url] + args))
             return proc.pid, public_url

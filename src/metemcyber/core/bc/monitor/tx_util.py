@@ -18,11 +18,11 @@ from typing import Any, List, Optional
 
 
 def safe_inc(base: Optional[dict], keys: List[str]) -> dict:
-    tgt = base if base is not None else dict()
+    tgt = base if base is not None else {}
     tmp = tgt
     for key in keys[:-1]:  # fix branches
         if key not in tmp.keys():
-            tmp[key] = dict()
+            tmp[key] = {}
         tmp = tmp[key]
     if keys[-1] not in tmp.keys():  # fix leaf
         tmp[keys[-1]] = 0
@@ -31,11 +31,11 @@ def safe_inc(base: Optional[dict], keys: List[str]) -> dict:
 
 
 def safe_set(base: Optional[dict], keys: List[str], val: Any) -> dict:
-    tgt = base if base is not None else dict()
+    tgt = base if base is not None else {}
     tmp = tgt
     for key in keys[:-1]:
         if key not in tmp.keys():
-            tmp[key] = dict()
+            tmp[key] = {}
         tmp = tmp[key]
     tmp[keys[-1]] = val
     return tgt
@@ -43,7 +43,7 @@ def safe_set(base: Optional[dict], keys: List[str], val: Any) -> dict:
 
 def safe_dec(base: Optional[dict], keys: List[str]) -> dict:
     if base is None:
-        return dict()
+        return {}
     tgt = base
     tmp = tgt
     for key in keys[:-1]:

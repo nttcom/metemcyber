@@ -35,7 +35,7 @@ class TransactionDumper:
     codesize: dict
 
     def __init__(self, config_filepath):
-        with open(config_filepath, 'r') as fin:
+        with open(config_filepath, 'r', encoding='utf-8') as fin:
             self.conf = json.load(fin).get('dumper', {})
         endpoint = self.conf['endpoint']
         db_filepath = self.conf['db_filepath_raw']

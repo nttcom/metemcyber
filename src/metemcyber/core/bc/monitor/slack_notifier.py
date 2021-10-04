@@ -137,9 +137,9 @@ class SlackNotifier:
     def __init__(self, config_filepath: str, testmode: bool = False):
         if hasattr(self, 'conf') and self.conf:
             return
-        with open(config_filepath, 'r') as fin:
+        with open(config_filepath, 'r', encoding='utf-8') as fin:
             self.conf = json.load(fin).get('slack_notifier', {})
-        for key in {'webhook', 'channel', 'appname'}:
+        for key in ['webhook', 'channel', 'appname']:
             if key not in self.conf.keys():
                 raise Exception(f'ConfigError: Missing {key}')
         self.sections = []
@@ -185,7 +185,7 @@ def str2generator(classname: str) -> Type[SectionGenerator]:
 
 
 def _gen_options(args: Namespace, options: dict) -> dict:
-    for key in {'start', 'end', 'date_format'}:
+    for key in ['start', 'end', 'date_format']:
         if getattr(args, key, None):
             options[key] = getattr(args, key)
     return options
@@ -193,7 +193,7 @@ def _gen_options(args: Namespace, options: dict) -> dict:
 
 def main(args: Namespace):
     notifier = SlackNotifier(args.config, testmode=args.testmode)
-    with open(args.config, 'r') as fin:
+    with open(args.config, 'r', encoding='utf-8') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
     for query in queries:
         generator = str2generator(query['class'])()

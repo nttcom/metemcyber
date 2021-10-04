@@ -59,7 +59,7 @@ class Token():
             Token.tokens_map = {}
         else:
             assert self.address
-            if self.address in Token.tokens_map.keys():
+            if self.address in Token.tokens_map:
                 del Token.tokens_map[self.address]
 
     @property

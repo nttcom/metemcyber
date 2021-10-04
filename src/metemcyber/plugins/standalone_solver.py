@@ -153,8 +153,8 @@ class Solver(BaseSolver):
             LOGGER.info('finished task %s', task_id)
 
     def create_misp_download_url(self, cti_address):
-        url = 'http://{host}:{port}/{path}'.format(
-            host=self.config[CONFIG_SECTION]['listen_address'],
-            port=self.fileserver.port,
-            path=cti_address)
+        host = self.config[CONFIG_SECTION]['listen_address']
+        port = self.fileserver.port
+        path = cti_address
+        url = f'http://{host}:{port}/{path}'
         return url

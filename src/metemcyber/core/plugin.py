@@ -53,7 +53,7 @@ class PluginManager():
         sys.path.insert(0, path)
 
         for fname in os.listdir(path):
-            filepath = '{}/{}'.format(path, fname)
+            filepath = f'{path}/{fname}'
             if not (os.path.isfile(filepath) and fname.endswith('.py')):
                 continue
             try:
@@ -84,17 +84,17 @@ class PluginManager():
             mod.__name__, solver.__name__, operator_address)
 
     def get_solverclass(self, operator_address: ChecksumAddress) -> Type[BaseSolver]:
-        if operator_address in self._solvers.keys():
+        if operator_address in self._solvers:
             return self._solvers[operator_address][0]
-        if ADDRESS0 in self._solvers.keys():
+        if ADDRESS0 in self._solvers:
             # return default if set.
             return self._solvers[ADDRESS0][0]
         return BaseSolver
 
     def get_plugin_filename(self, operator_address: ChecksumAddress) -> Optional[str]:
-        if operator_address in self._solvers.keys():
+        if operator_address in self._solvers:
             return self._solvers[operator_address][1]
         return None
 
     def is_pluginfile(self, filename: str) -> bool:
-        return filename in self._modules.keys()
+        return filename in self._modules

@@ -40,7 +40,6 @@ from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 
-#CTX: typer.Context = typer.Context(Command('_fake_command_'))
 PIDFILEPATH = f'{APP_DIR}/assetmgr.pid'
 VALID_TIMESTAMP_RANGE = 12 * 3600  # 12 hours in sec
 SERVERLOG = get_logger(name='asset_mgr', file_prefix='core')
@@ -247,7 +246,7 @@ class AssetManager:
             filepath = self._asset_filepath(request.token_address)
             if os.path.exists(filepath):
                 os.unlink(filepath)  # for the case target already exists as a symlink.
-            with open(filepath, 'w') as fout:
+            with open(filepath, 'w', encoding='utf-8') as fout:
                 fout.write(request.data)
         except HTTPException as err:
             SERVERLOG.exception(err)
@@ -370,7 +369,7 @@ class AssetManagerController:
 
     def get_running_params(self) -> Tuple[int, str, int]:  # pid, addr, port
         try:
-            with open(PIDFILEPATH, 'r') as fin:
+            with open(PIDFILEPATH, 'r', encoding='utf-8') as fin:
                 str_data = fin.readline().strip()
             str_pid, str_addr, str_port = str_data.split('\t', 2)
         except Exception:
@@ -415,7 +414,7 @@ class AssetManagerController:
                                solver_account,
                                operator_address,
                                assets_rootpath)
-            with open(PIDFILEPATH, 'w') as fout:
+            with open(PIDFILEPATH, 'w', encoding='utf-8') as fout:
                 fout.write(f'{os.getpid()}\t{listen_address}\t{listen_port}\n')
             mgr.run()
         except KeyboardInterrupt:
@@ -470,7 +469,7 @@ class AssetManagerClient:
         request_data = PostMispRequest(nonce=nonce,
                                        token_address=token_address,
                                        auto_support=auto_support)
-        with open(filepath, 'r') as fin:
+        with open(filepath, 'r', encoding='utf-8') as fin:
             request_data.data = fin.read()
         request_data.sign(account)
 

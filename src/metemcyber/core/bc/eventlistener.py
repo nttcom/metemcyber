@@ -42,7 +42,7 @@ class BasicEventListener:
         self.__event_filters: Dict[str, Dict[str, Any]] = {}
         self.__lock: Lock = Lock()
         #                           {key:x, filter:x, callback:x}
-        self.__pending_filters: List[Dict[str, Any]] = list()
+        self.__pending_filters: List[Dict[str, Any]] = []
         self.__pending_lock: Lock = Lock()
 
     def destroy(self) -> None:
@@ -51,7 +51,7 @@ class BasicEventListener:
     def add_event_filter(self, key: str, event_filter: LogFilter,
                          callback: Callable[[AttributeDict], None]) -> None:
         with self.__lock:
-            if key in self.__event_filters.keys():
+            if key in self.__event_filters:
                 assert self.__event_filters[key]['callback'] == callback
                 self.__event_filters[key]['count'] += 1
             else:
