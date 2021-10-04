@@ -179,8 +179,6 @@ class MetadataManager:
         self._load_meta()
 
     def _load_meta(self):
-        # pylint: disable=global-statement
-        global DEPLOYERS, CONTRACTS
         assert not DEPLOYERS and not CONTRACTS
         DEPLOYERS.update(self.tdb_meta.get('deployers') or {})
         CONTRACTS.update({
