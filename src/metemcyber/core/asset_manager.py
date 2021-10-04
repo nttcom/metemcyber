@@ -40,7 +40,6 @@ from metemcyber.core.bc.util import verify_message
 from metemcyber.core.logger import get_logger
 from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
 
-#CTX: typer.Context = typer.Context(Command('_fake_command_'))
 PIDFILEPATH = f'{APP_DIR}/assetmgr.pid'
 VALID_TIMESTAMP_RANGE = 12 * 3600  # 12 hours in sec
 SERVERLOG = get_logger(name='asset_mgr', file_prefix='core')
