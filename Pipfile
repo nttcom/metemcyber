@@ -8,15 +8,15 @@ metemcyber = {editable = true, extras = ["cli"], path = "."}
 requests = "==2.25.1"
 
 [dev-packages]
-sphinx = "*"
-sphinx-autobuild = "*"
 autopep8 = "*"
 isort = "*"
-pylint = "*"
 mypy = "*"
 mypy-extensions = "*"
-types-requests = "*"
+pylint = "*"
+sphinx = "*"
+sphinx-autobuild = "*"
 types-PyYAML = "*"
+types-requests = "*"
 
 [requires]
 python_version = "3.8"
