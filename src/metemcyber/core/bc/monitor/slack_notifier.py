@@ -139,7 +139,7 @@ class SlackNotifier:
             return
         with open(config_filepath, 'r', encoding='utf-8') as fin:
             self.conf = json.load(fin).get('slack_notifier', {})
-        for key in {'webhook', 'channel', 'appname'}:
+        for key in ['webhook', 'channel', 'appname']:
             if key not in self.conf.keys():
                 raise Exception(f'ConfigError: Missing {key}')
         self.sections = []
@@ -185,7 +185,7 @@ def str2generator(classname: str) -> Type[SectionGenerator]:
 
 
 def _gen_options(args: Namespace, options: dict) -> dict:
-    for key in {'start', 'end', 'date_format'}:
+    for key in ['start', 'end', 'date_format']:
         if getattr(args, key, None):
             options[key] = getattr(args, key)
     return options

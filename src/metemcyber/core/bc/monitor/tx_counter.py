@@ -260,7 +260,7 @@ def _fix_options(args: Namespace, queries: List[dict]) -> List[dict]:
     for query in queries:
         if not query.get('options'):
             query['options'] = {}
-        for key in {'start', 'end', 'date_format'}:
+        for key in ['start', 'end', 'date_format']:
             if getattr(args, key, None):
                 query['options'][key] = getattr(args, key)
     return queries
