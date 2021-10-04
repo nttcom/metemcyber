@@ -195,7 +195,7 @@ class SolverManager():
         self._remove_snapshot()
 
     def _save_snapshot(self):
-        with open(self.snapshot_filepath, 'w') as fout:
+        with open(self.snapshot_filepath, 'w', encoding='utf-8') as fout:
             json.dump(self.snapshot, fout, ensure_ascii=False, indent=2)
 
     def _update_snapshot(self,
@@ -219,7 +219,7 @@ class SolverManager():
 
     def _load_snapshot(self):
         try:
-            with open(self.snapshot_filepath, 'r') as fin:
+            with open(self.snapshot_filepath, 'r', encoding='utf-8') as fin:
                 self.snapshot = json.load(fin)
             self.endpoint_url = self.snapshot['endpoint_url']
             self.workspace = self.snapshot['workspace']

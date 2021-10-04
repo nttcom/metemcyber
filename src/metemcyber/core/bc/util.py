@@ -45,7 +45,7 @@ def decode_keyfile(filename: str,
                    password_func: Callable[[], str] = lambda: getpass('Enter password for keyfile:')
                    ) -> Tuple[ChecksumAddress, str]:
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
-    with open(filename) as keyfile:
+    with open(filename, encoding='utf-8') as keyfile:
         enc_data = keyfile.read()
     address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
     word = password_func()
@@ -73,7 +73,7 @@ def deploy_erc1820(eoa: ChecksumAddress, web3: Web3) -> None:
     except Exception as err:
         raise ValueError('Sending Ether for ERC1820 failed') from err
     try:
-        with open(erc1820_raw_tx_filepath, 'r') as fin:
+        with open(erc1820_raw_tx_filepath, 'r', encoding='utf-8') as fin:
             raw_tx = fin.read().strip()
         tx_hash = web3.eth.sendRawTransaction(cast(HexStr, raw_tx))
         tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)

@@ -55,7 +55,7 @@ DEFAULT_CONFIGS = {
 
 def tty_message(msg: str) -> None:
     try:
-        with open(TTY_FILEPATH, 'w') as tty:
+        with open(TTY_FILEPATH, 'w', encoding='utf-8') as tty:
             if not tty.isatty:
                 return
             tty.write(msg + '\n')
@@ -98,7 +98,7 @@ def download_json(download_url: str, token_address: ChecksumAddress, workspace: 
         if not os.path.isdir(workspace):
             os.makedirs(workspace)
         filepath = asset_download_path(workspace, token_address)
-        with open(filepath, 'w') as fout:
+        with open(filepath, 'w', encoding='utf-8') as fout:
             json.dump(jdata, fout, ensure_ascii=False, indent=2)
         msg = f'Saved downloaded data in {filepath}.'
         LOGGER.info(msg)
@@ -233,7 +233,7 @@ class Seeker():
     #                               (pid|0, listen_address, listen_port)
     def check_running(self) -> Tuple[int, str, int]:
         try:
-            with open(seeker_pid_filepath(self.app_dir), 'r') as fin:
+            with open(seeker_pid_filepath(self.app_dir), 'r', encoding='utf-8') as fin:
                 str_data = fin.readline().strip()
             str_pid, address, str_port = str_data.split('\t', 2)
             pid = int(str_pid)
@@ -293,7 +293,7 @@ def main(args: Namespace):
             args.workspace, args.endpoint_url, args.operator_address)
         address, port = resolver.start()
         pid = os.getpid()
-        with open(pid_file, 'w') as fout:
+        with open(pid_file, 'w', encoding='utf-8') as fout:
             fout.write(f'{pid}\t{address}\t{port}\n')
         assert resolver.thread
         resolver.thread.join()

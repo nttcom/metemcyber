@@ -166,7 +166,7 @@ class MetadataManager:
     def __init__(self, config_filepath: str, readonly=False):
         if hasattr(self, 'conf') and self.conf:  # already initialized
             return
-        with open(config_filepath, 'r') as fin:
+        with open(config_filepath, 'r', encoding='utf-8') as fin:
             self.conf = json.load(fin).get('metadata_manager', {})
         if readonly:
             self.tdb_dec = endpoint = None

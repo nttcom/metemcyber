@@ -191,7 +191,7 @@ class Contract():
     def __minimal_abi() -> str:
         if not Contract.__minimal_interface:
             minimal_file = combined_json_path(MINIMAL_CONTRACT_ID)
-            with open(minimal_file, 'r') as fin:
+            with open(minimal_file, 'r', encoding='utf-8') as fin:
                 meta_str = json.loads(fin.read())['contracts'][MINIMAL_CONTRACT_ID]['metadata']
             Contract.__minimal_interface['abi'] = json.loads(meta_str)['output']['abi']
             # omit bytecode
@@ -209,7 +209,7 @@ class Contract():
         try:
             combined_file = combined_json_path(cls.contract_id) + (
                 '' if version < 0 else f'-{version}')  # no suffix for latest
-            with open(combined_file, 'r') as fin:
+            with open(combined_file, 'r', encoding='utf-8') as fin:
                 combined_json = json.loads(fin.read())['contracts'][cls.contract_id]
 
             # Metadata (json nested in json) の追加

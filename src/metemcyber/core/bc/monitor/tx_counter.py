@@ -81,7 +81,7 @@ class TransactionCounter:
     exclude_from: List[ChecksumAddress] = []
 
     def __init__(self, args: Namespace, options: dict):
-        with open(args.config, 'r') as fin:
+        with open(args.config, 'r', encoding='utf-8') as fin:
             self.conf = json.load(fin).get('counter', {})
         self.dec_db = TransactionDB(None, self.conf['db_filepath_decoded'])
         self.meta = MetadataManager(args.config, readonly=True)
@@ -267,7 +267,7 @@ def _fix_options(args: Namespace, queries: List[dict]) -> List[dict]:
 
 
 def main(args: Namespace):
-    with open(args.config, 'r') as fin:
+    with open(args.config, 'r', encoding='utf-8') as fin:
         queries = [q for q in json.load(fin).get('queries', []) if not q.get('disable')]
     if args.remote:
         result = requests.post(

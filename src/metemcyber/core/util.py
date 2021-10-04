@@ -29,7 +29,7 @@ def get_random_local_port() -> int:
     global LOCAL_PORT_MIN, LOCAL_PORT_MAX
     if LOCAL_PORT_MAX == 0:
         try:
-            with open(LOCAL_PORT_RANGE_FILE, 'r') as fin:
+            with open(LOCAL_PORT_RANGE_FILE, 'r', encoding='utf-8') as fin:
                 p_min, p_max = fin.readline().strip().split('\t', 1)
                 LOCAL_PORT_MIN = int(p_min)
                 LOCAL_PORT_MAX = int(p_max)
