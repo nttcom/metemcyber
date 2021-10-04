@@ -87,7 +87,7 @@ class ABIManager:
                 tx0['input'] = f'(data length = {len(input_data)})'
             return tx0
 
-        if to_addr in self.cached_contracts.keys():  # use try cache
+        if to_addr in self.cached_contracts:  # use try cache
             cache = self.cached_contracts[to_addr]
             contract_key = self.contracts[cache]
             try:

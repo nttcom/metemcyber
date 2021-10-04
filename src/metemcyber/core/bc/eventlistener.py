@@ -51,7 +51,7 @@ class BasicEventListener:
     def add_event_filter(self, key: str, event_filter: LogFilter,
                          callback: Callable[[AttributeDict], None]) -> None:
         with self.__lock:
-            if key in self.__event_filters.keys():
+            if key in self.__event_filters:
                 assert self.__event_filters[key]['callback'] == callback
                 self.__event_filters[key]['count'] += 1
             else:

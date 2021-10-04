@@ -1741,7 +1741,7 @@ def _extract_contents(misp_object: Path):
             external_files[attr.comment]['link'] = attr.value
     for attr in event.attributes:
         if attr.type == "sha256":
-            if attr.comment in external_files.keys():
+            if attr.comment in external_files:
                 external_files[attr.comment]['sha256'] = attr.value
     if external_files:
         return external_files

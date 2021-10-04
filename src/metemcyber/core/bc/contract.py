@@ -177,7 +177,7 @@ class Contract():
         #   https://solidity.readthedocs.io/en/latest/using-the-compiler.html
         assert address
         assert cls.contract_id
-        if cls.contract_id in Contract.__deployed_libs.keys():
+        if cls.contract_id in Contract.__deployed_libs:
             raise Exception('already registered')
         if not placeholder:
             keccak = Web3.keccak(text=cls.contract_id).hex()[2:]  # cut 0x

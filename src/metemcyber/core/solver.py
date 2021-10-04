@@ -98,7 +98,7 @@ class ChallengeListener(BasicEventListener):
 
     def dispatch_callback(self, event: AttributeDict) -> None:
         token_address = event['args']['token']
-        if token_address in self.accepting.keys():
+        if token_address in self.accepting:
             callback = self.accepting[token_address]
             self.executor.enqueue(callback, token_address, event)
 

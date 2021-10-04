@@ -85,7 +85,7 @@ class Catalog():
             Catalog.__addressed_catalogs = {}
         else:
             assert self.address
-            if self.address in Catalog.__addressed_catalogs.keys():
+            if self.address in Catalog.__addressed_catalogs:
                 del Catalog.__addressed_catalogs[self.address]
 
     @staticmethod
