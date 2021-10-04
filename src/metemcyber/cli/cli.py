@@ -1734,10 +1734,10 @@ def _download_contents(external_files: Dict[str, Dict[str, str]]) -> Dict[str, D
 def _extract_contents(misp_object: Path):
     event = pymisp.mispevent.MISPEvent()
     event.load_file(misp_object)
-    external_files: Dict[str, Dict[str, str]] = dict()
+    external_files: Dict[str, Dict[str, str]] = {}
     for attr in event.attributes:
         if attr.type == "link":
-            external_files[attr.comment] = dict()
+            external_files[attr.comment] = {}
             external_files[attr.comment]['link'] = attr.value
     for attr in event.attributes:
         if attr.type == "sha256":
