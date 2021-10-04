@@ -146,7 +146,7 @@ class Contract():
     def get(self, address: ChecksumAddress, id_check: bool = True):
         assert address
         if not Web3.isChecksumAddress(address):
-            raise Exception('Invalid address: {}'.format(address))
+            raise Exception(f'Invalid address: {address}')
         if not id_check:  # the case called from new()
             latest = self.__class__.latest_version()
             # pylint: disable=protected-access
@@ -201,7 +201,7 @@ class Contract():
     # pylint: disable=unused-private-member
     def __load(cls, version: int):
         if not cls.contract_id:
-            raise Exception('contract_id is not defined: {}'.format(cls))
+            raise Exception(f'contract_id is not defined: {cls}')
         if cls.contract_interface.get(version):
             return
 
@@ -259,8 +259,7 @@ class Contract():
         tx_receipt = account.web3.eth.waitForTransactionReceipt(tx_hash)
         cls.gaslog('deploy', tx_receipt)
         if tx_receipt['status'] != 1:
-            raise ValueError(
-                'Contract deploy failed: {}'.format(cls.contract_id))
+            raise ValueError(f'Contract deploy failed: {cls.contract_id}')
 
         LOGGER.info('deployed %s on address: %s',
                     cls.__name__, tx_receipt['contractAddress'])

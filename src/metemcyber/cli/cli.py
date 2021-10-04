@@ -2127,7 +2127,7 @@ class IAPAuth(requests.auth.AuthBase):
 
     def __call__(self, r):
         open_id_connect_token = id_token.fetch_id_token(Request(), self.client_id)
-        r.headers['Proxy-Authorization'] = 'Bearer {}'.format(open_id_connect_token)
+        r.headers['Proxy-Authorization'] = f'Bearer {open_id_connect_token}'
         return r
 
 

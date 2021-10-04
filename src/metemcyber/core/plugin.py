@@ -53,7 +53,7 @@ class PluginManager():
         sys.path.insert(0, path)
 
         for fname in os.listdir(path):
-            filepath = '{}/{}'.format(path, fname)
+            filepath = f'{path}/{fname}'
             if not (os.path.isfile(filepath) and fname.endswith('.py')):
                 continue
             try:

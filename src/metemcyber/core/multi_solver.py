@@ -62,9 +62,10 @@ def tracelog(logger, *args, **kwargs):
     stacks = inspect.stack()
     assert len(stacks) > 1
     finfo = inspect.getframeinfo(stacks[1][0])
-    pref = '{}:{} {}'.format(
-        os.path.basename(finfo.filename),
-        finfo.lineno, finfo.function)
+    filename = os.path.basename(finfo.filename)
+    lineno = finfo.lineno
+    funcname = finfo.function
+    pref = f'{filename}:{lineno} {funcname}'
     if len(args) > 0:
         logger.debug(pref + ': ' + args[0], *args[1:], **kwargs)
     else:
@@ -157,7 +158,7 @@ class MCSError(Exception):
         }.get(code, 'Unknown Error')
 
     def __str__(self):
-        return '{:04X}: {:s}'.format(self.code, self.msg)
+        return f'{self.code:04X}: {self.msg:s}'
 
 
 class SolverManager():
@@ -637,7 +638,7 @@ class MCSClient():
         resp = self.wait_response()
         if resp.code == MCSErrno.OK:
             return
-        raise Exception('Received error: {:X} {}'.format(resp.code, resp.kwargs.get('data')))
+        raise Exception(f'Received error: {resp.code:X} {resp.kwargs.get("data")}')
 
     def ping(self):
         self._simple_query('ping')

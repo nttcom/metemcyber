@@ -25,7 +25,7 @@ from hexbytes import HexBytes
 from web3 import Web3
 from web3.auto import w3
 
-ADDRESS0 = cast(ChecksumAddress, '0x{:040x}'.format(0))
+ADDRESS0 = cast(ChecksumAddress, f'0x{0:040x}')
 
 
 def sign_message(message: str, private_key: str) -> str:
