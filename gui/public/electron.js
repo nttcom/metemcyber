@@ -21,8 +21,8 @@ const pty = require('node-pty');
 const fs = require('fs');
 const exec = require('util').promisify(require('child_process').exec);
 const fixPath = require('fix-path');
-
-require('dotenv').config();
+const electronStore = require('electron-store');
+const store = new electronStore();
 
 const nodePtyConfig = {
   cols: 1500,
@@ -53,6 +53,10 @@ async function createWindow() {
   );
 
   fixPath();
+
+  if (!store.get('TRANSACTION_API_URL', false)) {
+    store.set('TRANSACTION_API_URL', '')
+  }
 
   // Open the DevTools.
   mainWindow.webContents.openDevTools()
@@ -423,7 +427,7 @@ ipcMain.on('get-transaction', async (event, arg) => {
   const request = require('request');
   console.log(arg);
   request.post({
-    uri: `${process.env.TRANSACTION_API_HOST}/tx_counter`,
+    uri: `${store.get('TRANSACTION_API_URL')}/tx_counter`,
     headers: { "Content-type": "application/json" },
     json: [{
       "class": "DailyActivity",
@@ -446,6 +450,15 @@ ipcMain.on('get-transaction', async (event, arg) => {
 
 ipcMain.on('get-password', async (event, arg) => {
   event.returnValue = require('shell-env').sync().METEMCTL_KEYFILE_PASSWORD;
+});
+
+ipcMain.on('get-transaction-url', async (event, arg) => {
+  event.returnValue = store.get('TRANSACTION_API_URL');
+});
+
+ipcMain.on('set-transaction-url', async (event, arg) => {
+  store.set('TRANSACTION_API_URL', arg);
+  event.returnValue = 'success';
 });
 
 async function getKeyFilePath(event) {
