@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 metemcyber = {editable = true, extras = ["cli"], path = "."}
 requests = "==2.25.1"
+omegaconf = "*"
 
 [dev-packages]
 autopep8 = "*"
