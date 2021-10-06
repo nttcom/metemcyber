@@ -1,6 +1,6 @@
 {
-  "name": "Metemcyber",
-  "version": "0.2.0",
+  "name": "Metemcyber-gui",
+  "version": "0.2.1",
   "private": true,
   "main": "public/electron.js",
   "homepage": "./",
@@ -10,8 +10,8 @@
     "@testing-library/react": "^11.1.0",
     "@testing-library/user-event": "^12.1.10",
     "bootstrap": "^4.6.0",
-    "dotenv": "^10.0.0",
     "electron-is-dev": "^1.2.0",
+    "electron-store": "^8.0.1",
     "fix-path": "^3.0.0",
     "ngrok": "^3.4.0",
     "node-pty": "^0.10.0",
@@ -63,6 +63,7 @@
     "wait-on": "^5.2.0"
   },
   "build": {
+    "productName": "Metemcyber",
     "extends": null,
     "directories": {
       "buildResources": "resources",

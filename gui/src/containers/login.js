@@ -16,7 +16,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components'
-import { Button, Card, CardBody, CardGroup, CardImg, Col, Container, Input, InputGroup, InputGroupAddon, Modal, ModalHeader, ModalBody, ModalFooter, Spinner, Row } from 'reactstrap';
+import { Button, Card, CardBody, CardGroup, CardImg, Col, Container, Input, InputGroup, InputGroupAddon, List, ListInlineItem, Modal, ModalHeader, ModalBody, ModalFooter, Spinner, Row } from 'reactstrap';
 import { useDropzone } from 'react-dropzone';
 
 const { ipcRenderer } = window
@@ -32,10 +32,16 @@ function Login(props) {
     const [selectedKey, setSelectedKey] = useState({});
     const [keyModalToggle, setKeyModalToggle] = useState(false);
     const [errorModalToggle, setErrorModalToggle] = useState(false);
+    const [settingModalToggle, setSettingModalToggle] = useState(false);
+    const [urlValue, setUrlValue] = useState('');
     const [setup, setSetup] = useState(true);
 
-    const handleChange = (e) => {
+    const handlePassChange = (e) => {
         setPass(e.target.value)
+    }
+
+    const handleUrlChange = (e) => {
+        setUrlValue(e.target.value)
     }
 
     const handleSubmit = () => {
@@ -60,16 +66,26 @@ function Login(props) {
         setErrorModalToggle(!errorModalToggle);
     }
 
-    const handleOk = (e) => {
+    const toggleSettingModal = (e) => {
+        setSettingModalToggle(!settingModalToggle);
+    }
+
+    const setKey = (e) => {
         ipcRenderer.sendSync('set-key', { name: selectedKey.name, path: selectedKey.path });
         setCurrentKeyName(selectedKey.name);
         setKeyModalToggle(false);
+    }
+
+    const setTransactionUrl = (e) => {
+        ipcRenderer.sendSync('set-transaction-url', urlValue);
+        setSettingModalToggle(false);
     }
 
     useEffect(() => {
         sessionStorage.setItem('imageDir', `${ipcRenderer.sendSync('get-image-dir')}metemcyber_logo.png`);
         setCurrentKeyName(ipcRenderer.sendSync('get-key'));
         setPass(ipcRenderer.sendSync('get-password'));
+        setUrlValue(ipcRenderer.sendSync('get-transaction-url'));
         if (sessionStorage.getItem('init') === null) {
             ipcRenderer.send('exec-init');
             ipcRenderer.once('finish-init', (event, arg) => {
@@ -99,7 +115,8 @@ function Login(props) {
                 :
                 <>
                     <Header className="clearfix">
-                        <Button className="float-right" onClick={toggleKeyModal} size="sm">Import Key File</Button>
+                        <HeaderButton className="float-right" onClick={toggleSettingModal} size="sm">Transaction API Setting</HeaderButton>
+                        <HeaderButton className="float-right" onClick={toggleKeyModal} size="sm">Import Key File</HeaderButton>
                     </Header>
                     <Container>
                         <LoginRow className="justify-content-center">
@@ -118,7 +135,7 @@ function Login(props) {
                                                 <Row>
                                                     <Col md={{ size: 4, offset: 4 }}>
                                                         <InputGroup>
-                                                            <Input placeholder="Enter your pass" type="password" value={pass} onChange={handleChange} />
+                                                            <Input placeholder="Enter your pass" type="password" value={pass} onChange={handlePassChange} />
                                                             <Button outline color="secondary" size="md" onClick={handleSubmit} block disabled={loading} style={{ marginTop: "10px" }}>{loading ? <Spinner color="primary" /> : "Login"}</Button>
                                                         </InputGroup>
                                                     </Col>
@@ -146,7 +163,7 @@ function Login(props) {
                     <SelectedFile>Selected file:{selectedKey.name}</SelectedFile>
                 </ModalBody>
                 <ModalFooter>
-                    <Button color="primary" onClick={handleOk}>OK</Button>{' '}
+                    <Button color="primary" onClick={setKey}>OK</Button>{' '}
                     <Button color="secondary" onClick={toggleKeyModal}>Cancel</Button>
                 </ModalFooter>
             </KeyModal>
@@ -159,7 +176,20 @@ function Login(props) {
                     <Button color="primary" onClick={toggleErrorModal}>OK</Button>{' '}
                 </ModalFooter>
             </Modal>
-
+            <Modal isOpen={settingModalToggle} toggle={toggleSettingModal} >
+                <ModalBody>
+                    <List>
+                        <ListInlineItem>Transaction API URL</ListInlineItem>
+                        <ListInlineItem>
+                            <UrlInput value={urlValue} onChange={handleUrlChange} />
+                        </ListInlineItem>
+                    </List>
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="primary" onClick={setTransactionUrl}>OK</Button>{' '}
+                    <Button color="secondary" onClick={toggleSettingModal}>Cancel</Button>
+                </ModalFooter>
+            </Modal>
         </div>
     );
 }
@@ -205,4 +235,12 @@ const LoadingContents = styled.div`
     top: 50%;
     left: 50%;
     transform: translateY(-50%) translateX(-50%);
+`;
+
+const UrlInput = styled(Input)`
+    width: 250px;
+`;
+
+const HeaderButton = styled(Button)`
+    margin: 0 5px;
 `;
