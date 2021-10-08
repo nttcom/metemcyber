@@ -106,7 +106,7 @@ class Uploader:
 
     def upload_file(self, upload_path: str) -> str:
         headers = {
-            f'Authorization': 'Bearer {self.functions_token}',
+            'Authorization': f'Bearer {self.functions_token}',
             'Content-Type': 'application/json'}
         try:
             # Note: gcs(exchange.metemcyber.ntt.com) accepts json data only.
