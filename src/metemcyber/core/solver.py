@@ -149,7 +149,7 @@ class BaseSolver:
         accepting = self.accepting_tokens()
         cti_operator = CTIOperator(self.account).get(self.operator_address)
         if tokens is None:  # auto detect mode
-            targets = cti_operator.list_registered(self.operator_address)
+            targets = cti_operator.list_registered(self.account.eoa)
         else:
             registered = cti_operator.check_registered(tokens)
             targets = [
