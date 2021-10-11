@@ -845,6 +845,7 @@ class FlexibleIndexToken:
 
 
 @ix_app.command('search', help="Show CTI tokens on the active list of CTI catalogs.")
+@common_logging
 def ix_search(ctx: typer.Context,
               keyword: str,
               mine: bool = typer.Option(True, help='show tokens published by you'),
@@ -852,18 +853,15 @@ def ix_search(ctx: typer.Context,
               soldout: bool = typer.Option(False, help='show soldout tokens'),
               own: bool = typer.Option(True, help='show tokens you own'),
               own_only: bool = typer.Option(False)):
-    common_logging(_ix_search)(ctx, keyword, mine, mine_only, soldout, own, own_only)
-
-
-def _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only):
     if (mine_only and not mine) or (own_only and not own):
         raise Exception('contradictory options')
     _ix_list_tokens(ctx, keyword, mine, mine_only, soldout, own, own_only)
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
+@common_logging
 def ix_buy(ctx: typer.Context, catalog_and_token: str):
-    common_logging(_ix_buy)(ctx, catalog_and_token)
+    _ix_buy(ctx, catalog_and_token)
 
 
 def _ix_buy(ctx, catalog_and_token):
@@ -876,12 +874,9 @@ def _ix_buy(ctx, catalog_and_token):
 
 
 @ix_app.command('bulk-buy', help='Buy each CTI Token listed on catalog.')
+@common_logging
 def ix_bulk_buy(ctx: typer.Context, catalog: str,
                 duplicated: bool = typer.Option(False, help='buy tokens even if already have')):
-    common_logging(_ix_bulk_buy)(ctx, catalog, duplicated)
-
-
-def _ix_bulk_buy(ctx, catalog, duplicated):
     flx = FlexibleIndexCatalog(ctx, catalog)
     tokens = _get_tokens_population(ctx, soldout=True, own=duplicated).get(flx.index)
     if not tokens:
@@ -1612,13 +1607,14 @@ def _shared_solver_list_accepting(ctx, addresses: List[ChecksumAddress]) -> List
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
+@common_logging
 def ix_use(ctx: typer.Context, token: str,
            seeker: str = typer.Option(
                '', help='Globally accessible url which seeker is listening. '
                         'Auto generated in default.'),
            monitor: bool = typer.Option(
                True, help='Print messages from Seeker on current terminal.')):
-    common_logging(_ix_use)(ctx, token, seeker, monitor)
+    _ix_use(ctx, token, seeker, monitor)
 
 
 def _ix_use(ctx, token, seeker_url, monitor):
@@ -1764,11 +1760,8 @@ def place_contents(external_files: Dict[str, Dict[str, str]], target_dir: Path):
 
 
 @ix_app.command('extract', help="Extract the contents from the downloaded MISP object.")
+@common_logging
 def ix_extract(ctx: typer.Context, used_token: str):
-    common_logging(_ix_extract)(ctx, used_token)
-
-
-def _ix_extract(ctx, used_token):
     config = _load_config(ctx)
     workspace = config['general']['workspace']
     flx = FlexibleIndexToken(ctx, used_token)
@@ -1828,14 +1821,11 @@ def _get_challenges(ctx: typer.Context
 
 
 @ix_app.command('show', help="Show CTI tokens available.")
+@common_logging
 def ix_challenge_show(ctx: typer.Context,
                       done: bool = typer.Option(False, help='show finished and cancelled'),
                       mine_only: bool = typer.Option(True, help='show yours only'),
                       verbose: bool = typer.Option(False, help='show seeker and solver')):
-    common_logging(_ix_challenge_show)(ctx, done, mine_only, verbose)
-
-
-def _ix_challenge_show(ctx, done, mine_only, verbose):
     account = _load_account(ctx)
     raw_tasks = _get_challenges(ctx)
     for (task_id, token, solver, seeker, state) in reversed(raw_tasks):
@@ -1858,24 +1848,18 @@ def _ix_challenge_show(ctx, done, mine_only, verbose):
 
 
 @ix_app.command('cancel', help="Abort the task in progress.")
+@common_logging
 def ix_cancel(ctx: typer.Context, challenge_id: int):
-    common_logging(_ix_cancel)(ctx, challenge_id)
-
-
-def _ix_cancel(ctx, challenge_id):
     operator = _load_operator(ctx)
     operator.cancel_challenge(challenge_id)
     typer.echo(f'cancelled challenge: {challenge_id}.')
 
 
 @ix_app.command('vote', help='Vote amount of (solved) token to an issue.')
+@common_logging
 def ix_vote(ctx: typer.Context, catalog_and_token: str, issue: int,
             amount: int = typer.Option(1, help='amount of token to vote')):
-    common_logging(_ix_vote)(ctx, catalog_and_token, issue, amount)
-
-
-def _ix_vote(ctx, catalog_and_token, index, amount):
-    index = int(index)
+    index = int(issue)
     amount = int(amount)
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     token = Token(_load_account(ctx)).get(flx_token.address)
@@ -1884,11 +1868,8 @@ def _ix_vote(ctx, catalog_and_token, index, amount):
 
 
 @ix_issue_app.command('list')
+@common_logging
 def ix_issue_list(ctx: typer.Context, catalog_and_token: str):
-    common_logging(_ix_issue_list)(ctx, catalog_and_token)
-
-
-def _ix_issue_list(ctx, catalog_and_token):
     account = _load_account(ctx)
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     token = Token(account).get(flx_token.address)
@@ -1904,22 +1885,16 @@ def _ix_issue_list(ctx, catalog_and_token):
 
 
 @ix_issue_app.command('add')
+@common_logging
 def ix_issue_add(ctx: typer.Context, catalog_and_token: str, issue: str):
-    common_logging(_ix_issue_add)(ctx, catalog_and_token, issue)
-
-
-def _ix_issue_add(ctx, catalog_and_token, issue):
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     Token(_load_account(ctx)).get(flx_token.address).add_candidates([issue])
     typer.echo('added issue. try "metemctl ix issue list" to list issues.')
 
 
 @ix_issue_app.command('remove')
+@common_logging
 def ix_issue_remove(ctx: typer.Context, catalog_and_token: str, index: int):
-    common_logging(_ix_issue_remove)(ctx, catalog_and_token, index)
-
-
-def _ix_issue_remove(ctx, catalog_and_token, index):
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     Token(_load_account(ctx)).get(flx_token.address).remove_candidates([int(index)])
     typer.echo('removed indexed issue. try "metemctl ix issue list" to list issues.')
@@ -2020,11 +1995,8 @@ def _operator_set(ctx, operator_address):
 
 @ix_catalog_app.command('show', help="Show the list of CTI catalogs")
 @contract_catalog_app.command('show', help="Show the list of CTI catalogs")
+@common_logging
 def catalog_show(ctx: typer.Context):
-    common_logging(_catalog_show)(ctx)
-
-
-def _catalog_show(ctx):
     catalog_mgr = _load_catalog_manager(ctx)
     typer.echo('Catalogs *:active')
     for caddr, cid in sorted(
