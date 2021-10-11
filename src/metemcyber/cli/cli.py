@@ -17,6 +17,7 @@
 #pylint: disable=too-many-lines
 
 import errno
+import functools
 import hashlib
 import ipaddress
 import json
@@ -409,6 +410,7 @@ def _load_operator(ctx: typer.Context) -> Operator:
 
 
 def common_logging(func):
+    @functools.wraps(func)
     def wrapper(*args, **kwargs):
         logger = getLogger()
         try:
@@ -2589,11 +2591,8 @@ def _account_create(ctx: typer.Context):
 
 
 @account_app.command("airdrop", help="Get some ETH from Promote Code. (for devnet)")
+@common_logging
 def account_airdrop(ctx: typer.Context, promote_code: str):
-    common_logging(_account_airdrop)(ctx, promote_code)
-
-
-def _account_airdrop(ctx: typer.Context, promote_code: str):
     if len(promote_code) != 64:
         raise typer.Abort('Invalid promote code.')
 
