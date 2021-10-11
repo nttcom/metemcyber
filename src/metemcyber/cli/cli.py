@@ -2493,11 +2493,8 @@ def _discontinue(ctx, catalog_and_token):
 
 
 @account_app.command("show", help="Show the current account information.")
+@common_logging
 def account_show(ctx: typer.Context):
-    common_logging(_account_show)(ctx)
-
-
-def _account_show(ctx):
     account = _load_account(ctx)
     typer.echo(f'--------------------')
     typer.echo(f'Summary')
@@ -2521,11 +2518,8 @@ def _account_show(ctx):
 
 
 @account_app.command("create", help="Create New Account.")
+@common_logging
 def account_create(ctx: typer.Context):
-    common_logging(_account_create)(ctx)
-
-
-def _account_create(ctx: typer.Context):
     # Ref: https://github.com/ethereum/go-ethereum/blob/v1.10.1/cmd/geth/accountcmd.go
     typer.echo('Your new account is locked with a password. Please give a password.')
     acct = eth_account.Account.create('')
