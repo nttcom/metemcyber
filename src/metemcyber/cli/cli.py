@@ -1313,16 +1313,8 @@ def solver_enable(
 
 def _solver_enable(ctx, plugin):
     solver = _solver_enable_internal(ctx, plugin)
-
-    # start accept tokens already registered if exists.
-    population = _get_tokens_population(
-        ctx, mine=True, mine_only=True, soldout=True, own=True, own_only=False)
-    token_addresses = [t.address for lst in population.values() for t in lst]
-    if len(token_addresses) == 0:
-        return
-
     try:
-        msg = solver.solver('accept_registered', token_addresses)
+        msg = solver.solver('accept_registered', None)
         acceptings = solver.solver('accepting_tokens')
     except Exception as err:
         raise Exception(f'accepting registered tokens failed: {err}') from err
