@@ -1139,8 +1139,9 @@ def _seeker_url(ctx, auto_start: bool = False) -> str:
 
 
 @seeker_app.command('start')
+@common_logging
 def seeker_start(ctx: typer.Context):
-    common_logging(_seeker_start)(ctx)
+    _seeker_start(ctx)
 
 
 def _seeker_start(ctx):
@@ -1166,11 +1167,8 @@ def _seeker_start(ctx):
 
 
 @seeker_app.command('stop')
+@common_logging
 def seeker_stop(ctx: typer.Context):
-    common_logging(_seeker_stop)(ctx)
-
-
-def _seeker_stop(ctx):
     seeker = _seeker_client(ctx)
     seeker.stop()
     typer.echo('seeker stopped.')
