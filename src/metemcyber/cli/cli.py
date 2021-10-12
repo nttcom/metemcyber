@@ -1603,21 +1603,20 @@ def _shared_solver_list_accepting(ctx, addresses: List[ChecksumAddress]) -> List
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
 @common_logging
 def ix_use(ctx: typer.Context, token: str,
-           seeker: str = typer.Option(
+           seeker_url: str = typer.Option(
                '', help='Globally accessible url which seeker is listening. '
                         'Auto generated in default.'),
            monitor: bool = typer.Option(
                True, help='Print messages from Seeker on current terminal.')):
-    _ix_use(ctx, token, seeker, monitor)
-
-
-def _ix_use(ctx, token, seeker_url, monitor):
     flx = FlexibleIndexToken(ctx, token)
     account = _load_account(ctx)
     operator = _load_operator(ctx)
     if not seeker_url:
         seeker_url = _seeker_url(ctx, auto_start=True)
-    _display_ngrok_support_message(urlparse(seeker_url).hostname)
+    hostname = urlparse(seeker_url).hostname
+    if not hostname:
+        raise Exception('Missing the hostname')
+    _display_ngrok_support_message(hostname)
     Token(account).get(flx.address).send(operator.address, amount=1, data=seeker_url)
     typer.echo(f'Started challenge with token({flx.address}).')
     if monitor:
