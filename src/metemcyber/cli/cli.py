@@ -2592,14 +2592,12 @@ def _config_edit(ctx, raw, general):
 
 
 @workspace_app.command('list')
+@common_logging
 def workspace_list(ctx: typer.Context):
-    def callback(ctx):
-        current = _current_workspace(ctx)
-        workspaces = set(_workspace_list(ctx) + [current])
-        for space in sorted(workspaces):
-            typer.echo(f'{" *" if space == current else "  "}{space}')
-
-    common_logging(callback)(ctx)
+    current = _current_workspace(ctx)
+    workspaces = set(_workspace_list(ctx) + [current])
+    for space in sorted(workspaces):
+        typer.echo(f'{" *" if space == current else "  "}{space}')
 
 
 def _current_workspace(ctx) -> str:
@@ -2619,11 +2617,8 @@ def _workspace_list(_ctx) -> List[str]:
 
 
 @workspace_app.command('switch')
+@common_logging
 def workspace_switch(ctx: typer.Context, name: str):
-    common_logging(_workspace_switch)(ctx, name)
-
-
-def _workspace_switch(ctx, name):
     if name == _current_workspace(ctx):
         raise Exception(f'already in workspace: {name}')
     if name not in _workspace_list(ctx):
@@ -2642,11 +2637,8 @@ def _workspace_switch(ctx, name):
 
 
 @workspace_app.command('create')
+@common_logging
 def workspace_create(ctx: typer.Context, name: str):
-    common_logging(_workspace_create)(ctx, name)
-
-
-def _workspace_create(ctx, name):
     spaces = _workspace_list(ctx)
     if name in spaces:
         raise Exception(f'Workspace already exists: {name}')
@@ -2678,12 +2670,9 @@ def _make_minimal_workspace(workspace_dir: str):
 
 
 @workspace_app.command('destroy')
+@common_logging
 def workspace_destroy(ctx: typer.Context, name: str,
                       force: bool = typer.Option(False, help='Force remove workspace directory.')):
-    common_logging(_workspace_destroy)(ctx, name, force)
-
-
-def _workspace_destroy(ctx, name, force):
     tgt_path = (_load_config(ctx)['general']['workspace'] if name == _current_workspace(ctx)
                 else f'{DESIRED_WORKSPACE_PREFIX}{name}')
     if not force:
@@ -2696,11 +2685,8 @@ def _workspace_destroy(ctx, name, force):
 
 
 @workspace_app.command('copy')
+@common_logging
 def workspace_copy(ctx: typer.Context, src: str, dst: str):
-    common_logging(_workspace_copy)(ctx, src, dst)
-
-
-def _workspace_copy(ctx, src, dst):
     spaces = _workspace_list(ctx)
     if src not in spaces and src != _current_workspace(ctx):
         raise Exception(f'No such workspace: {src}')
