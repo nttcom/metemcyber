@@ -891,8 +891,9 @@ def ix_bulk_buy(ctx: typer.Context, catalog: str,
 
 
 @contract_broker_app.command('serve', help="Pass your tokens to the broker for disseminate.")
+@common_logging
 def broker_serve(ctx: typer.Context, catalog_and_token: str, amount: int):
-    common_logging(_broker_serve)(ctx, catalog_and_token, amount)
+    _broker_serve(ctx, catalog_and_token, amount)
 
 
 def _broker_serve(ctx, catalog_and_token, amount):
@@ -917,11 +918,8 @@ def _broker_serve(ctx, catalog_and_token, amount):
 
 
 @contract_broker_app.command('takeback', help='Takeback tokens from the broker.')
+@common_logging
 def broker_takeback(ctx: typer.Context, catalog_and_token: str, amount: int):
-    common_logging(_broker_takeback)(ctx, catalog_and_token, amount)
-
-
-def _broker_takeback(ctx, catalog_and_token, amount):
     if amount <= 0:
         raise Exception(f'Invalid amount: {amount}')
     if isinstance(catalog_and_token, list) and len(catalog_and_token) > 2:
@@ -934,6 +932,8 @@ def _broker_takeback(ctx, catalog_and_token, amount):
     if token.publisher != account.eoa:
         raise Exception(f'Not a token published by you')
     broker = _load_broker(ctx)
+    if not broker.address:
+        raise Exception('Missing the broker address')
     balance = token.balance_of(broker.address)
     if balance < amount:
         raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
@@ -942,9 +942,10 @@ def _broker_takeback(ctx, catalog_and_token, amount):
 
 
 @contract_token_app.command('create')
+@common_logging
 def token_create(ctx: typer.Context, initial_supply: int,
                  editable: bool = typer.Option(False, help="Anyone can edit vote candidates")):
-    common_logging(_token_create)(ctx, initial_supply, editable)
+    _token_create(ctx, initial_supply, editable)
 
 
 def _token_create(ctx, initial_supply, editable=False) -> ChecksumAddress:
@@ -958,24 +959,18 @@ def _token_create(ctx, initial_supply, editable=False) -> ChecksumAddress:
 
 
 @contract_token_app.command('set-editable')
+@common_logging
 def token_set_editable(ctx: typer.Context, catalog_and_token: str, anyone_editable: bool):
-    common_logging(_token_set_editable)(ctx, catalog_and_token, anyone_editable)
-
-
-def _token_set_editable(ctx, catalog_and_token, anyone_editable):
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     Token(_load_account(ctx)).get(flx_token.address).set_editable(anyone_editable)
 
 
 @contract_token_app.command('mint')
+@common_logging
 def token_mint(ctx: typer.Context, token: str, amount: int,
                dest: Optional[str] = typer.Option(
                    None, help='Account EOA minted tokens are given to, instead of you. '
                    'Do not assign Broker, it does not mean serving.')):
-    common_logging(_token_mint)(ctx, token, amount, dest)
-
-
-def _token_mint(ctx, token, amount, dest):
     account = _load_account(ctx)
     dest = dest if dest else account.eoa
     flx = FlexibleIndexToken(ctx, token)
@@ -984,11 +979,8 @@ def _token_mint(ctx, token, amount, dest):
 
 
 @contract_token_app.command('burn')
+@common_logging
 def token_burn(ctx: typer.Context, token: str, amount: int, data: str = ''):
-    common_logging(_token_burn)(ctx, token, amount, data)
-
-
-def _token_burn(ctx, token, amount, data):
     if amount <= 0:
         raise Exception(f'Invalid amount: {amount}.')
     account = _load_account(ctx)
@@ -998,6 +990,7 @@ def _token_burn(ctx, token, amount, data):
 
 
 @contract_token_app.command('publish')
+@common_logging
 def token_publish(ctx: typer.Context,
                   catalog: str = typer.Option(
                       '1',
@@ -1021,10 +1014,11 @@ def token_publish(ctx: typer.Context,
                       99,
                       help='An amount of CTI tokens to give CTI broker'),
                   ):
-    common_logging(_token_publish)(
+    _token_publish(
         ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount)
 
 
+@common_logging
 def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount):
     operator_address = _load_operator(ctx).address
     flx_catalog = FlexibleIndexCatalog(ctx, catalog)
@@ -1901,22 +1895,16 @@ def ix_issue_remove(ctx: typer.Context, catalog_and_token: str, index: int):
 
 
 @contract_broker_app.command('show')
+@common_logging
 def broker_show(ctx: typer.Context):
-    common_logging(_broker_show)(ctx)
-
-
-def _broker_show(ctx):
     broker = _load_broker(ctx)
     typer.echo(f'Broker address is {broker.address}.')
 
 
 @contract_broker_app.command('create')
+@common_logging
 def broker_create(ctx: typer.Context,
                   switch: bool = typer.Option(True, help='switch to deployed broker')):
-    common_logging(_broker_create)(ctx, switch)
-
-
-def _broker_create(ctx, switch):
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     broker = Broker(account).new()
@@ -1941,24 +1929,18 @@ def _broker_set(ctx, broker_address):
 
 
 @contract_operator_app.command('show', help="Show the contract address of the operator.")
+@common_logging
 def operator_show(ctx: typer.Context):
-    common_logging(_operator_show)(ctx)
-
-
-def _operator_show(ctx):
     operator = _load_operator(ctx)
     typer.echo(f'Operator address is {operator.address}.')
 
 
 @contract_operator_app.command('create')
+@common_logging
 def operator_create(ctx: typer.Context,
                     switch: bool = typer.Option(True, help='switch to deployed operator')):
-    common_logging(_operator_create)(ctx, switch)
-
-
-def _operator_create(ctx, switch):
     try:
-        old_operator = _load_operator(ctx)
+        old_operator: Optional[Operator] = _load_operator(ctx)
     except Exception:
         old_operator = None
     _load_contract_libs(ctx)
@@ -2006,12 +1988,9 @@ def catalog_show(ctx: typer.Context):
 
 
 # @contract_catalog_app.command('add', help="Add the CTI catalog to the list.")
+@common_logging
 def catalog_add(ctx: typer.Context, catalog_address: str,
                 activate: bool = typer.Option(True, help='activate added catalog')):
-    common_logging(_catalog_add)(ctx, catalog_address, activate)
-
-
-def _catalog_add(ctx, catalog_address, activate):
     catalog_mgr = _load_catalog_manager(ctx)
     catalog_mgr.add([cast(ChecksumAddress, catalog_address)], activate=activate)
     config_update_catalog(ctx)
@@ -2019,21 +1998,22 @@ def _catalog_add(ctx, catalog_address, activate):
 
 
 @contract_catalog_app.command('create', help="Create a new CTI catalog.")
+@common_logging
 def catalog_create(ctx: typer.Context,
                    group: Optional[str] = typer.Option(None, help='permitted user group'),
                    activate: bool = typer.Option(False, help='activate created catalog')):
-    common_logging(_catalog_create)(ctx, group, activate)
-
-
-def _catalog_create(ctx, group, activate):
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     group = group if group else ADDRESS0
+    if Web3.isChecksumAddress(group):
+        group = cast(ChecksumAddress, group)
+    else:
+        raise Exception('group is not ChecksumAddress')
     catalog: Catalog = Catalog(account).new(group)
     typer.echo('deployed a new '
                f'{"private" if group == ADDRESS0 else "public"} catalog. '
                f'address is {catalog.address}.')
-    common_logging(catalog_add)(ctx, str(catalog.address), activate)
+    catalog_add(ctx, str(catalog.address), activate)
 
 
 def _catalog_ctrl(
