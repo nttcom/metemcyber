@@ -1441,11 +1441,8 @@ def _local_solver_obsolete(ctx, token):
 
 @assetmgr_app.command('start',
                       help='Start Asset Manager service.')
+@common_logging
 def assetmgr_start(ctx: typer.Context):
-    common_logging(_assetmgr_start)(ctx)
-
-
-def _assetmgr_start(ctx):
     ctrl = AssetManagerController()
     if ctrl.pid > 0:
         raise Exception('Asset Manager already running.')
@@ -1467,8 +1464,9 @@ def _assetmgr_start(ctx):
 
 @assetmgr_app.command('stop',
                       help='Stop Asset Manager service.')
+@common_logging
 def assetmgr_stop(ctx: typer.Context):
-    common_logging(_assetmgr_stop)(ctx)
+    _assetmgr_stop(ctx)
 
 
 def _assetmgr_stop(_ctx):
@@ -1481,11 +1479,9 @@ def _assetmgr_stop(_ctx):
 
 @assetmgr_app.command('status',
                       help='Show Asset Manager status.')
+@common_logging
 def assetmgr_status(ctx: typer.Context):
-    def callback(ctx):
-        typer.echo(_assetmgr_status(ctx)[1])
-
-    common_logging(callback)(ctx)
+    typer.echo(_assetmgr_status(ctx)[1])
 
 
 def _assetmgr_status(_ctx) -> Tuple[bool, str]:
