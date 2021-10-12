@@ -1190,17 +1190,15 @@ def _solver_client(ctx: typer.Context) -> MCSClient:
 
 @solver_app.command('status',
                     help='Show Solver status.')
+@common_logging
 def solver_status(ctx: typer.Context,
                   nonce: bool = typer.Option(
                       False, help='Generate or get nonce. (only for Shared Solver)')):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            eoaa = _load_account(ctx).eoa if nonce else None
-            typer.echo(json.dumps(_shared_solver_getinfo(ctx, address=eoaa), indent=2))
-        else:
-            typer.echo(_local_solver_status(ctx)[1])
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        eoaa = _load_account(ctx).eoa if nonce else None
+        typer.echo(json.dumps(_shared_solver_getinfo(ctx, address=eoaa), indent=2))
+    else:
+        typer.echo(_local_solver_status(ctx)[1])
 
 
 def _solver_is_ready(ctx: typer.Context) -> bool:
@@ -1247,12 +1245,9 @@ def _local_solver_status(ctx: typer.Context) -> Tuple[bool, str]:
 
 @solver_app.command('start',
                     help='Start Solver process.')
+@common_logging
 def solver_start(ctx: typer.Context,
                  enable: bool = typer.Option(False, help='auto enable with default config.')):
-    common_logging(_solver_start)(ctx, enable)
-
-
-def _solver_start(ctx, enable):
     try:
         _solver_client(ctx)
         raise Exception('Solver already running.')
@@ -1278,11 +1273,8 @@ def _solver_start(ctx, enable):
 
 @solver_app.command('stop',
                     help='Kill Solver process, all solver (not only yours) are killed.')
+@common_logging
 def solver_stop(ctx: typer.Context):
-    common_logging(_solver_stop)(ctx)
-
-
-def _solver_stop(ctx):
     solver = _solver_client(ctx)
     solver.shutdown()
     typer.echo('Solver shutted down.')
@@ -1290,6 +1282,7 @@ def _solver_stop(ctx):
 
 @solver_app.command('enable',
                     help='Solver start running with operator you configured.')
+@common_logging
 def solver_enable(
     ctx: typer.Context,
     plugin: Optional[str] = typer.Option(
@@ -1297,7 +1290,7 @@ def solver_enable(
         help='solver plugin filename. the default depends on your configuration of '
         'plugin in solver section. please note that another configuration '
         'may be required by plugin.')):
-    common_logging(_solver_enable)(ctx, plugin)
+    _solver_enable(ctx, plugin)
 
 
 def _solver_enable(ctx, plugin):
@@ -1339,11 +1332,8 @@ def _solver_enable_internal(ctx, plugin) -> MCSClient:
 
 @solver_app.command('disable',
                     help='Solver will purge your operator, and keep running.')
+@common_logging
 def solver_disable(ctx: typer.Context):
-    common_logging(_solver_disable)(ctx)
-
-
-def _solver_disable(ctx):
     solver = _solver_client(ctx)
     solver.get_solver()
     solver.purge_solver()
@@ -1351,14 +1341,12 @@ def _solver_disable(ctx):
 
 
 @solver_app.command('put')
+@common_logging
 def solver_put(ctx: typer.Context, token: str, filepath: str):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            _shared_solver_post(ctx, token, filepath)
-        else:
-            _local_solver_put(ctx, token, filepath)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        _shared_solver_post(ctx, token, filepath)
+    else:
+        _local_solver_put(ctx, token, filepath)
 
 
 def _local_solver_put(ctx, token, filepath):
@@ -1371,14 +1359,12 @@ def _local_solver_put(ctx, token, filepath):
 
 
 @solver_app.command('link')
+@common_logging
 def solver_link(ctx: typer.Context, token: str,
                 force: bool = typer.Option(False, help='overwrite destination file')):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            raise Exception('Not supported for Shared Solver')
-        _local_solver_link(ctx, token, force)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        raise Exception('Not supported for Shared Solver')
+    _local_solver_link(ctx, token, force)
 
 
 def _local_solver_link(ctx, token, force=False):
@@ -1397,14 +1383,12 @@ def _local_solver_link(ctx, token, force=False):
 
 
 @solver_app.command('remove')
+@common_logging
 def solver_remove(ctx: typer.Context, token: str):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            _shared_solver_delete(ctx, token)
-        else:
-            _local_solver_remove(ctx, token)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        _shared_solver_delete(ctx, token)
+    else:
+        _local_solver_remove(ctx, token)
 
 
 def _local_solver_remove(ctx, token):
@@ -1416,14 +1400,12 @@ def _local_solver_remove(ctx, token):
 
 @solver_app.command('support',
                     help='Register token to accept challenge.')
+@common_logging
 def solver_support(ctx: typer.Context, token: str):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            _shared_solver_support(ctx, token)
-        else:
-            _local_solver_support(ctx, token)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        _shared_solver_support(ctx, token)
+    else:
+        _local_solver_support(ctx, token)
 
 
 def _local_solver_support(ctx, token):
@@ -1440,14 +1422,12 @@ def _local_solver_support(ctx, token):
 
 @solver_app.command('obsolete',
                     help='Unregister token not to accept challenge.')
+@common_logging
 def solver_obsolete(ctx: typer.Context, token: str):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            _shared_solver_obsolete(ctx, token)
-        else:
-            _local_solver_obsolete(ctx, token)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        _shared_solver_obsolete(ctx, token)
+    else:
+        _local_solver_obsolete(ctx, token)
 
 
 def _local_solver_obsolete(ctx, token):
