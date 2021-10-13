@@ -2268,6 +2268,7 @@ def check(
 
 
 @app.command(help="Deploy the CTI token to disseminate CTI.")
+@common_logging
 def publish(
         ctx: typer.Context,
         misp_object: Optional[str] = None,
@@ -2287,7 +2288,7 @@ def publish(
             99,
             help='An amount of CTI tokens to give CTI broker'),
 ):
-    common_logging(_publish)(
+    _publish(
         ctx,
         misp_object,
         catalog,
