@@ -2425,17 +2425,16 @@ def _publish(
 
 
 @app.command(help="Unregister disseminated CTI token from catalog.")
+@common_logging
 def discontinue(
         ctx: typer.Context,
         catalog_and_token: str):
-    common_logging(_discontinue)(ctx, catalog_and_token)
-
-
-def _discontinue(ctx, catalog_and_token):
     account = _load_account(ctx)
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    assert flx_token.catalog
     catalog = Catalog(account).get(flx_token.catalog.address)
     broker = _load_broker(ctx)
+    assert catalog.address
     broker.uncache(catalog=catalog.address, token=flx_token.address)
     amount = broker.get_amounts(catalog.address, [flx_token.address])[0]
     if amount > 0:
