@@ -2548,14 +2548,11 @@ def account_airdrop(ctx: typer.Context, promote_code: str):
 
 
 @config_app.command('show', help="Show your config file of metemctl")
+@common_logging
 def config_show(ctx: typer.Context,
                 raw: bool = typer.Option(False, help='omit complementing system defaults.'),
                 general: bool = typer.Option(
                     False, help='show metemctl.ini instead of config.ini in workspace')):
-    common_logging(_config_show)(ctx, raw, general)
-
-
-def _config_show(ctx, raw, general):
     if raw:
         filepath = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
         with open(filepath, encoding='utf-8') as fin:
@@ -2565,14 +2562,11 @@ def _config_show(ctx, raw, general):
 
 
 @config_app.command('edit', help="Edit your config file of metemctl")
+@common_logging
 def config_edit(ctx: typer.Context,
                 raw: bool = typer.Option(False, help='omit complementing system defaults.'),
                 general: bool = typer.Option(
                     False, help='edit metemctl.ini instead of config.ini in workspace.')):
-    common_logging(_config_edit)(ctx, raw, general)
-
-
-def _config_edit(ctx, raw, general):
     workspace_conf = _workspace_confpath(ctx)
     if raw:
         filepath = CONFIG_FILE_PATH if general else workspace_conf
