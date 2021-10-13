@@ -1969,11 +1969,6 @@ def _catalog_ctrl(
     catalog_show(ctx)
 
 
-# @contract_catalog_app.command('remove', help="Remove the CTI catalog from the list.")
-def catalog_remove(ctx: typer.Context, catalog: str):
-    _catalog_ctrl('remove', ctx, catalog)
-
-
 @ix_catalog_app.command('enable', help="Activate the CTI catalog on the list.")
 def ix_catalog_enable(ctx: typer.Context, catalog: str):
     _catalog_ctrl('activate', ctx, catalog)
