@@ -1929,25 +1929,6 @@ def operator_create(ctx: typer.Context,
             typer.echo('you should restart seeker and solver, if launched.')
 
 
-# @contract_operator_app.command('set')
-def operator_set(ctx: typer.Context, operator_address: str):
-    common_logging(_operator_set)(ctx, operator_address)
-
-
-def _operator_set(ctx, operator_address):
-    try:
-        old_operator = _load_operator(ctx)
-    except Exception:
-        old_operator = None
-    account = _load_account(ctx)
-    operator = Operator(account).get(cast(ChecksumAddress, operator_address))
-    ctx.meta['operator'] = operator
-    config_update_operator(ctx)
-    typer.echo(f'configured to use operator({operator_address}).')
-    if operator_address != old_operator:
-        typer.echo('you should restart seeker and solver, if launched.')
-
-
 @ix_catalog_app.command('show', help="Show the list of CTI catalogs")
 @contract_catalog_app.command('show', help="Show the list of CTI catalogs")
 @common_logging
