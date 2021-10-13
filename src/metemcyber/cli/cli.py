@@ -1888,19 +1888,6 @@ def broker_create(ctx: typer.Context,
         typer.echo('configured to use the broker above.')
 
 
-# @contract_broker_app.command('set')
-def broker_set(ctx: typer.Context, broker_address: str):
-    common_logging(_broker_set)(ctx, broker_address)
-
-
-def _broker_set(ctx, broker_address):
-    account = _load_account(ctx)
-    broker = Broker(account).get(cast(ChecksumAddress, broker_address))
-    ctx.meta['broker'] = broker
-    config_update_broker(ctx)
-    typer.echo(f'configured to use broker({broker_address}).')
-
-
 @contract_operator_app.command('show', help="Show the contract address of the operator.")
 @common_logging
 def operator_show(ctx: typer.Context):
