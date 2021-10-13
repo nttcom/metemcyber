@@ -845,6 +845,7 @@ class FlexibleIndexToken:
 
 
 @ix_app.command('search', help="Show CTI tokens on the active list of CTI catalogs.")
+@common_logging
 def ix_search(ctx: typer.Context,
               keyword: str,
               mine: bool = typer.Option(True, help='show tokens published by you'),
@@ -852,18 +853,15 @@ def ix_search(ctx: typer.Context,
               soldout: bool = typer.Option(False, help='show soldout tokens'),
               own: bool = typer.Option(True, help='show tokens you own'),
               own_only: bool = typer.Option(False)):
-    common_logging(_ix_search)(ctx, keyword, mine, mine_only, soldout, own, own_only)
-
-
-def _ix_search(ctx, keyword, mine, mine_only, soldout, own, own_only):
     if (mine_only and not mine) or (own_only and not own):
         raise Exception('contradictory options')
     _ix_list_tokens(ctx, keyword, mine, mine_only, soldout, own, own_only)
 
 
 @ix_app.command('buy', help="Buy the CTI Token by index. (Check metemctl ix list)")
+@common_logging
 def ix_buy(ctx: typer.Context, catalog_and_token: str):
-    common_logging(_ix_buy)(ctx, catalog_and_token)
+    _ix_buy(ctx, catalog_and_token)
 
 
 def _ix_buy(ctx, catalog_and_token):
@@ -876,12 +874,9 @@ def _ix_buy(ctx, catalog_and_token):
 
 
 @ix_app.command('bulk-buy', help='Buy each CTI Token listed on catalog.')
+@common_logging
 def ix_bulk_buy(ctx: typer.Context, catalog: str,
                 duplicated: bool = typer.Option(False, help='buy tokens even if already have')):
-    common_logging(_ix_bulk_buy)(ctx, catalog, duplicated)
-
-
-def _ix_bulk_buy(ctx, catalog, duplicated):
     flx = FlexibleIndexCatalog(ctx, catalog)
     tokens = _get_tokens_population(ctx, soldout=True, own=duplicated).get(flx.index)
     if not tokens:
@@ -896,8 +891,9 @@ def _ix_bulk_buy(ctx, catalog, duplicated):
 
 
 @contract_broker_app.command('serve', help="Pass your tokens to the broker for disseminate.")
+@common_logging
 def broker_serve(ctx: typer.Context, catalog_and_token: str, amount: int):
-    common_logging(_broker_serve)(ctx, catalog_and_token, amount)
+    _broker_serve(ctx, catalog_and_token, amount)
 
 
 def _broker_serve(ctx, catalog_and_token, amount):
@@ -922,11 +918,8 @@ def _broker_serve(ctx, catalog_and_token, amount):
 
 
 @contract_broker_app.command('takeback', help='Takeback tokens from the broker.')
+@common_logging
 def broker_takeback(ctx: typer.Context, catalog_and_token: str, amount: int):
-    common_logging(_broker_takeback)(ctx, catalog_and_token, amount)
-
-
-def _broker_takeback(ctx, catalog_and_token, amount):
     if amount <= 0:
         raise Exception(f'Invalid amount: {amount}')
     if isinstance(catalog_and_token, list) and len(catalog_and_token) > 2:
@@ -939,6 +932,8 @@ def _broker_takeback(ctx, catalog_and_token, amount):
     if token.publisher != account.eoa:
         raise Exception(f'Not a token published by you')
     broker = _load_broker(ctx)
+    if not broker.address:
+        raise Exception('Missing the broker address')
     balance = token.balance_of(broker.address)
     if balance < amount:
         raise Exception(f'transfer amount({amount}) exceeds balance({balance})')
@@ -947,9 +942,10 @@ def _broker_takeback(ctx, catalog_and_token, amount):
 
 
 @contract_token_app.command('create')
+@common_logging
 def token_create(ctx: typer.Context, initial_supply: int,
                  editable: bool = typer.Option(False, help="Anyone can edit vote candidates")):
-    common_logging(_token_create)(ctx, initial_supply, editable)
+    _token_create(ctx, initial_supply, editable)
 
 
 def _token_create(ctx, initial_supply, editable=False) -> ChecksumAddress:
@@ -963,24 +959,18 @@ def _token_create(ctx, initial_supply, editable=False) -> ChecksumAddress:
 
 
 @contract_token_app.command('set-editable')
+@common_logging
 def token_set_editable(ctx: typer.Context, catalog_and_token: str, anyone_editable: bool):
-    common_logging(_token_set_editable)(ctx, catalog_and_token, anyone_editable)
-
-
-def _token_set_editable(ctx, catalog_and_token, anyone_editable):
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     Token(_load_account(ctx)).get(flx_token.address).set_editable(anyone_editable)
 
 
 @contract_token_app.command('mint')
+@common_logging
 def token_mint(ctx: typer.Context, token: str, amount: int,
                dest: Optional[str] = typer.Option(
                    None, help='Account EOA minted tokens are given to, instead of you. '
                    'Do not assign Broker, it does not mean serving.')):
-    common_logging(_token_mint)(ctx, token, amount, dest)
-
-
-def _token_mint(ctx, token, amount, dest):
     account = _load_account(ctx)
     dest = dest if dest else account.eoa
     flx = FlexibleIndexToken(ctx, token)
@@ -989,11 +979,8 @@ def _token_mint(ctx, token, amount, dest):
 
 
 @contract_token_app.command('burn')
+@common_logging
 def token_burn(ctx: typer.Context, token: str, amount: int, data: str = ''):
-    common_logging(_token_burn)(ctx, token, amount, data)
-
-
-def _token_burn(ctx, token, amount, data):
     if amount <= 0:
         raise Exception(f'Invalid amount: {amount}.')
     account = _load_account(ctx)
@@ -1003,6 +990,7 @@ def _token_burn(ctx, token, amount, data):
 
 
 @contract_token_app.command('publish')
+@common_logging
 def token_publish(ctx: typer.Context,
                   catalog: str = typer.Option(
                       '1',
@@ -1026,10 +1014,11 @@ def token_publish(ctx: typer.Context,
                       99,
                       help='An amount of CTI tokens to give CTI broker'),
                   ):
-    common_logging(_token_publish)(
+    _token_publish(
         ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount)
 
 
+@common_logging
 def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount):
     operator_address = _load_operator(ctx).address
     flx_catalog = FlexibleIndexCatalog(ctx, catalog)
@@ -1150,8 +1139,9 @@ def _seeker_url(ctx, auto_start: bool = False) -> str:
 
 
 @seeker_app.command('start')
+@common_logging
 def seeker_start(ctx: typer.Context):
-    common_logging(_seeker_start)(ctx)
+    _seeker_start(ctx)
 
 
 def _seeker_start(ctx):
@@ -1177,11 +1167,8 @@ def _seeker_start(ctx):
 
 
 @seeker_app.command('stop')
+@common_logging
 def seeker_stop(ctx: typer.Context):
-    common_logging(_seeker_stop)(ctx)
-
-
-def _seeker_stop(ctx):
     seeker = _seeker_client(ctx)
     seeker.stop()
     typer.echo('seeker stopped.')
@@ -1203,17 +1190,15 @@ def _solver_client(ctx: typer.Context) -> MCSClient:
 
 @solver_app.command('status',
                     help='Show Solver status.')
+@common_logging
 def solver_status(ctx: typer.Context,
                   nonce: bool = typer.Option(
                       False, help='Generate or get nonce. (only for Shared Solver)')):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            eoaa = _load_account(ctx).eoa if nonce else None
-            typer.echo(json.dumps(_shared_solver_getinfo(ctx, address=eoaa), indent=2))
-        else:
-            typer.echo(_local_solver_status(ctx)[1])
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        eoaa = _load_account(ctx).eoa if nonce else None
+        typer.echo(json.dumps(_shared_solver_getinfo(ctx, address=eoaa), indent=2))
+    else:
+        typer.echo(_local_solver_status(ctx)[1])
 
 
 def _solver_is_ready(ctx: typer.Context) -> bool:
@@ -1260,12 +1245,9 @@ def _local_solver_status(ctx: typer.Context) -> Tuple[bool, str]:
 
 @solver_app.command('start',
                     help='Start Solver process.')
+@common_logging
 def solver_start(ctx: typer.Context,
                  enable: bool = typer.Option(False, help='auto enable with default config.')):
-    common_logging(_solver_start)(ctx, enable)
-
-
-def _solver_start(ctx, enable):
     try:
         _solver_client(ctx)
         raise Exception('Solver already running.')
@@ -1291,11 +1273,8 @@ def _solver_start(ctx, enable):
 
 @solver_app.command('stop',
                     help='Kill Solver process, all solver (not only yours) are killed.')
+@common_logging
 def solver_stop(ctx: typer.Context):
-    common_logging(_solver_stop)(ctx)
-
-
-def _solver_stop(ctx):
     solver = _solver_client(ctx)
     solver.shutdown()
     typer.echo('Solver shutted down.')
@@ -1303,6 +1282,7 @@ def _solver_stop(ctx):
 
 @solver_app.command('enable',
                     help='Solver start running with operator you configured.')
+@common_logging
 def solver_enable(
     ctx: typer.Context,
     plugin: Optional[str] = typer.Option(
@@ -1310,7 +1290,7 @@ def solver_enable(
         help='solver plugin filename. the default depends on your configuration of '
         'plugin in solver section. please note that another configuration '
         'may be required by plugin.')):
-    common_logging(_solver_enable)(ctx, plugin)
+    _solver_enable(ctx, plugin)
 
 
 def _solver_enable(ctx, plugin):
@@ -1352,11 +1332,8 @@ def _solver_enable_internal(ctx, plugin) -> MCSClient:
 
 @solver_app.command('disable',
                     help='Solver will purge your operator, and keep running.')
+@common_logging
 def solver_disable(ctx: typer.Context):
-    common_logging(_solver_disable)(ctx)
-
-
-def _solver_disable(ctx):
     solver = _solver_client(ctx)
     solver.get_solver()
     solver.purge_solver()
@@ -1364,14 +1341,12 @@ def _solver_disable(ctx):
 
 
 @solver_app.command('put')
+@common_logging
 def solver_put(ctx: typer.Context, token: str, filepath: str):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            _shared_solver_post(ctx, token, filepath)
-        else:
-            _local_solver_put(ctx, token, filepath)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        _shared_solver_post(ctx, token, filepath)
+    else:
+        _local_solver_put(ctx, token, filepath)
 
 
 def _local_solver_put(ctx, token, filepath):
@@ -1384,14 +1359,12 @@ def _local_solver_put(ctx, token, filepath):
 
 
 @solver_app.command('link')
+@common_logging
 def solver_link(ctx: typer.Context, token: str,
                 force: bool = typer.Option(False, help='overwrite destination file')):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            raise Exception('Not supported for Shared Solver')
-        _local_solver_link(ctx, token, force)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        raise Exception('Not supported for Shared Solver')
+    _local_solver_link(ctx, token, force)
 
 
 def _local_solver_link(ctx, token, force=False):
@@ -1410,14 +1383,12 @@ def _local_solver_link(ctx, token, force=False):
 
 
 @solver_app.command('remove')
+@common_logging
 def solver_remove(ctx: typer.Context, token: str):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            _shared_solver_delete(ctx, token)
-        else:
-            _local_solver_remove(ctx, token)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        _shared_solver_delete(ctx, token)
+    else:
+        _local_solver_remove(ctx, token)
 
 
 def _local_solver_remove(ctx, token):
@@ -1429,14 +1400,12 @@ def _local_solver_remove(ctx, token):
 
 @solver_app.command('support',
                     help='Register token to accept challenge.')
+@common_logging
 def solver_support(ctx: typer.Context, token: str):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            _shared_solver_support(ctx, token)
-        else:
-            _local_solver_support(ctx, token)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        _shared_solver_support(ctx, token)
+    else:
+        _local_solver_support(ctx, token)
 
 
 def _local_solver_support(ctx, token):
@@ -1453,14 +1422,12 @@ def _local_solver_support(ctx, token):
 
 @solver_app.command('obsolete',
                     help='Unregister token not to accept challenge.')
+@common_logging
 def solver_obsolete(ctx: typer.Context, token: str):
-    def callback(ctx):
-        if _shared_solver_enabled(ctx):
-            _shared_solver_obsolete(ctx, token)
-        else:
-            _local_solver_obsolete(ctx, token)
-
-    common_logging(callback)(ctx)
+    if _shared_solver_enabled(ctx):
+        _shared_solver_obsolete(ctx, token)
+    else:
+        _local_solver_obsolete(ctx, token)
 
 
 def _local_solver_obsolete(ctx, token):
@@ -1474,11 +1441,8 @@ def _local_solver_obsolete(ctx, token):
 
 @assetmgr_app.command('start',
                       help='Start Asset Manager service.')
+@common_logging
 def assetmgr_start(ctx: typer.Context):
-    common_logging(_assetmgr_start)(ctx)
-
-
-def _assetmgr_start(ctx):
     ctrl = AssetManagerController()
     if ctrl.pid > 0:
         raise Exception('Asset Manager already running.')
@@ -1500,8 +1464,9 @@ def _assetmgr_start(ctx):
 
 @assetmgr_app.command('stop',
                       help='Stop Asset Manager service.')
+@common_logging
 def assetmgr_stop(ctx: typer.Context):
-    common_logging(_assetmgr_stop)(ctx)
+    _assetmgr_stop(ctx)
 
 
 def _assetmgr_stop(_ctx):
@@ -1514,11 +1479,9 @@ def _assetmgr_stop(_ctx):
 
 @assetmgr_app.command('status',
                       help='Show Asset Manager status.')
+@common_logging
 def assetmgr_status(ctx: typer.Context):
-    def callback(ctx):
-        typer.echo(_assetmgr_status(ctx)[1])
-
-    common_logging(callback)(ctx)
+    typer.echo(_assetmgr_status(ctx)[1])
 
 
 def _assetmgr_status(_ctx) -> Tuple[bool, str]:
@@ -1612,22 +1575,22 @@ def _shared_solver_list_accepting(ctx, addresses: List[ChecksumAddress]) -> List
 
 
 @ix_app.command('use', help="Use the token to challenge the task. (Get the MISP object, etc.")
+@common_logging
 def ix_use(ctx: typer.Context, token: str,
-           seeker: str = typer.Option(
+           seeker_url: str = typer.Option(
                '', help='Globally accessible url which seeker is listening. '
                         'Auto generated in default.'),
            monitor: bool = typer.Option(
                True, help='Print messages from Seeker on current terminal.')):
-    common_logging(_ix_use)(ctx, token, seeker, monitor)
-
-
-def _ix_use(ctx, token, seeker_url, monitor):
     flx = FlexibleIndexToken(ctx, token)
     account = _load_account(ctx)
     operator = _load_operator(ctx)
     if not seeker_url:
         seeker_url = _seeker_url(ctx, auto_start=True)
-    _display_ngrok_support_message(urlparse(seeker_url).hostname)
+    hostname = urlparse(seeker_url).hostname
+    if not hostname:
+        raise Exception('Missing the hostname')
+    _display_ngrok_support_message(hostname)
     Token(account).get(flx.address).send(operator.address, amount=1, data=seeker_url)
     typer.echo(f'Started challenge with token({flx.address}).')
     if monitor:
@@ -1764,11 +1727,8 @@ def place_contents(external_files: Dict[str, Dict[str, str]], target_dir: Path):
 
 
 @ix_app.command('extract', help="Extract the contents from the downloaded MISP object.")
+@common_logging
 def ix_extract(ctx: typer.Context, used_token: str):
-    common_logging(_ix_extract)(ctx, used_token)
-
-
-def _ix_extract(ctx, used_token):
     config = _load_config(ctx)
     workspace = config['general']['workspace']
     flx = FlexibleIndexToken(ctx, used_token)
@@ -1828,14 +1788,11 @@ def _get_challenges(ctx: typer.Context
 
 
 @ix_app.command('show', help="Show CTI tokens available.")
+@common_logging
 def ix_challenge_show(ctx: typer.Context,
                       done: bool = typer.Option(False, help='show finished and cancelled'),
                       mine_only: bool = typer.Option(True, help='show yours only'),
                       verbose: bool = typer.Option(False, help='show seeker and solver')):
-    common_logging(_ix_challenge_show)(ctx, done, mine_only, verbose)
-
-
-def _ix_challenge_show(ctx, done, mine_only, verbose):
     account = _load_account(ctx)
     raw_tasks = _get_challenges(ctx)
     for (task_id, token, solver, seeker, state) in reversed(raw_tasks):
@@ -1858,24 +1815,18 @@ def _ix_challenge_show(ctx, done, mine_only, verbose):
 
 
 @ix_app.command('cancel', help="Abort the task in progress.")
+@common_logging
 def ix_cancel(ctx: typer.Context, challenge_id: int):
-    common_logging(_ix_cancel)(ctx, challenge_id)
-
-
-def _ix_cancel(ctx, challenge_id):
     operator = _load_operator(ctx)
     operator.cancel_challenge(challenge_id)
     typer.echo(f'cancelled challenge: {challenge_id}.')
 
 
 @ix_app.command('vote', help='Vote amount of (solved) token to an issue.')
+@common_logging
 def ix_vote(ctx: typer.Context, catalog_and_token: str, issue: int,
             amount: int = typer.Option(1, help='amount of token to vote')):
-    common_logging(_ix_vote)(ctx, catalog_and_token, issue, amount)
-
-
-def _ix_vote(ctx, catalog_and_token, index, amount):
-    index = int(index)
+    index = int(issue)
     amount = int(amount)
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     token = Token(_load_account(ctx)).get(flx_token.address)
@@ -1884,11 +1835,8 @@ def _ix_vote(ctx, catalog_and_token, index, amount):
 
 
 @ix_issue_app.command('list')
+@common_logging
 def ix_issue_list(ctx: typer.Context, catalog_and_token: str):
-    common_logging(_ix_issue_list)(ctx, catalog_and_token)
-
-
-def _ix_issue_list(ctx, catalog_and_token):
     account = _load_account(ctx)
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     token = Token(account).get(flx_token.address)
@@ -1904,44 +1852,32 @@ def _ix_issue_list(ctx, catalog_and_token):
 
 
 @ix_issue_app.command('add')
+@common_logging
 def ix_issue_add(ctx: typer.Context, catalog_and_token: str, issue: str):
-    common_logging(_ix_issue_add)(ctx, catalog_and_token, issue)
-
-
-def _ix_issue_add(ctx, catalog_and_token, issue):
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     Token(_load_account(ctx)).get(flx_token.address).add_candidates([issue])
     typer.echo('added issue. try "metemctl ix issue list" to list issues.')
 
 
 @ix_issue_app.command('remove')
+@common_logging
 def ix_issue_remove(ctx: typer.Context, catalog_and_token: str, index: int):
-    common_logging(_ix_issue_remove)(ctx, catalog_and_token, index)
-
-
-def _ix_issue_remove(ctx, catalog_and_token, index):
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
     Token(_load_account(ctx)).get(flx_token.address).remove_candidates([int(index)])
     typer.echo('removed indexed issue. try "metemctl ix issue list" to list issues.')
 
 
 @contract_broker_app.command('show')
+@common_logging
 def broker_show(ctx: typer.Context):
-    common_logging(_broker_show)(ctx)
-
-
-def _broker_show(ctx):
     broker = _load_broker(ctx)
     typer.echo(f'Broker address is {broker.address}.')
 
 
 @contract_broker_app.command('create')
+@common_logging
 def broker_create(ctx: typer.Context,
                   switch: bool = typer.Option(True, help='switch to deployed broker')):
-    common_logging(_broker_create)(ctx, switch)
-
-
-def _broker_create(ctx, switch):
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     broker = Broker(account).new()
@@ -1952,38 +1888,19 @@ def _broker_create(ctx, switch):
         typer.echo('configured to use the broker above.')
 
 
-# @contract_broker_app.command('set')
-def broker_set(ctx: typer.Context, broker_address: str):
-    common_logging(_broker_set)(ctx, broker_address)
-
-
-def _broker_set(ctx, broker_address):
-    account = _load_account(ctx)
-    broker = Broker(account).get(cast(ChecksumAddress, broker_address))
-    ctx.meta['broker'] = broker
-    config_update_broker(ctx)
-    typer.echo(f'configured to use broker({broker_address}).')
-
-
 @contract_operator_app.command('show', help="Show the contract address of the operator.")
+@common_logging
 def operator_show(ctx: typer.Context):
-    common_logging(_operator_show)(ctx)
-
-
-def _operator_show(ctx):
     operator = _load_operator(ctx)
     typer.echo(f'Operator address is {operator.address}.')
 
 
 @contract_operator_app.command('create')
+@common_logging
 def operator_create(ctx: typer.Context,
                     switch: bool = typer.Option(True, help='switch to deployed operator')):
-    common_logging(_operator_create)(ctx, switch)
-
-
-def _operator_create(ctx, switch):
     try:
-        old_operator = _load_operator(ctx)
+        old_operator: Optional[Operator] = _load_operator(ctx)
     except Exception:
         old_operator = None
     _load_contract_libs(ctx)
@@ -1999,32 +1916,10 @@ def _operator_create(ctx, switch):
             typer.echo('you should restart seeker and solver, if launched.')
 
 
-# @contract_operator_app.command('set')
-def operator_set(ctx: typer.Context, operator_address: str):
-    common_logging(_operator_set)(ctx, operator_address)
-
-
-def _operator_set(ctx, operator_address):
-    try:
-        old_operator = _load_operator(ctx)
-    except Exception:
-        old_operator = None
-    account = _load_account(ctx)
-    operator = Operator(account).get(cast(ChecksumAddress, operator_address))
-    ctx.meta['operator'] = operator
-    config_update_operator(ctx)
-    typer.echo(f'configured to use operator({operator_address}).')
-    if operator_address != old_operator:
-        typer.echo('you should restart seeker and solver, if launched.')
-
-
 @ix_catalog_app.command('show', help="Show the list of CTI catalogs")
 @contract_catalog_app.command('show', help="Show the list of CTI catalogs")
+@common_logging
 def catalog_show(ctx: typer.Context):
-    common_logging(_catalog_show)(ctx)
-
-
-def _catalog_show(ctx):
     catalog_mgr = _load_catalog_manager(ctx)
     typer.echo('Catalogs *:active')
     for caddr, cid in sorted(
@@ -2034,12 +1929,9 @@ def _catalog_show(ctx):
 
 
 # @contract_catalog_app.command('add', help="Add the CTI catalog to the list.")
+@common_logging
 def catalog_add(ctx: typer.Context, catalog_address: str,
                 activate: bool = typer.Option(True, help='activate added catalog')):
-    common_logging(_catalog_add)(ctx, catalog_address, activate)
-
-
-def _catalog_add(ctx, catalog_address, activate):
     catalog_mgr = _load_catalog_manager(ctx)
     catalog_mgr.add([cast(ChecksumAddress, catalog_address)], activate=activate)
     config_update_catalog(ctx)
@@ -2047,21 +1939,22 @@ def _catalog_add(ctx, catalog_address, activate):
 
 
 @contract_catalog_app.command('create', help="Create a new CTI catalog.")
+@common_logging
 def catalog_create(ctx: typer.Context,
                    group: Optional[str] = typer.Option(None, help='permitted user group'),
                    activate: bool = typer.Option(False, help='activate created catalog')):
-    common_logging(_catalog_create)(ctx, group, activate)
-
-
-def _catalog_create(ctx, group, activate):
     _load_contract_libs(ctx)
     account = _load_account(ctx)
     group = group if group else ADDRESS0
+    if Web3.isChecksumAddress(group):
+        group = cast(ChecksumAddress, group)
+    else:
+        raise Exception('group is not ChecksumAddress')
     catalog: Catalog = Catalog(account).new(group)
     typer.echo('deployed a new '
                f'{"private" if group == ADDRESS0 else "public"} catalog. '
                f'address is {catalog.address}.')
-    common_logging(catalog_add)(ctx, str(catalog.address), activate)
+    catalog_add(ctx, str(catalog.address), activate)
 
 
 def _catalog_ctrl(
@@ -2074,11 +1967,6 @@ def _catalog_ctrl(
     func([flx.address])
     config_update_catalog(ctx)
     catalog_show(ctx)
-
-
-# @contract_catalog_app.command('remove', help="Remove the CTI catalog from the list.")
-def catalog_remove(ctx: typer.Context, catalog: str):
-    _catalog_ctrl('remove', ctx, catalog)
 
 
 @ix_catalog_app.command('enable', help="Activate the CTI catalog on the list.")
@@ -2343,6 +2231,7 @@ def check(
 
 
 @app.command(help="Deploy the CTI token to disseminate CTI.")
+@common_logging
 def publish(
         ctx: typer.Context,
         misp_object: Optional[str] = None,
@@ -2362,7 +2251,7 @@ def publish(
             99,
             help='An amount of CTI tokens to give CTI broker'),
 ):
-    common_logging(_publish)(
+    _publish(
         ctx,
         misp_object,
         catalog,
@@ -2499,17 +2388,16 @@ def _publish(
 
 
 @app.command(help="Unregister disseminated CTI token from catalog.")
+@common_logging
 def discontinue(
         ctx: typer.Context,
         catalog_and_token: str):
-    common_logging(_discontinue)(ctx, catalog_and_token)
-
-
-def _discontinue(ctx, catalog_and_token):
     account = _load_account(ctx)
     flx_token = FlexibleIndexToken(ctx, catalog_and_token)
+    assert flx_token.catalog
     catalog = Catalog(account).get(flx_token.catalog.address)
     broker = _load_broker(ctx)
+    assert catalog.address
     broker.uncache(catalog=catalog.address, token=flx_token.address)
     amount = broker.get_amounts(catalog.address, [flx_token.address])[0]
     if amount > 0:
@@ -2521,11 +2409,8 @@ def _discontinue(ctx, catalog_and_token):
 
 
 @account_app.command("show", help="Show the current account information.")
+@common_logging
 def account_show(ctx: typer.Context):
-    common_logging(_account_show)(ctx)
-
-
-def _account_show(ctx):
     account = _load_account(ctx)
     typer.echo(f'--------------------')
     typer.echo(f'Summary')
@@ -2549,11 +2434,8 @@ def _account_show(ctx):
 
 
 @account_app.command("create", help="Create New Account.")
+@common_logging
 def account_create(ctx: typer.Context):
-    common_logging(_account_create)(ctx)
-
-
-def _account_create(ctx: typer.Context):
     # Ref: https://github.com/ethereum/go-ethereum/blob/v1.10.1/cmd/geth/accountcmd.go
     typer.echo('Your new account is locked with a password. Please give a password.')
     acct = eth_account.Account.create('')
@@ -2629,14 +2511,11 @@ def account_airdrop(ctx: typer.Context, promote_code: str):
 
 
 @config_app.command('show', help="Show your config file of metemctl")
+@common_logging
 def config_show(ctx: typer.Context,
                 raw: bool = typer.Option(False, help='omit complementing system defaults.'),
                 general: bool = typer.Option(
                     False, help='show metemctl.ini instead of config.ini in workspace')):
-    common_logging(_config_show)(ctx, raw, general)
-
-
-def _config_show(ctx, raw, general):
     if raw:
         filepath = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
         with open(filepath, encoding='utf-8') as fin:
@@ -2646,14 +2525,11 @@ def _config_show(ctx, raw, general):
 
 
 @config_app.command('edit', help="Edit your config file of metemctl")
+@common_logging
 def config_edit(ctx: typer.Context,
                 raw: bool = typer.Option(False, help='omit complementing system defaults.'),
                 general: bool = typer.Option(
                     False, help='edit metemctl.ini instead of config.ini in workspace.')):
-    common_logging(_config_edit)(ctx, raw, general)
-
-
-def _config_edit(ctx, raw, general):
     workspace_conf = _workspace_confpath(ctx)
     if raw:
         filepath = CONFIG_FILE_PATH if general else workspace_conf
@@ -2677,14 +2553,12 @@ def _config_edit(ctx, raw, general):
 
 
 @workspace_app.command('list')
+@common_logging
 def workspace_list(ctx: typer.Context):
-    def callback(ctx):
-        current = _current_workspace(ctx)
-        workspaces = set(_workspace_list(ctx) + [current])
-        for space in sorted(workspaces):
-            typer.echo(f'{" *" if space == current else "  "}{space}')
-
-    common_logging(callback)(ctx)
+    current = _current_workspace(ctx)
+    workspaces = set(_workspace_list(ctx) + [current])
+    for space in sorted(workspaces):
+        typer.echo(f'{" *" if space == current else "  "}{space}')
 
 
 def _current_workspace(ctx) -> str:
@@ -2704,11 +2578,8 @@ def _workspace_list(_ctx) -> List[str]:
 
 
 @workspace_app.command('switch')
+@common_logging
 def workspace_switch(ctx: typer.Context, name: str):
-    common_logging(_workspace_switch)(ctx, name)
-
-
-def _workspace_switch(ctx, name):
     if name == _current_workspace(ctx):
         raise Exception(f'already in workspace: {name}')
     if name not in _workspace_list(ctx):
@@ -2727,11 +2598,8 @@ def _workspace_switch(ctx, name):
 
 
 @workspace_app.command('create')
+@common_logging
 def workspace_create(ctx: typer.Context, name: str):
-    common_logging(_workspace_create)(ctx, name)
-
-
-def _workspace_create(ctx, name):
     spaces = _workspace_list(ctx)
     if name in spaces:
         raise Exception(f'Workspace already exists: {name}')
@@ -2763,12 +2631,9 @@ def _make_minimal_workspace(workspace_dir: str):
 
 
 @workspace_app.command('destroy')
+@common_logging
 def workspace_destroy(ctx: typer.Context, name: str,
                       force: bool = typer.Option(False, help='Force remove workspace directory.')):
-    common_logging(_workspace_destroy)(ctx, name, force)
-
-
-def _workspace_destroy(ctx, name, force):
     tgt_path = (_load_config(ctx)['general']['workspace'] if name == _current_workspace(ctx)
                 else f'{DESIRED_WORKSPACE_PREFIX}{name}')
     if not force:
@@ -2781,11 +2646,8 @@ def _workspace_destroy(ctx, name, force):
 
 
 @workspace_app.command('copy')
+@common_logging
 def workspace_copy(ctx: typer.Context, src: str, dst: str):
-    common_logging(_workspace_copy)(ctx, src, dst)
-
-
-def _workspace_copy(ctx, src, dst):
     spaces = _workspace_list(ctx)
     if src not in spaces and src != _current_workspace(ctx):
         raise Exception(f'No such workspace: {src}')
