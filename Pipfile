@@ -7,6 +7,9 @@ name = "pypi"
 metemcyber = {editable = true, extras = ["cli"], path = "."}
 requests = "==2.25.1"
 omegaconf = "*"
+uvicorn = "==0.13.4"
+websockets = "==8.1"
+web3 = "==5.20.0"
 
 [dev-packages]
 autopep8 = "*"
