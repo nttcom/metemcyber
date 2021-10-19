@@ -561,8 +561,7 @@ def _ix_list_tokens(ctx: typer.Context, keyword, mine, mine_only, soldout, own, 
 
     population = _get_tokens_population(
         ctx, mine=mine, mine_only=mine_only, soldout=soldout, own=own, own_only=own_only)
-    addresses = [ex.address for ex_list in population.values() for ex in ex_list
-                 if ex.owner == account.eoa]
+    addresses = list({ex.address for ex_list in population.values() for ex in ex_list})
     try:
         accepting = _get_accepting_tokens(ctx, addresses)
     except Exception:
