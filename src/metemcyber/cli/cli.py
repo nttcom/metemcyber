@@ -26,13 +26,11 @@ import pickle
 import shutil
 import subprocess
 import urllib.request
-from configparser import ConfigParser, NoOptionError
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from shutil import copyfile, copytree, ignore_patterns
 from subprocess import CalledProcessError
-from time import sleep
 from typing import Callable, Dict, List, Optional, Tuple, Union, cast
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -46,12 +44,15 @@ import yaml
 from eth_typing import ChecksumAddress
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
+from omegaconf import OmegaConf
 from web3 import Web3
 from web3.datastructures import AttributeDict
 
 from metemcyber import __version__
+from metemcyber.cli.config import (METEMCTL_CONFIG_FILEPATH, decode_keyfile, edit_config,
+                                   load_config, print_config, update_config, ws_copy, ws_create,
+                                   ws_destroy, ws_list, ws_switch)
 from metemcyber.cli.constants import APP_DIR
-from metemcyber.core.asset_manager import DEFAULT_CONFIGS as DC_ASSETMGR
 from metemcyber.core.asset_manager import AssetManagerClient, AssetManagerController
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.broker import Broker
@@ -62,27 +63,13 @@ from metemcyber.core.bc.eventlistener import BasicEventListener
 from metemcyber.core.bc.metemcyber_util import MetemcyberUtil
 from metemcyber.core.bc.operator import TASK_STATES, Operator
 from metemcyber.core.bc.token import Token
-from metemcyber.core.bc.util import ADDRESS0, decode_keyfile, deploy_erc1820
+from metemcyber.core.bc.util import ADDRESS0, deploy_erc1820
 from metemcyber.core.constants import PTS_RATE
 from metemcyber.core.logger import get_logger
-from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
-from metemcyber.core.ngrok import DEFAULT_CONFIGS as DC_NGROK
 from metemcyber.core.ngrok import NgrokMgr
-from metemcyber.core.seeker import DEFAULT_CONFIGS as DC_SEEKER
-from metemcyber.core.seeker import TTY_FILEPATH as TTYLINK4SEEKER
 from metemcyber.core.seeker import Seeker
-from metemcyber.core.util import config2str, merge_config
-from metemcyber.plugins.gcs_solver import DEFAULT_CONFIGS as DC_SOLV_GCS
-from metemcyber.plugins.standalone_solver import DEFAULT_CONFIGS as DC_SOLV_ALN
+from metemcyber.core.solver_server import SolverClient, SolverController
 
-CONFIG_FILE_NAME = "metemctl.ini"
-CONFIG_FILE_PATH = Path(APP_DIR) / CONFIG_FILE_NAME
-DESIRED_WORKSPACE_PREFIX = f'{APP_DIR}/workspace.'
-WORKSPACE_CONFIG_FILENAME = 'config.ini'
-WORKSPACE_MINIMAL_DIRS = {
-    'upload',
-    'download',
-}
 WORKFLOW_FILE_NAME = "workflow.yml"
 DATA_FILE_NAME = "source_of_truth.yml"
 METEM_STARTER_ALIASES = {
@@ -90,51 +77,6 @@ METEM_STARTER_ALIASES = {
 }
 METEM_STARTERS_REPO = "git+https://github.com/nttcom/metemcyber-starters.git"
 
-
-DEFAULT_CONFIGS = {
-    'general': {
-        'project': '00000000-0000-0000-0000-000000000000',
-        'slack_webhook_url': 'SLACK_WEBHOOK_URL',
-        'endpoint_url': 'YOUR_ETHEREUM_JSON_RPC_URL',
-        'airdrop_url': 'AIRDROP_FUNCTION_URL',
-        'keyfile': '/PATH/TO/YOUR/KEYFILE',
-        'solver_keyfile': '',
-        'solver_keyfile_password': '',
-        'workspace': f'{DESIRED_WORKSPACE_PREFIX}pricom-mainnet',
-    },
-    'catalog': {
-        'actives': '',
-        'reserves': '',
-    },
-    'broker': {
-        'address': '',
-    },
-    'operator': {
-        'address': '',
-    },
-    'metemcyber_util': {
-        'address': '',
-        'placeholder': '',
-    },
-    'solver': {
-        'shared_solver_url': '',
-        'plugin': 'gcs_solver.py',
-    },
-    'asset_manager': DC_ASSETMGR['asset_manager'],
-    'seeker': DC_SEEKER['seeker'],
-    'ngrok': DC_NGROK['ngrok'],
-    'standalone_solver': DC_SOLV_ALN['standalone_solver'],
-    'gcs_solver': DC_SOLV_GCS['gcs_solver'],
-    'misp': {
-        'url': 'YOUR_MISP_URL',
-        'api_key': 'YOUR_MISP_API_KEY',
-        'ssl_cert': '2',
-        'download': str(Path(APP_DIR) / 'misp' / 'download'),
-        'upload': str(Path(APP_DIR) / 'misp' / 'upload'),
-        'gcp_cloud_iap_cred': '',
-        'gcp_client_id': '',
-    }
-}
 
 app = typer.Typer()
 
@@ -171,7 +113,7 @@ app.add_typer(seeker_app, name='seeker', help='Manage the CTI seeker subprocess.
 solver_app = typer.Typer()
 app.add_typer(solver_app, name='solver', help='Manage the CTI solver subprocess.')
 assetmgr_app = typer.Typer()
-app.add_typer(assetmgr_app, name='asset_manager', help='Manage the Asset Manager subprocess.')
+app.add_typer(assetmgr_app, name='asset-manager', help='Manage the Asset Manager subprocess.')
 
 config_app = typer.Typer()
 app.add_typer(config_app, name='config', help="Manage your config file of metemctl")
@@ -182,83 +124,6 @@ app.add_typer(workspace_app, name='workspace', help='Manage your workspace.')
 # pylint: disable=invalid-name
 def getLogger(name='cli'):
     return get_logger(name=name, app_dir=APP_DIR, file_prefix='cli')
-
-
-def _workspace_confpath(ctx):
-    return f'{_load_config(ctx)["general"]["workspace"]}/{WORKSPACE_CONFIG_FILENAME}'
-
-
-def _load_config(ctx: typer.Context, reload: bool = False) -> ConfigParser:
-    logger = getLogger()
-    if 'config' in ctx.meta.keys():
-        if not reload:
-            return ctx.meta['config']
-        del ctx.meta['config']
-    # at first, load default config and overwrite with metemctl.ini.
-    base_config = ConfigParser()
-    if os.path.exists(CONFIG_FILE_PATH):
-        if str(CONFIG_FILE_PATH) not in base_config.read(CONFIG_FILE_PATH):
-            raise Exception(f'Load config failed: {CONFIG_FILE_PATH}')
-        logger.info(f"Load config file from {CONFIG_FILE_PATH}")
-    base_config = merge_config(None, DEFAULT_CONFIGS, base_config)
-    # at next, overwrite with config.ini in workspace.
-    tmp_workspace = base_config['general'].get('workspace')
-    if not tmp_workspace:
-        raise Exception(f'Config error. Missing parameter: general.workspace')
-    work_conf_file = f'{tmp_workspace}/{WORKSPACE_CONFIG_FILENAME}'
-    if not os.path.exists(work_conf_file):
-        raise Exception(f'Wrong workspace. Workspace config file does not exist: {work_conf_file}')
-    config = merge_config(work_conf_file, DEFAULT_CONFIGS, base_config)
-    if Path(tmp_workspace) != Path(config['general']['workspace']):
-        raise Exception('contradictory configuration: general.workspace.')
-    # ok. cache and return
-    ctx.meta['config'] = config
-    return config
-
-
-def _save_config(ctx: typer.Context, config: ConfigParser) -> None:
-    logger = getLogger()
-    for sect in config.sections():
-        for opt in config.options(sect):
-            val = config[sect][opt]
-            if val.startswith('~'):
-                config[sect][opt] = str(Path(val).expanduser())
-    try:
-        workspace_conf = _workspace_confpath(ctx)
-        if os.path.exists(workspace_conf):
-            filepath = workspace_conf
-            if config.has_section('general'):
-                config.remove_option('general', 'workspace')  # avoid contradiction
-        else:
-            filepath = CONFIG_FILE_PATH
-        with open(filepath, 'wt', encoding='utf-8') as fout:
-            config.write(fout)
-    except Exception as err:
-        logger.exception(f'Cannot save configuration: {err}')
-        raise
-    logger.debug('updated config file')
-
-
-def _load_raw_config(ctx: typer.Context, general: bool) -> ConfigParser:
-    tgt = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
-    config = ConfigParser()
-    config.read(tgt)
-    return config
-
-
-def _save_raw_config(ctx: typer.Context, general: bool, config: ConfigParser):
-    tgt = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
-    if not general:
-        if config['general']:
-            config.remove_option('general', 'workspace')
-    with open(tgt, 'wt', encoding='utf-8') as fout:
-        config.write(fout)
-
-
-def find_ngrok(config: ConfigParser):
-    if not shutil.which("ngrok"):
-        config['ngrok']['ngrok_path'] = str(Path(APP_DIR) / 'ngrok')
-    return config
 
 
 def _init_app_dir(ctx: typer.Context) -> None:
@@ -276,47 +141,24 @@ def _init_app_dir(ctx: typer.Context) -> None:
             copytree(src, dst, symlinks=True, ignore=ignore_patterns('.gitkeep'))
         else:
             copyfile(src, dst, follow_symlinks=False)
-
-    typer.echo(f'setting up default workspace. (try "metemctl workspace list" to check)')
-    default_workspace_path = DEFAULT_CONFIGS['general']['workspace']
-    init_config = ConfigParser()
-    init_config.add_section('general')
-    init_config.set('general', 'workspace', default_workspace_path)
-    _save_raw_config(ctx, True, init_config)  # generate metemctl.ini
-    _make_minimal_workspace(default_workspace_path)
-
-    config = _load_config(ctx)
-    config = find_ngrok(config)
-    _save_config(ctx, config)  # update config.ini in workspace
-    _load_config(ctx, reload=True)
-
     typer.echo('initialized metemcyber application directory. ')
     typer.echo('execute "metemctl open-app-dir --print-only" to print application directory.')
     typer.echo('')
+    typer.echo(f'generated workspaces: {",".join(ws_list())}')
 
-
-def _get_keyfile_password() -> str:
-    word = os.environ.get('METEMCTL_KEYFILE_PASSWORD', "")
-    if word:
-        return word
-    typer.echo('You can also use an env METEMCTL_KEYFILE_PASSWORD.')
-    try:
-        return typer.prompt('Enter password for keyfile', hide_input=True)
-    except Exception as err:
-        raise Exception('Interrupted') from err  # click.exceptions.Abort has no message
+    load_config(ctx)  # will launch minimal setup
 
 
 def _load_account(ctx: typer.Context) -> Account:
     if 'account' in ctx.meta.keys():
         return ctx.meta['account']
-    config = _load_config(ctx)
-    if config['general']['endpoint_url'] in (None, ''):
-        raise Exception('Missing configuration: endpoint_url')
-    ether = Ether(config['general']['endpoint_url'])
-    if config['general']['keyfile'] in (None, '', DEFAULT_CONFIGS['general']['keyfile']):
-        raise Exception('Missing configuration: keyfile')
-    eoa, pkey = decode_keyfile(config['general']['keyfile'], _get_keyfile_password)
-    account = Account(ether, eoa, pkey)
+    config = load_config(ctx)
+    required = ['blockchain.endpoint_url', 'blockchain.keyfile']
+    for key in required:
+        if OmegaConf.is_missing(config, key) or not OmegaConf.select(config, key):
+            raise Exception(f'Missing configuration: {key}')
+    eoaa, pkey = decode_keyfile(config.blockchain.keyfile, config.blockchain.keyfile_password)
+    account = Account(Ether(config.blockchain.endpoint_url), eoaa, pkey)
     ctx.meta['account'] = account
     return account
 
@@ -324,57 +166,48 @@ def _load_account(ctx: typer.Context) -> Account:
 def _load_solver_account(ctx: typer.Context) -> Account:
     if 'solver_account' in ctx.meta.keys():
         return ctx.meta['solver_account']
-    config = _load_config(ctx)
-    if not config['general']['solver_keyfile']:  # use account as solver
-        ctx.meta['solver_account'] = _load_account(ctx)
-        return ctx.meta['solver_account']
-    keyfile = config['general']['solver_keyfile'] or config['general']['keyfile']
-    oldpw = os.environ.get('METEMCTL_KEYFILE_PASSWORD', '')
-    if config['general'].get('solver_keyfile_password'):
-        os.environ['METEMCTL_KEYFILE_PASSWORD'] = config['general']['solver_keyfile_password']
-    eoaa, pkey = decode_keyfile(keyfile, _get_keyfile_password)
-    os.environ['METEMCTL_KEYFILE_PASSWORD'] = oldpw
-    solver_account = Account(Ether(config['general']['endpoint_url']), eoaa, pkey)
+    config = load_config(ctx)
+    required = ['blockchain.endpoint_url', 'blockchain.solver.keyfile']
+    for key in required:
+        if not OmegaConf.select(config, key):
+            raise Exception(f'Missing configuration: {key}')
+    eoaa, pkey = decode_keyfile(config.blockchain.solver.keyfile,
+                                config.blockchain.solver.keyfile_password)
+    solver_account = Account(Ether(config.blockchain.endpoint_url), eoaa, pkey)
     ctx.meta['solver_account'] = solver_account
     return solver_account
 
 
 def _load_contract_libs(ctx: typer.Context):
     account = _load_account(ctx)
-    config = _load_config(ctx)
+    config = load_config(ctx)
     deploy_erc1820(account.eoa, account.web3)
-    if config.has_section('metemcyber_util'):
-        util_addr = config['metemcyber_util'].get('address')
-        util_ph = config['metemcyber_util'].get('placeholder')
-    else:
-        util_addr = util_ph = ''
-        config.add_section('metemcyber_util')
-    if util_addr and util_ph:
-        _ph = MetemcyberUtil.register_library(util_addr)
-        assert _ph == util_ph
+
+    conf_util = config.blockchain.metemcyber_util
+    if conf_util.address and conf_util.placeholder:
+        _ph = MetemcyberUtil.register_library(conf_util.address)
+        assert _ph == conf_util.placeholder
     else:
         util = MetemcyberUtil(account).new()
         util_ph = util.register_library(util.address)
-        config.set('metemcyber_util', 'address', util.address)
-        config.set('metemcyber_util', 'placeholder', util_ph)
-        _save_config(ctx, config)
+        config = update_config(config, 'blockchain.metemcyber_util.address', util.address,
+                               ctx=ctx, save=False, validate=False)  # not save
+        config = update_config(config, 'blockchain.metemcyber_util.placeholder', util_ph,
+                               ctx=ctx, save=True, validate=False)  # save
 
 
 def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
     if 'catalog_manager' in ctx.meta.keys():
         return ctx.meta['catalog_manager']
     account = _load_account(ctx)
+    config = load_config(ctx)
     catalog_mgr = CatalogManager(account)
-    config = _load_config(ctx)
-    if config.has_section('catalog'):
-        actives = config['catalog'].get('actives')
-        if actives:
-            catalog_mgr.add(
-                cast(List[ChecksumAddress], actives.strip().split(',')), activate=True)
-        reserves = config['catalog'].get('reserves')
-        if reserves:
-            catalog_mgr.add(
-                cast(List[ChecksumAddress], reserves.strip().split(',')), activate=False)
+    if config.blockchain.catalog.actives:
+        catalog_mgr.add(
+            cast(List[ChecksumAddress], config.blockchain.catalog.actives), activate=True)
+    if config.blockchain.catalog.reserves:
+        catalog_mgr.add(
+            cast(List[ChecksumAddress], config.blockchain.catalog.reserves), activate=False)
     ctx.meta['catalog_manager'] = catalog_mgr
     return catalog_mgr
 
@@ -383,11 +216,11 @@ def _load_broker(ctx: typer.Context) -> Broker:
     if 'broker' in ctx.meta.keys():
         return ctx.meta['broker']
     try:
-        config = _load_config(ctx)
-        broker_address = cast(ChecksumAddress, config['broker']['address'])
+        config = load_config(ctx)
+        broker_address = cast(ChecksumAddress, config.blockchain.broker.address)
         assert broker_address
     except Exception as err:
-        raise Exception('Missing configuration: broker.address') from err
+        raise Exception('Missing configuration: blockchain.broker.address') from err
     account = _load_account(ctx)
     broker = Broker(account).get(broker_address)
     ctx.meta['broker'] = broker
@@ -397,12 +230,12 @@ def _load_broker(ctx: typer.Context) -> Broker:
 def _load_operator(ctx: typer.Context) -> Operator:
     if 'operator' in ctx.meta.keys():
         return ctx.meta['operator']
-    config = _load_config(ctx)
+    config = load_config(ctx)
     try:
-        operator_address = cast(ChecksumAddress, config['operator']['address'])
+        operator_address = cast(ChecksumAddress, config.blockchain.operator.address)
         assert operator_address
     except Exception as err:
-        raise Exception('Missing configuration: operator.address') from err
+        raise Exception('Missing configuration: blockchain.operator.address') from err
     account = _load_account(ctx)
     operator = Operator(account).get(operator_address)
     ctx.meta['operator'] = operator
@@ -428,19 +261,15 @@ def version_callback(value: bool):
 
 
 @app.callback()
-def app_callback(
-    ctx: typer.Context,
-    _version: bool = typer.Option(
-        None,
-        "--version",
-        callback=version_callback,
-        is_eager=True),
-):
+def app_callback(ctx: typer.Context,
+                 _version: bool = typer.Option(None, "--version",
+                                               callback=version_callback, is_eager=True),
+                 ):
     # init app directory if it does not exist
     logger = getLogger()
     if os.path.exists(APP_DIR):
         if os.path.isdir(APP_DIR):
-            if not os.path.exists(CONFIG_FILE_PATH):
+            if not os.path.exists(METEMCTL_CONFIG_FILEPATH):
                 logger.info(f'Run the application directory initialize: {APP_DIR}')
                 _init_app_dir(ctx)
         else:
@@ -652,50 +481,19 @@ def new(
             display_contents,
             starter)
         # TODO: manage the project id on workspace directory
-        config = _load_config(ctx)
-        config.set('general', 'project', event_id)
-        _save_config(ctx, config)
+        update_config(load_config(ctx), 'project', event_id, save=True, validate=False)
 
 
 def config_update_catalog(ctx: typer.Context):
     catalog_mgr = _load_catalog_manager(ctx)
-    config = _load_config(ctx)
-    if catalog_mgr is None:
-        config.remove_section('catalog')
-    else:
-        if not config.has_section('catalog'):
-            config.add_section('catalog')
-        config.set('catalog', 'actives',
-                   ','.join(catalog_mgr.active_catalogs.keys()))
-        config.set('catalog', 'reserves',
-                   ','.join(catalog_mgr.reserved_catalogs.keys()))
-    _save_config(ctx, config)
-    del ctx.meta['catalog_manager']
+    config = load_config(ctx)
+    config = update_config(config, 'blockchain.catalog.actives',
+                           list(catalog_mgr.active_catalogs.keys()),
+                           ctx=ctx, validate=False, save=False)
+    config = update_config(config, 'blockchain.catalog.reserves',
+                           list(catalog_mgr.reserved_catalogs.keys()),
+                           ctx=ctx, validate=True, save=True)
     Catalog(_load_account(ctx)).uncache(entire=True)
-
-
-def config_update_broker(ctx: typer.Context):
-    config = _load_config(ctx)
-    try:
-        broker = _load_broker(ctx)
-        if not config.has_section('broker'):
-            config.add_section('broker')
-        config.set('broker', 'address', broker.address)
-    except Exception:
-        config.remove_section('broker')
-    _save_config(ctx, config)
-
-
-def config_update_operator(ctx: typer.Context):
-    config = _load_config(ctx)
-    try:
-        operator = _load_operator(ctx)
-        if not config.has_section('operator'):
-            config.add_section('operator')
-        config.set('operator', 'address', operator.address)
-    except Exception:
-        config.remove_section('operator')
-    _save_config(ctx, config)
 
 
 class TokenInfoEx(TokenInfo):
@@ -747,8 +545,9 @@ def _get_accepting_tokens(ctx: typer.Context, addresses: List[ChecksumAddress]
         return _shared_solver_list_accepting(ctx, addresses=addresses)
 
     solver = _solver_client(ctx)
-    solver.get_solver()
     all_accepting = solver.solver('accepting_tokens')
+    if not load_config(ctx).runtime.solver_keepalive:
+        solver.disconnect()
     return [addr for addr in addresses if addr in all_accepting]
 
 
@@ -1097,43 +896,36 @@ def seeker_status(ctx: typer.Context):
     typer.echo(_seeker_status(ctx)[1])
 
 
-def _seeker_client(ctx) -> Seeker:
-    config = _load_config(ctx)
-    seeker = Seeker(APP_DIR,
-                    config['general']['endpoint_url'],
-                    config['general']['workspace'],
-                    _load_operator(ctx).address)
-    return seeker
-
-
 def _seeker_status(ctx) -> Tuple[bool, str]:
-    logger = getLogger()
-    try:
-        seeker = _seeker_client(ctx)
-        if seeker.pid == 0:
-            return False, 'not running'
-        msg = (f'running on pid {seeker.pid}, '
-               f'listening {seeker.listen_address}:{seeker.listen_port}.')
-        ngrok_mgr = NgrokMgr(APP_DIR)
-        if ngrok_mgr.pid > 0:
-            msg += ('\n'
-                    f'and ngrok running on pid {ngrok_mgr.pid}, '
-                    f'with public url: {ngrok_mgr.public_url}.')
-        return True, msg
-    except Exception as err:
-        logger.exception(err)
-        return False, str(err)
+    config = load_config(ctx)
+    for key in ['endpoint_url', 'keyfile', 'operator.address']:
+        if not OmegaConf.select(config.blockchain, key):
+            return False, 'not configured'
+    seeker = Seeker(config)
+    if not seeker.pid:
+        return False, 'not running'
+
+    # seeker is running
+    msg = (f'running on pid {seeker.pid}, '
+           f'listening {seeker.listen_address}:{seeker.listen_port}.')
+    ngrok_mgr = NgrokMgr(config)
+    if ngrok_mgr.pid > 0:
+        msg += ('\n'
+                f'and ngrok running on pid {ngrok_mgr.pid}, '
+                f'with public url: {ngrok_mgr.public_url}.')
+    return True, msg
 
 
 def _seeker_url(ctx, auto_start: bool = False) -> str:
-    seeker = _seeker_client(ctx)
+    config = load_config(ctx)
+    seeker = Seeker(config)
     if seeker.pid == 0:
         if auto_start:
             typer.echo('auto starting seeker...')
             _seeker_start(ctx)
             return _seeker_url(ctx, auto_start=False)
         raise Exception('Seeker not running')
-    ngrok_mgr = NgrokMgr(APP_DIR)
+    ngrok_mgr = NgrokMgr(config)
     return ngrok_mgr.public_url or f'http://{seeker.listen_address}:{seeker.listen_port}'
 
 
@@ -1144,15 +936,13 @@ def seeker_start(ctx: typer.Context):
 
 
 def _seeker_start(ctx):
-    config = _load_config(ctx)
-    ngrok = int(config['seeker']['ngrok']) > 0
-    seeker = _seeker_client(ctx)
-    seeker.start(config['seeker']['listen_address'],
-                 int(config['seeker']['listen_port']))
+    config = load_config(ctx)
+    seeker = Seeker(config)
+    seeker.start()
     typer.echo(f'seeker started on process {seeker.pid}, '
                f'listening {seeker.listen_address}:{seeker.listen_port}.')
-    if ngrok:
-        ngrok_mgr = NgrokMgr(APP_DIR, seeker.listen_port, _workspace_confpath(ctx))
+    if config.blockchain.seeker.use_ngrok:
+        ngrok_mgr = NgrokMgr(config, seeker.listen_port)
         if ngrok_mgr.pid == 0:
             ngrok_mgr.start()
         else:
@@ -1168,21 +958,27 @@ def _seeker_start(ctx):
 @seeker_app.command('stop')
 @common_logging
 def seeker_stop(ctx: typer.Context):
-    seeker = _seeker_client(ctx)
+    config = load_config(ctx)
+    seeker = Seeker(config)
     seeker.stop()
     typer.echo('seeker stopped.')
-    ngrok_mgr = NgrokMgr(APP_DIR)
+    ngrok_mgr = NgrokMgr(config)
     if ngrok_mgr.pid > 0:
         ngrok_mgr.stop()
         typer.echo('ngrok also stopped.')
 
 
-def _solver_client(ctx: typer.Context) -> MCSClient:
+def _solver_client(ctx: typer.Context) -> SolverClient:
     if 'solver_client' in ctx.meta.keys():
-        return ctx.meta['solver_client']
-    solver = MCSClient(_load_solver_account(ctx), APP_DIR)
+        try:
+            solver = ctx.meta['solver_client']
+            solver.ping()
+            return solver
+        except Exception:
+            ctx.meta['solver_client'] = None
+            # FALLTHROUGH
+    solver = SolverClient(_load_solver_account(ctx), load_config(ctx))
     solver.connect()
-    solver.login()
     ctx.meta['solver_client'] = solver
     return solver
 
@@ -1212,131 +1008,43 @@ def _solver_is_ready(ctx: typer.Context) -> bool:
 
 
 def _local_solver_status(ctx: typer.Context) -> Tuple[bool, str]:
-    logger = getLogger()
-    try:
-        solver = _solver_client(ctx)
-    except Exception as err:
-        logger.exception(err)
-        return False, str(err)
-    try:
-        solver.get_solver()
-    except MCSError as err:
-        if err.code == MCSErrno.ENOENT:
-            msg = f'Solver running with EOA({solver.account.eoa}), but not yet enabled.'
-        else:
-            msg = str(err)
-        return False, msg
-    except Exception as err:
-        logger.exception(err)
-        return False, f'failed operation: {err}'
-    try:
-        operator = _load_operator(ctx)
-    except Exception:
-        return False, f'Solver running with EOA({solver.account.eoa}). Operator is not configured.'
-    if solver.operator_address == operator.address:
-        msg = (f'Solver running with EOA({solver.account.eoa}) '
-               f'and enabled with operator({operator.address}).')
+    config = load_config(ctx)
+    for key in ['endpoint_url', 'keyfile', 'operator.address']:
+        if not OmegaConf.select(config.blockchain, key):
+            return False, 'not configured'
+    ctrl = SolverController(_load_solver_account(ctx), config)
+    if ctrl.pid <= 0:
+        return False, 'not running'
+    if ctrl.operator_address == _load_operator(ctx).address:
+        msg = (f'Solver running on pid {ctrl.pid} with EOA({ctrl.account.eoa}) '
+               f'with operator({ctrl.operator_address}).')
     else:
-        msg = (f'[WARNING] Solver running with EOA({solver.account.eoa}) '
-               f'and enabled with ANOTHER operator({solver.operator_address}).')
+        msg = (f'[WARNING] Solver running with EOA({ctrl.account.eoa}) '
+               f'with ANOTHER operator({ctrl.operator_address}).')
     return True, msg
 
 
 @solver_app.command('start',
                     help='Start Solver process.')
 @common_logging
-def solver_start(ctx: typer.Context,
-                 enable: bool = typer.Option(False, help='auto enable with default config.')):
+def solver_start(ctx: typer.Context):
     try:
         _solver_client(ctx)
         raise Exception('Solver already running.')
     except Exception:
         pass
-    config = _load_config(ctx)
-    endpoint_url = config['general']['endpoint_url']
-    workspace = config['general']['workspace']
-    solv_cli_py = os.path.dirname(__file__) + '/../core/multi_solver_cli.py'
-    # pylint: disable=consider-using-with
-    subprocess.Popen(['python3', solv_cli_py,
-                      '-e', endpoint_url,
-                      '-m', 'server',
-                      '-a', APP_DIR,
-                      '-w', workspace,
-                      ], shell=False)
-    typer.echo('Solver started as a subprocess.')
-    if enable:
-        typer.echo('Enabling your operator.')
-        sleep(2)
-        _solver_enable(ctx, None)
+    ctrl = SolverController(_load_solver_account(ctx), load_config(ctx))
+    ctrl.start()
+    typer.echo(f'Solver started as a subprocess(pid={ctrl.pid}).')
 
 
 @solver_app.command('stop',
                     help='Kill Solver process, all solver (not only yours) are killed.')
 @common_logging
 def solver_stop(ctx: typer.Context):
-    solver = _solver_client(ctx)
-    solver.shutdown()
+    ctrl = SolverController(_load_solver_account(ctx), load_config(ctx))
+    ctrl.stop()
     typer.echo('Solver shutted down.')
-
-
-@solver_app.command('enable',
-                    help='Solver start running with operator you configured.')
-@common_logging
-def solver_enable(
-    ctx: typer.Context,
-    plugin: Optional[str] = typer.Option(
-        None,
-        help='solver plugin filename. the default depends on your configuration of '
-        'plugin in solver section. please note that another configuration '
-        'may be required by plugin.')):
-    _solver_enable(ctx, plugin)
-
-
-def _solver_enable(ctx, plugin):
-    solver = _solver_enable_internal(ctx, plugin)
-    try:
-        msg = solver.solver('accept_registered', None)
-        acceptings = solver.solver('accepting_tokens')
-    except Exception as err:
-        raise Exception(f'accepting registered tokens failed: {err}') from err
-    if acceptings:
-        typer.echo(f'and accepting {len(acceptings)} token(s) already registered.')
-    else:
-        typer.echo(f'No token registered on this operator.')
-    if msg:
-        typer.echo(msg)
-
-
-def _solver_enable_internal(ctx, plugin) -> MCSClient:
-    conf = _load_config(ctx)
-    operator_address = cast(ChecksumAddress, conf['operator']['address'])
-    plugin = plugin if plugin else conf['solver']['plugin']
-    keyfile = conf['general']['solver_keyfile'] or conf['general']['keyfile']
-    oldpw = os.environ.get('METEMCTL_KEYFILE_PASSWORD', '')
-    if conf['general'].get('solver_keyfile_password'):
-        os.environ['METEMCTL_KEYFILE_PASSWORD'] = conf['general']['solver_keyfile_password']
-    # exceptional case not to use _load_account: private key is required by new_solver().
-    eoaa, pkey = decode_keyfile(keyfile, _get_keyfile_password)
-    os.environ['METEMCTL_KEYFILE_PASSWORD'] = oldpw
-    solver = _solver_client(ctx)
-    assert eoaa == solver.account.eoa
-    config = _workspace_confpath(ctx)
-    applied = solver.new_solver(
-        operator_address, pkey, pluginfile=plugin, configfile=str(config))
-    assert applied == operator_address
-    typer.echo(f'Enabled solver with EOA: {eoaa}.')
-    typer.echo(f'Solver is now running with your operator({applied}).')
-    return solver
-
-
-@solver_app.command('disable',
-                    help='Solver will purge your operator, and keep running.')
-@common_logging
-def solver_disable(ctx: typer.Context):
-    solver = _solver_client(ctx)
-    solver.get_solver()
-    solver.purge_solver()
-    typer.echo('Solver is now running without your operator.')
 
 
 @solver_app.command('put')
@@ -1410,13 +1118,14 @@ def solver_support(ctx: typer.Context, token: str):
 def _local_solver_support(ctx, token):
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
-    solver.get_solver()
     _authorize_solver(ctx, flx.address)
     msg = solver.solver('accept_challenges', [flx.address])
     if msg:
         typer.echo(msg)
     typer.echo(f'Token({token}) object was supported by Solver.')
     typer.echo(f'Your MISP object is now available for download.')
+    if not load_config(ctx).runtime.solver_keepalive:
+        solver.disconnect()
 
 
 @solver_app.command('obsolete',
@@ -1432,33 +1141,23 @@ def solver_obsolete(ctx: typer.Context, token: str):
 def _local_solver_obsolete(ctx, token):
     flx = FlexibleIndexToken(ctx, token)
     solver = _solver_client(ctx)
-    solver.get_solver()
     _revoke_solver(ctx, flx.address)
     solver.solver('refuse_challenges', [flx.address])
     typer.echo(f'obsoleted challenge for token({flx.address}) by solver.')
+    if not load_config(ctx).runtime.solver_keepalive:
+        solver.disconnect()
 
 
 @assetmgr_app.command('start',
                       help='Start Asset Manager service.')
 @common_logging
 def assetmgr_start(ctx: typer.Context):
-    ctrl = AssetManagerController()
+    ctrl = AssetManagerController(_load_solver_account(ctx), load_config(ctx))
     if ctrl.pid > 0:
         raise Exception('Asset Manager already running.')
-    config = _load_config(ctx)
-    listen_address = config['asset_manager']['listen_address']
-    listen_port = int(config['asset_manager']['listen_port'])
-    endpoint_url = config['general']['endpoint_url']
-    solver = _load_solver_account(ctx)
-    operator = _load_operator(ctx)
-    assets_rootpath = _address_to_solver_assets_path(ctx, '')
-    ctrl.start(listen_address,
-               listen_port,
-               endpoint_url,
-               solver,
-               operator.address,
-               str(assets_rootpath))
-    typer.echo('Asset Manager started as a subprocess.')
+    ctrl.start()
+    typer.echo(f'Asset Manager started as a subprocess(pid={ctrl.pid}), '
+               f'listening {ctrl.listen_address}:{ctrl.listen_port}.')
 
 
 @assetmgr_app.command('stop',
@@ -1468,8 +1167,8 @@ def assetmgr_stop(ctx: typer.Context):
     _assetmgr_stop(ctx)
 
 
-def _assetmgr_stop(_ctx):
-    ctrl = AssetManagerController()
+def _assetmgr_stop(ctx):
+    ctrl = AssetManagerController(_load_solver_account(ctx), load_config(ctx))
     if ctrl.pid == 0:
         raise Exception('Asset Manager not running')
     ctrl.stop()
@@ -1483,20 +1182,23 @@ def assetmgr_status(ctx: typer.Context):
     typer.echo(_assetmgr_status(ctx)[1])
 
 
-def _assetmgr_status(_ctx) -> Tuple[bool, str]:
-    ctrl = AssetManagerController()
+def _assetmgr_status(ctx) -> Tuple[bool, str]:
+    config = load_config(ctx)
+    for key in ['endpoint_url', 'keyfile', 'operator.address']:
+        if not OmegaConf.select(config.blockchain, key):
+            return False, 'not configured'
+    ctrl = AssetManagerController(_load_solver_account(ctx), config)
     if ctrl.pid == 0:
         return False, 'not running.'
     return True, f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.'
 
 
 def _shared_solver_enabled(ctx) -> bool:
-    return bool(_load_config(ctx)['solver']['shared_solver_url'])
+    return bool(load_config(ctx).blockchain.solver.shared_solver_url)
 
 
 def _load_shared_solver(ctx) -> AssetManagerClient:
-    url = _load_config(ctx)['solver']['shared_solver_url']
-    assert url
+    url = load_config(ctx).blockchain.solver.shared_solver_url
     if 'asset_client' in ctx.meta.keys():
         return ctx.meta['asset_client']
     client = AssetManagerClient(url)
@@ -1601,8 +1303,8 @@ def _display_ngrok_support_message(address: str):
     try:
         dest_ip = ipaddress.ip_address(address)
         if dest_ip.is_loopback:
-            typer.echo(f'loopback detected (no ngrok): {dest_ip}')
-            typer.echo('SET "ngrok = 1" in [seeker] of metemctl config to use ngrok.')
+            typer.echo(f'[Caution] loopback detected without ngrok: {dest_ip}')
+            typer.echo(f'Hint: To use ngrok, set "seeker.use_ngrok: true" by metemctl config edit.')
     except ValueError:
         pass
 
@@ -1649,17 +1351,18 @@ def _monitor_seeker_message():
                    'try "metemctl ix show [--done]" to check task status.')
         return
     try:
+        tty_linkpath = load_config().runtime.seeker_tty_filepath
         typer.echo('>> Start monitoring seeker message. type CTRL-C to abort.')
-        if os.path.exists(TTYLINK4SEEKER):
+        if os.path.exists(tty_linkpath):
             typer.echo('[CAUTION] TTY used by another monitoring process is overwritten.')
-            os.unlink(TTYLINK4SEEKER)  # force overwrite
-        os.symlink(tty, TTYLINK4SEEKER)
+            os.unlink(tty_linkpath)  # force overwrite
+        os.symlink(tty, tty_linkpath)
         while input():
             pass
     except KeyboardInterrupt:
         pass
     finally:
-        os.unlink(TTYLINK4SEEKER)
+        os.unlink(tty_linkpath)
 
 
 def _is_correct_sha256(filename, sha256):
@@ -1706,8 +1409,8 @@ def _extract_contents(misp_object: Path):
 
 
 def _find_project_dir(ctx: typer.Context):
-    config = _load_config(ctx)
-    project_dir = Path(os.getcwd()) / config['general']['project']
+    config = load_config(ctx)
+    project_dir = Path(os.getcwd()) / config.project
     if os.path.isdir(project_dir):
         if os.access(project_dir, os.W_OK):
             return project_dir
@@ -1728,14 +1431,13 @@ def place_contents(external_files: Dict[str, Dict[str, str]], target_dir: Path):
 @ix_app.command('extract', help="Extract the contents from the downloaded MISP object.")
 @common_logging
 def ix_extract(ctx: typer.Context, used_token: str):
-    config = _load_config(ctx)
-    workspace = config['general']['workspace']
+    config = load_config(ctx)
     flx = FlexibleIndexToken(ctx, used_token)
-    downloaded_misp = Path(f'{workspace}/download/{flx.address}.json')
+    downloaded_misp = Path(f'{config.runtime.seeker_download_filepath}/{flx.address}.json')
 
     target_dir = _find_project_dir(ctx)
     if not target_dir:
-        target_dir = Path(workspace)
+        target_dir = Path(config.runtime.workspace_root)
 
     external_files = None
     if os.path.isfile(downloaded_misp):
@@ -1882,9 +1584,10 @@ def broker_create(ctx: typer.Context,
     broker = Broker(account).new()
     typer.echo(f'deployed a new broker. address is {broker.address}.')
     if switch:
+        typer.echo('configuring to use the broker above.')
         ctx.meta['broker'] = broker
-        config_update_broker(ctx)
-        typer.echo('configured to use the broker above.')
+        update_config(load_config(ctx), 'blockchain.broker.address', broker.address,
+                      ctx=ctx, save=True, validate=False)
 
 
 @contract_operator_app.command('show', help="Show the contract address of the operator.")
@@ -1908,9 +1611,10 @@ def operator_create(ctx: typer.Context,
     operator.set_recipient()
     typer.echo(f'deployed a new operator. address is {operator.address}.')
     if switch or old_operator is None:
+        typer.echo('configuring to use the operator above.')
         ctx.meta['operator'] = operator
-        config_update_operator(ctx)
-        typer.echo('configured to use the operator above.')
+        update_config(load_config(ctx), 'blockchain.operator.address', operator.address,
+                      ctx=ctx, save=True, validate=False)
         if old_operator:
             typer.echo('you should restart seeker and solver, if launched.')
 
@@ -1984,24 +1688,21 @@ def misp():
 
 
 @misp_app.command("open", help="Go to your MISP instance.")
+@common_logging
 def misp_open(ctx: typer.Context):
     logger = getLogger()
-    try:
-        misp_url = _load_config(ctx)['misp']['url']
-        logger.info(f"Open MISP: {misp_url}")
-        typer.echo(misp_url)
-        typer.launch(misp_url)
-    except KeyError as err:
-        typer.echo(err, err=True)
-        logger.error(err)
+    misp_url = load_config(ctx).misp.url
+    logger.info(f"Open MISP: {misp_url}")
+    typer.echo(misp_url)
+    typer.launch(misp_url)
 
 
 class IAPAuth(requests.auth.AuthBase):
 
     def __init__(self, ctx):
-        self.client_id = _load_config(ctx)['misp']['gcp_client_id']
-
-        credential_path = _load_config(ctx)['misp']['gcp_cloud_iap_cred']
+        config = load_config(ctx)
+        self.client_id = config.misp.gcp_client_id
+        credential_path = config.misp.gcp_cloud_iap_cred
         if credential_path:
             # Set the GOOGLE_APPLICATION_CREDENTIALS to use service account
             os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = str(credential_path)
@@ -2053,13 +1754,14 @@ def _ssl_settings(ssl_cert: int) -> bool:
 def _pymisp_client(ctx: typer.Context):
     logger = getLogger()
 
-    url = _load_config(ctx)['misp']['url']
-    api_key = _load_config(ctx)['misp']['api_key']
-    ssl_cert = int(_load_config(ctx)['misp']['ssl_cert'])
+    config = load_config(ctx)
+    url = config.misp_url
+    api_key = config.misp.api_key
+    ssl_cert = config.misp.ssl_cert
 
     logger.info(f"Fetch MISP: {url}")
 
-    client_id = _load_config(ctx)['misp']['gcp_client_id']
+    client_id = config.misp.gcp_client_id
 
     if client_id:
         return pymisp.PyMISP(url, api_key, _ssl_settings(ssl_cert), auth=IAPAuth(ctx))
@@ -2114,7 +1816,7 @@ def misp_pull(
         distribution=cast(Optional[List[pymisp.api.SearchType]], distribution),  # type: ignore
         org=cast(Optional[pymisp.api.SearchParameterTypes], org))  # type: ignore
 
-    json_dumpdir = Path(_load_config(ctx)['misp']['download'])
+    json_dumpdir = Path(load_config(ctx).misp.download_filepath)
     _store_pretty_json(results, json_dumpdir)
 
 
@@ -2133,7 +1835,7 @@ def _load_misp_event(filepath):
 
 @misp_app.command("event", help="Show exported MISP events")
 def misp_event(ctx: typer.Context):
-    json_dumpdir = Path(_load_config(ctx)['misp']['download'])
+    json_dumpdir = Path(load_config(ctx).misp.download_filepath)
     # load metadata pickle for efficiency
     if not os.path.isdir(json_dumpdir):
         raise FileNotFoundError(f'The directory of MISP download does not exist. ({json_dumpdir})')
@@ -2173,7 +1875,7 @@ def misp_event(ctx: typer.Context):
 
 @misp_app.command("push", help="Upload events to your MISP instance.")
 def misp_push(ctx: typer.Context):
-    json_dumpdir = Path(_load_config(ctx)['misp']['upload'])
+    json_dumpdir = Path(load_config(ctx).misp.upload_filepath)
     files = json_dumpdir.glob('*.json')
     for file in files:
         event = _load_misp_event(file)
@@ -2193,7 +1895,7 @@ def run(ctx: typer.Context, setup: bool = typer.Option(
     logger.info(f"Run command: kedro run")
     try:
         # TODO: check the existence of a CWD path
-        cwd = _load_config(ctx)['general']['project']
+        cwd = load_config(ctx).project
         if setup:
             setup_kedro(cwd)
         subprocess.run(['kedro', 'run'], check=True, cwd=cwd)
@@ -2217,7 +1919,7 @@ def check(
     logger.info(f"Run command: kedro test")
     try:
         # TODO: check the existence of a CWD path
-        cwd = _load_config(ctx)['general']['project']
+        cwd = load_config(ctx).project
         if setup:
             setup_kedro(cwd)
         subprocess.run(['kedro', 'test'], check=True, cwd=cwd)
@@ -2265,8 +1967,7 @@ def _uuid_to_misp_download_path(_ctx, uuid) -> Path:
 
 
 def _address_to_solver_assets_path(ctx, address) -> Path:
-    workspace = _load_config(ctx)['general']['workspace']
-    return Path(f'{workspace}/upload/{address}')
+    return Path(f'{load_config(ctx).runtime.asset_filepath}/{address}')
 
 
 def _is_misp_object(load_filepath):
@@ -2332,8 +2033,8 @@ def _fix_amounts(ctx, token_address, initial_amount, serve_amount
 
 
 def _find_project_report(ctx: typer.Context):
-    config = _load_config(ctx)
-    project_dir = Path(os.getcwd()) / config['general']['project']
+    config = load_config(ctx)
+    project_dir = Path(os.getcwd()) / config.project
     if os.path.isdir(project_dir):
         report_dir = project_dir / 'data' / '08_reporting'
         json_files = Path(report_dir).glob('*.json')
@@ -2404,7 +2105,9 @@ def discontinue(
         typer.echo(f'took back all({amount}) of token({flx_token.address}) from broker.')
     catalog.unregister_cti(flx_token.address)
     typer.echo(f'unregistered token({flx_token.address}) from catalog({catalog.address}).')
-    solver_obsolete(ctx, flx_token.address)
+    if _solver_is_ready(ctx):
+        solver_obsolete(ctx, flx_token.address)
+        # TODO shoud call solver_remove?
 
 
 @account_app.command("show", help="Show the current account information.")
@@ -2463,12 +2166,15 @@ def account_create(ctx: typer.Context):
     typer.echo('* You must BACKUP your key file & REMEMBER your password! *')
     typer.echo('* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *')
 
-    config = _load_config(ctx)
-    current_keyfile = config.get('general', 'keyfile')
-    if not current_keyfile or current_keyfile == '/PATH/TO/YOUR/KEYFILE':
-        config.set('general', 'keyfile', str(keyfile_path))
-        _save_config(ctx, config)
-        typer.echo('Update your config file.')
+    config = load_config(ctx)
+    if not config.blockchain.keyfile:
+        fix = True
+    else:
+        typer.echo(f'Metemctl is configured to use keyfile: {config.blockchain.keyfile}')
+        fix = typer.confirm('Modify config to use the created keyfile?')
+    if fix:
+        update_config(config, 'blockchain.keyfile', str(keyfile_path), save=True, validate=False)
+        typer.echo('You should edit config to set blockchain.keyfile_password.')
 
 
 @account_app.command("airdrop", help="Get some ETH from Promote Code. (for devnet)")
@@ -2477,8 +2183,8 @@ def account_airdrop(ctx: typer.Context, promote_code: str):
     if len(promote_code) != 64:
         raise typer.Abort('Invalid promote code.')
 
-    config = _load_config(ctx)
-    url = config['general']['airdrop_url']
+    config = load_config(ctx)
+    url = config.airdrop_url
     if 'http' not in url:
         raise Exception('Invalid airdrop_url:', url)
 
@@ -2500,8 +2206,9 @@ def account_airdrop(ctx: typer.Context, promote_code: str):
         if content['result'] == 'ok':
             typer.echo(f'Airdrop 1000 ETH to {account.eoa}')
             # HACK: use promote code as API token
-            config['gcs_solver']['functions_token'] = promote_code
-            _save_config(ctx, config)
+            key = 'blockchain.solver.gcs_solver.functions_token'
+            if not OmegaConf.select(config, key):
+                update_config(config, key, promote_code, save=True, validate=False)
             typer.echo('Let me check: metemctl account show')
         else:
             typer.echo('Airdrop failed.')
@@ -2512,154 +2219,72 @@ def account_airdrop(ctx: typer.Context, promote_code: str):
 @config_app.command('show', help="Show your config file of metemctl")
 @common_logging
 def config_show(ctx: typer.Context,
-                raw: bool = typer.Option(False, help='omit complementing system defaults.'),
-                general: bool = typer.Option(
-                    False, help='show metemctl.ini instead of config.ini in workspace')):
-    if raw:
-        filepath = CONFIG_FILE_PATH if general else _workspace_confpath(ctx)
-        with open(filepath, encoding='utf-8') as fin:
-            typer.echo(fin.read())
-    else:
-        typer.echo(config2str(_load_config(ctx)))
+                runtime: bool = typer.Option(False, help='show runtime config.'),
+                resolve: bool = typer.Option(False, help='resolve all interpolations.'),
+                force: bool = typer.Option(False, help='force show broken config.'),
+                ):
+    print_config(load_config(ctx, ignore_schema=force),
+                 runtime=runtime, resolve=resolve)
 
 
 @config_app.command('edit', help="Edit your config file of metemctl")
 @common_logging
 def config_edit(ctx: typer.Context,
-                raw: bool = typer.Option(False, help='omit complementing system defaults.'),
-                general: bool = typer.Option(
-                    False, help='edit metemctl.ini instead of config.ini in workspace.')):
-    workspace_conf = _workspace_confpath(ctx)
-    if raw:
-        filepath = CONFIG_FILE_PATH if general else workspace_conf
-        typer.edit(filename=filepath)
-    else:
-        config = _load_config(ctx)
-        contents = typer.edit(config2str(config))
-        if not contents:
-            return
-        new_config = ConfigParser()
-        new_config.read_string(contents)
-        if new_config.has_section('general'):
-            try:
-                new_workspace = new_config.get('general', 'workspace')
-                if new_workspace and new_workspace != config['general']['workspace']:
-                    raise Exception('Not supported: use "metemctl workspace switch" '
-                                    'to switch workspace')
-            except NoOptionError:  # new_config does not have general.config.
-                pass
-        _save_config(ctx, new_config)
+                validate: bool = typer.Option(True, help='vaildate before saving files.'),
+                verbose: bool = typer.Option(True, help='print validation details.'),
+                force: bool = typer.Option(False, help='force edit broken config.'),
+                ):
+    conf = load_config(ctx, ignore_schema=force)
+    if verbose:
+        conf = update_config(conf, 'runtime.print_config_validation', True,
+                             save=False, validate=False)
+    edit_config(conf, ctx=ctx, validate=validate)
 
 
 @workspace_app.command('list')
 @common_logging
-def workspace_list(ctx: typer.Context):
-    current = _current_workspace(ctx)
-    workspaces = set(_workspace_list(ctx) + [current])
-    for space in sorted(workspaces):
-        typer.echo(f'{" *" if space == current else "  "}{space}')
-
-
-def _current_workspace(ctx) -> str:
-    length = len(DESIRED_WORKSPACE_PREFIX)
-    workspace = _load_config(ctx)['general']['workspace']
-    if workspace[:length] == DESIRED_WORKSPACE_PREFIX:
-        return workspace[length:]
-    return os.path.basename(workspace)
-
-
-def _workspace_list(_ctx) -> List[str]:
-    workspace_dir, prefix = DESIRED_WORKSPACE_PREFIX.rsplit('/', 1)
-    spaces = [str(tmp)[len(DESIRED_WORKSPACE_PREFIX):]
-              for tmp in Path(workspace_dir).glob(f'{prefix}*')
-              if os.path.isdir(tmp) and os.path.isfile(f'{tmp}/{WORKSPACE_CONFIG_FILENAME}')]
-    return spaces
+def print_workspace_list(ctx: typer.Context):
+    config = load_config(ctx)
+    for space in ws_list():
+        typer.echo(f'{" *" if space == config.workspace else "  "}{space}')
 
 
 @workspace_app.command('switch')
 @common_logging
-def workspace_switch(ctx: typer.Context, name: str):
-    if name == _current_workspace(ctx):
-        raise Exception(f'already in workspace: {name}')
-    if name not in _workspace_list(ctx):
-        raise Exception(f'No such workspace: {name}')
-    if _seeker_status(ctx)[0]:
-        raise Exception('Cannot switch workspace while your seeker is running')
-    if _local_solver_status(ctx)[0]:
-        raise Exception('Cannot switch workspace while your local solver is running')
-    if _assetmgr_status(ctx)[0]:
-        raise Exception('Cannot switch workspace while your asset manager is running')
-
-    general_config = _load_raw_config(ctx, True)
-    general_config['general']['workspace'] = f'{DESIRED_WORKSPACE_PREFIX}{name}'
-    _save_raw_config(ctx, True, general_config)
+def workspace_switch(ctx: typer.Context, name: str,
+                     force: bool = typer.Option(False, help='leave running daemons.')):
+    if not force:
+        if _seeker_status(ctx)[0]:
+            raise Exception('Seeker is running on current workspace')
+        if _local_solver_status(ctx)[0]:
+            raise Exception('Local Solver is running on current workspace')
+        if _assetmgr_status(ctx)[0]:
+            raise Exception('Asset Manager is running on current workspace')
+    ws_switch(load_config(ctx), name)
     typer.echo(f'switched workspace: {name}')
 
 
 @workspace_app.command('create')
 @common_logging
 def workspace_create(ctx: typer.Context, name: str):
-    spaces = _workspace_list(ctx)
-    if name in spaces:
-        raise Exception(f'Workspace already exists: {name}')
-    _make_minimal_workspace(f'{DESIRED_WORKSPACE_PREFIX}{name}')
+    ws_create(load_config(ctx), name)
     typer.echo(f'created a new workspace: {name}')
     typer.echo(f'switch to {name} workspace and fix your configuration.')
 
 
-def _make_minimal_workspace(workspace_dir: str):
-    if os.path.isdir(workspace_dir):
-        typer.echo(f'reuse existing directory as a workspace: {workspace_dir}')
-    else:
-        typer.echo(f'creating workspace directory: {workspace_dir}')
-        os.makedirs(workspace_dir, exist_ok=False)
-    for tgt in WORKSPACE_MINIMAL_DIRS:
-        tgt_path = f'{workspace_dir}/{tgt}'
-        if os.path.isdir(tgt_path):
-            typer.echo(f'reuse existing directory: {tgt_path}')
-        else:
-            typer.echo(f'creating directory: {tgt_path}')
-            os.makedirs(tgt_path, exist_ok=True)
-    conf_path = f'{workspace_dir}/{WORKSPACE_CONFIG_FILENAME}'
-    if os.path.isfile(conf_path):
-        typer.echo(f'reuse workspace config: {conf_path}')
-    else:
-        typer.echo(f'creating workspace conf file: {conf_path}')
-        with open(conf_path, 'w', encoding='utf-8') as _fout:
-            pass  # nothing to write
-
-
 @workspace_app.command('destroy')
 @common_logging
-def workspace_destroy(ctx: typer.Context, name: str,
+def workspace_destroy(_ctx: typer.Context, name: str,
                       force: bool = typer.Option(False, help='Force remove workspace directory.')):
-    tgt_path = (_load_config(ctx)['general']['workspace'] if name == _current_workspace(ctx)
-                else f'{DESIRED_WORKSPACE_PREFIX}{name}')
-    if not force:
-        typer.echo(f'Please remove unnecessary files (at least {WORKSPACE_CONFIG_FILENAME})'
-                   f' and directories under {tgt_path} by hand.'
-                   f' Or give --force option to remove the entire directory above.')
-        return
-    shutil.rmtree(tgt_path)
-    typer.echo(f'removed workspace: {name}')
+    msg = ws_destroy(name, force=force)
+    typer.echo(msg or f'removed workspace: {name}')
 
 
 @workspace_app.command('copy')
 @common_logging
 def workspace_copy(ctx: typer.Context, src: str, dst: str):
-    spaces = _workspace_list(ctx)
-    if src not in spaces and src != _current_workspace(ctx):
-        raise Exception(f'No such workspace: {src}')
-    if dst in spaces:
-        raise Exception(f'Workspace already exists: {dst}')
-    src_conf = f'{DESIRED_WORKSPACE_PREFIX}{src}/{WORKSPACE_CONFIG_FILENAME}'
-    if not os.path.isfile(src_conf):  # maybe src is current and not desired workspace
-        src_conf = _workspace_confpath(ctx)
-    dst_dir = f'{DESIRED_WORKSPACE_PREFIX}{dst}'
-
-    _make_minimal_workspace(dst_dir)
-    copyfile(src_conf, f'{dst_dir}/{WORKSPACE_CONFIG_FILENAME}', follow_symlinks=True)
-    typer.echo(f'copied {WORKSPACE_CONFIG_FILENAME} from {src} to {dst} workspace.')
+    ws_copy(load_config(ctx), src, dst)
+    typer.echo(f'copied config from {src} to {dst} workspace.')
     typer.echo(f'switch to {dst} workspace and fix your configuration.')
 
 

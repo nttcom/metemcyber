@@ -20,27 +20,26 @@ import sys
 from datetime import datetime
 from signal import SIGINT
 from time import sleep
-from typing import Dict, List, Optional, Tuple, Union
+from typing import ClassVar, Dict, List, Optional, Tuple, Union
 from urllib.request import Request, urlopen
 
 import uvicorn
 from eth_typing import ChecksumAddress
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from omegaconf.dictconfig import DictConfig
 from psutil import Process
 # pylint: disable=no-name-in-module
 from pydantic import BaseModel
 from web3 import Web3
 
-from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.cti_token import CTIToken
 from metemcyber.core.bc.ether import Ether
-from metemcyber.core.bc.util import verify_message
+from metemcyber.core.bc.util import ADDRESS0, verify_message
 from metemcyber.core.logger import get_logger
-from metemcyber.core.multi_solver import MCSClient, MCSErrno, MCSError
+from metemcyber.core.solver_server import SolverClient, SolverController
 
-PIDFILEPATH = f'{APP_DIR}/assetmgr.pid'
 VALID_TIMESTAMP_RANGE = 12 * 3600  # 12 hours in sec
 SERVERLOG = get_logger(name='asset_mgr', file_prefix='core')
 CLIENTLOG = get_logger(name='asset_client', file_prefix='core')
@@ -50,14 +49,6 @@ URLPATH_INFO = f'{URLPATH_PREFIX}/info'
 URLPATH_MISP = f'{URLPATH_PREFIX}/misp_object'
 URLPATH_LIST = f'{URLPATH_PREFIX}/list_tokens'
 URLPATH_ACCEPT = f'{URLPATH_PREFIX}/accept_tokens'
-
-CONFIG_SECTION = 'asset_manager'
-DEFAULT_CONFIGS = {
-    CONFIG_SECTION: {
-        'listen_address': '0.0.0.0',
-        'listen_port': '48000',
-    }
-}
 
 
 class GetInfoRequest(BaseModel):
@@ -108,34 +99,34 @@ class AnonymousAcceptingRequest(BaseModel):
 
 
 class AssetManager:
-    listen_address: str
-    listen_port: int
+    config: DictConfig
     anonymous: Account
     solver_account: Account
-    operator_address: ChecksumAddress
-    assets_rootpath: str
     nonce_map: Dict[ChecksumAddress, int]
+    listen_address: str
+    listen_port: int
     app: FastAPI
 
-    def __init__(self,
-                 listen_address: str,
-                 listen_port: int,
-                 endpoint_url: str,
-                 solver_account: Account,
-                 operator_address: ChecksumAddress,
-                 assets_rootpath: str):
-        self.listen_address = listen_address
-        self.listen_port = listen_port
-        self.anonymous = Account(Ether(endpoint_url))
+    def __init__(self, solver_account: Account, config: DictConfig):
+        self.config = config
+        self.anonymous = Account(Ether(config.blockchain.endpoint_url))
         self.solver_account = solver_account
-        self.operator_address = operator_address
-        self.assets_rootpath = assets_rootpath
         self.nonce_map = {}
+        self.listen_address = config.blockchain.assetmanager.listen_address
+        self.listen_port = config.blockchain.assetmanager.listen_port
+
+        ctrl = self._solver_ctrl()
+        if ctrl.pid <= 0:
+            raise Exception(f'Solver looks down (must be running)')
+        if ctrl.solver_eoaa != self.solver_account.eoa:
+            raise Exception(f'Solver is running with different EOA({ctrl.solver_eoaa})')
+        if ctrl.operator_address != self.config.blockchain.operator.address:
+            raise Exception(f'Solver is running with different operator({ctrl.operator_address})')
         try:
             solver = self._get_solver()
             solver.disconnect()
         except Exception as err:
-            raise Exception(f'Solver must be running and enabled: {err}') from err
+            raise Exception(f'Cannot connect to solver: {err}') from err
 
         self.app = FastAPI()
         self.app.get(f'/{URLPATH_INFO}')(self._get_info)
@@ -158,25 +149,13 @@ class AssetManager:
             allow_methods=['DELETE', 'GET', 'OPTION', 'POST']
         )
 
-    def _get_solver(self) -> MCSClient:  # CAUTION: do not cache client.
-        solver = MCSClient(self.solver_account, APP_DIR)
-        solver.connect()
-        solver.login()
-        try:
-            addr = solver.get_solver()
-        except MCSError as err:
-            if solver:
-                solver.disconnect()
-            if err.code == MCSErrno.ENOENT:
-                msg = f'Solver is running, but not yet enabled'
-            else:
-                msg = str(err)
-            raise Exception(msg) from err
-        if addr != self.operator_address:
-            raise Exception(
-                f'Solver is running with different operator({addr}) '
-                f'from configured({self.operator_address})')
-        return solver
+    def _solver_ctrl(self) -> SolverController:
+        return SolverController(self.solver_account, self.config)
+
+    def _get_solver(self) -> SolverClient:  # CAUTION: do not cache client.
+        client = SolverClient(self.solver_account, self.config)
+        client.connect()
+        return client
 
     async def _get_info(self, request: Optional[GetInfoRequest] = None) -> dict:
         if request:
@@ -188,18 +167,19 @@ class AssetManager:
                 self.nonce_map[request.address] = nonce
         else:
             nonce = None
+        ret: Dict[str, Union[ChecksumAddress, str, int]] = {
+            'solver_address': ADDRESS0,
+            'operator_address': ADDRESS0,
+            'solver_status': 'running',
+        }
         try:
-            solver = self._get_solver()
-            solver_status = 'running'
-            solver.disconnect()
+            ctrl = self._solver_ctrl()
+            ret['solver_address'] = ctrl.solver_eoaa
+            ret['operator_address'] = ctrl.operator_address
+            ret['solver_status'] = 'running' if ctrl.pid > 0 else 'not running'
         except Exception as err:
             SERVERLOG.error(err)
-            solver_status = str(err)
-        ret: Dict[str, Union[str, int]] = {
-            'solver_address': self.solver_account.eoa,
-            'operator_address': self.operator_address,
-            'solver_status': solver_status,
-        }
+            ret['solver_status'] = str(err)
         if nonce:
             ret['nonce'] = nonce
         return ret
@@ -237,7 +217,7 @@ class AssetManager:
     def _asset_filepath(self, token_address: ChecksumAddress) -> str:
         if not Web3.isChecksumAddress(token_address):
             raise HTTPException(400, 'Not a checksum address')
-        return f'{self.assets_rootpath}/{token_address}'
+        return f'{self.config.runtime.asset_filepath}/{token_address}'
 
     async def _post_asset(self, request: PostMispRequest) -> dict:
         try:
@@ -363,13 +343,21 @@ class AssetManager:
 
 
 class AssetManagerController:
-    def __init__(self):
-        self.expected_cmd_args = ['asset_manager', 'start']
+    expected_cmd_args: ClassVar[List[str]] = ['asset-manager', 'start']
+    account: Account
+    config: DictConfig
+    pid: int
+    listen_address: str
+    listen_port: int
+
+    def __init__(self, account: Account, config: DictConfig):
+        self.account = account
+        self.config = config
         self.pid, self.listen_address, self.listen_port = self.get_running_params()
 
     def get_running_params(self) -> Tuple[int, str, int]:  # pid, addr, port
         try:
-            with open(PIDFILEPATH, 'r', encoding='utf-8') as fin:
+            with open(self.config.runtime.assetmanager_pid_filepath, 'r', encoding='utf-8') as fin:
                 str_data = fin.readline().strip()
             str_pid, str_addr, str_port = str_data.split('\t', 2)
         except Exception:
@@ -377,23 +365,15 @@ class AssetManagerController:
         try:
             proc = Process(int(str_pid))
             cmdline: List = proc.cmdline()
-            if len(cmdline) - 2 == len(self.expected_cmd_args):  # cut leading 'python'&'metemctl'
-                for idx, arg in enumerate(self.expected_cmd_args):
-                    assert cmdline[2 + idx] == arg
-                return int(str_pid), str_addr, int(str_port)
+            assert cmdline[2:] == self.__class__.expected_cmd_args
+            return int(str_pid), str_addr, int(str_port)
         except Exception:
             pass
-        if os.path.exists(PIDFILEPATH):
-            os.unlink(PIDFILEPATH)  # remove defunct pidfile.
+        if os.path.exists(self.config.runtime.assetmanager_pid_filepath):
+            os.unlink(self.config.runtime.assetmanager_pid_filepath)  # remove defunct pidfile.
         return 0, '', 0
 
-    def start(self,
-              listen_address: str,
-              listen_port: int,
-              endpoint_url: str,
-              solver_account: Account,
-              operator_address: ChecksumAddress,
-              assets_rootpath: str) -> int:
+    def start(self):
         if self.pid > 0:
             raise Exception(f'Already running on pid: {self.pid}')
 
@@ -401,29 +381,25 @@ class AssetManagerController:
         if pid > 0:  # parent
             for _cnt in range(3):
                 sleep(1)
-                if self.get_running_params()[0] != pid:
+                running = self.get_running_params()
+                if running[0] != pid:
                     continue  # wait again
-                return pid
+                self.pid, self.listen_address, self.listen_port = running
+                return
             raise Exception('Cannot start AssetManager')
 
         # child
         try:
-            mgr = AssetManager(listen_address,
-                               listen_port,
-                               endpoint_url,
-                               solver_account,
-                               operator_address,
-                               assets_rootpath)
-            with open(PIDFILEPATH, 'w', encoding='utf-8') as fout:
-                fout.write(f'{os.getpid()}\t{listen_address}\t{listen_port}\n')
+            mgr = AssetManager(self.account, self.config)
+            with open(self.config.runtime.assetmanager_pid_filepath, 'w', encoding='utf-8') as fout:
+                fout.write(f'{os.getpid()}\t{mgr.listen_address}\t{mgr.listen_port}\n')
             mgr.run()
         except KeyboardInterrupt:
             pass
         finally:
-            if os.path.exists(PIDFILEPATH):
-                os.unlink(PIDFILEPATH)
+            if os.path.exists(self.config.runtime.assetmanager_pid_filepath):
+                os.unlink(self.config.runtime.assetmanager_pid_filepath)
         sys.exit(0)
-        return 0  # not reached
 
     def stop(self):
         if self.pid <= 0:

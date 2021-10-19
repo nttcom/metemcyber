@@ -17,27 +17,21 @@
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
 from threading import Thread
-from typing import ClassVar, Optional
+from typing import ClassVar
 
-from eth_typing import ChecksumAddress
+from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 from web3 import Web3
 
 from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import BaseSolver
-from metemcyber.core.util import get_random_local_port, merge_config
+from metemcyber.core.util import get_random_local_port
 
 LOGGER = get_logger(name='standalone_solver', file_prefix='core')
 
 GET_RANDOM_RETRY_MAX = 10
 JOIN_TIMEOUT_SEC = 30
-
-CONFIG_SECTION = 'standalone_solver'
-DEFAULT_CONFIGS = {
-    CONFIG_SECTION: {
-        'listen_address': 'localhost',
-    }
-}
 
 
 class SimpleHandler(SimpleHTTPRequestHandler):
@@ -106,14 +100,16 @@ class LocalHttpServer():
 
 
 class Solver(BaseSolver):
-    def __init__(self, account: Account, operator_address: ChecksumAddress,
-                 workspace: str, config_path: Optional[str]) -> None:
-        super().__init__(account, operator_address, workspace, config_path)
-        self.config = merge_config(config_path, DEFAULT_CONFIGS, self.config)
+    def __init__(self, account: Account, config: DictConfig):
+        super().__init__(account, config)
+        required = ['blockchain.solver.standalone_solver.listen_address']
+        for key in required:
+            if not OmegaConf.select(self.config, key):
+                raise Exception(f'Missing configuration: {key}')
         self.fileserver = LocalHttpServer(
             self.account.eoa,
-            self.config[CONFIG_SECTION]['listen_address'],
-            f'{workspace}/upload')
+            self.config.blockchain.solver.standalone_solver.listen_address,
+            self.config.runtime.asset_filepath)
         self.fileserver.start()
 
     def destroy(self):
@@ -153,7 +149,7 @@ class Solver(BaseSolver):
             LOGGER.info('finished task %s', task_id)
 
     def create_misp_download_url(self, cti_address):
-        host = self.config[CONFIG_SECTION]['listen_address']
+        host = self.fileserver.addr
         port = self.fileserver.port
         path = cti_address
         url = f'http://{host}:{port}/{path}'
