@@ -378,8 +378,8 @@ class MispConfig:
     url: str = ''
     api_key: str = ''
     ssl_cert_verify: SSLCertVerify = SSLCertVerify.ENABLE
-    download_filepath: str = f'{APP_DIR}/misp/download'
-    upload_filepath: str = f'{APP_DIR}/misp/upload'
+    download_filepath: str = f'${{oc.select:runtime.app_dir}}/misp/download'
+    upload_filepath: str = f'${{oc.select:runtime.app_dir}}/misp/upload'
     gcp_cloud_iap_cred: str = ''
     gcp_client_id: str = ''
 
@@ -540,10 +540,10 @@ def _save_config(g_config: DictConfig, save_root: bool = True, save_workspace: b
 def print_config(g_config: DictConfig, runtime: bool = False, resolve: bool = False):
     tmp_config = g_config.copy()
     OmegaConf.set_readonly(tmp_config, False)
-    if not runtime:
-        del tmp_config.runtime  # hidden params
     if resolve:
         OmegaConf.resolve(tmp_config)
+    if not runtime:
+        del tmp_config.runtime  # hidden params
     typer.echo(OmegaConf.to_yaml(tmp_config))
 
 
