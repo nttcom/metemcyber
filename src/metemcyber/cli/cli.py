@@ -1018,7 +1018,6 @@ def token_publish(ctx: typer.Context,
         ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount)
 
 
-@common_logging
 def _token_publish(ctx, catalog, token_address, uuid, title, price, initial_amount, serve_amount):
     operator_address = _load_operator(ctx).address
     flx_catalog = FlexibleIndexCatalog(ctx, catalog)
