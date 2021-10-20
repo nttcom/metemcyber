@@ -1951,18 +1951,42 @@ def publish(
             99,
             help='An amount of CTI tokens to give CTI broker'),
 ):
-    _publish(
+    if not misp_object:
+        misp_object = _find_project_report(ctx)
+        if not misp_object:
+            raise Exception(
+                'MISP object not found in the current project. '
+                'Try \"metemctl publish --misp_object MISP_OBJECT_PATH\".')
+
+    if price < 0:
+        raise Exception(f'Invalid price: {price}')
+
+    uuid, title, fixed_filepath = _store_misp_object(ctx, misp_object)
+    token_address = _token_publish(
         ctx,
-        misp_object,
         catalog,
         token_address,
+        uuid,
+        title,
         price,
         initial_amount,
         serve_amount)
 
+    if _solver_is_ready(ctx):
+        try:
+            if _shared_solver_enabled(ctx):
+                _shared_solver_post(ctx, token_address, fixed_filepath, support=True)
+            else:
+                _local_solver_link(ctx, f'{catalog}-{token_address}')
+                _local_solver_support(ctx, token_address)
+        except Exception as err:
+            typer.echo(f'failed solver support: {err}')
+    else:
+        typer.echo(f'Run \"metemctl solver support {token_address}\" after enabling Solver')
 
-def _uuid_to_misp_download_path(_ctx, uuid) -> Path:
-    return Path(f'{APP_DIR}/misp/download/{UUID(str(uuid))}.json')
+
+def _uuid_to_misp_download_path(ctx, uuid) -> Path:
+    return Path(f'{load_config(ctx).misp.download_filepath}/{UUID(str(uuid))}.json')
 
 
 def _address_to_solver_assets_path(ctx, address) -> Path:
@@ -2041,49 +2065,6 @@ def _find_project_report(ctx: typer.Context):
             if _is_misp_object(json_file):
                 return json_file
     return None
-
-
-def _publish(
-        ctx,
-        misp_object,
-        catalog,
-        token_address,
-        price,
-        initial_amount,
-        serve_amount):
-
-    if not misp_object:
-        misp_object = _find_project_report(ctx)
-        if not misp_object:
-            raise Exception(
-                'MISP object not found in the current project. '
-                'Try \"metemctl publish --misp_object MISP_OBJECT_PATH\".')
-
-    if price < 0:
-        raise Exception(f'Invalid price: {price}')
-
-    uuid, title, fixed_filepath = _store_misp_object(ctx, misp_object)
-    token_address = _token_publish(
-        ctx,
-        catalog,
-        token_address,
-        uuid,
-        title,
-        price,
-        initial_amount,
-        serve_amount)
-
-    if _shared_solver_enabled(ctx):
-        _shared_solver_post(ctx, token_address, fixed_filepath, support=True)
-    else:
-        _local_solver_link(ctx, f'{catalog}-{token_address}')
-        if _solver_is_ready(ctx):
-            try:
-                _local_solver_support(ctx, token_address)
-            except Exception as err:
-                typer.echo(f'failed solver support: {err}')
-        else:
-            typer.echo(f'Run \"metemctl solver support {token_address}\" after enabling Solver')
 
 
 @app.command(help="Unregister disseminated CTI token from catalog.")
