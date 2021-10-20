@@ -26,7 +26,7 @@ import socket
 import sys
 from enum import IntEnum, auto
 from time import sleep
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 from cryptography.fernet import Fernet
 from eth_typing import ChecksumAddress
@@ -294,7 +294,6 @@ class SolverServer:
 
 
 class SolverController:
-    expected_cmd_args: ClassVar[List[List[str]]] = [['solver', 'start'], ['server']]  # FIXME
     account: Account
     config: DictConfig
     pid: int
@@ -310,16 +309,14 @@ class SolverController:
         try:
             with open(self.config.runtime.solver_pid_filepath, 'r', encoding='utf-8') as fin:
                 str_pid, eoaa, addr = fin.readline().strip().split('\t', 2)
+                expected_cmd_args = fin.readline().strip().split('\t')
             pid = int(str_pid)
-        except Exception:
-            return 0, ADDRESS0, ADDRESS0
-        try:
-            proc = Process(pid)
-            cmdline: List = proc.cmdline()
-            assert cmdline[2:] in self.__class__.expected_cmd_args
+            cmdline = Process(pid).cmdline()
+            if cmdline != expected_cmd_args:
+                raise Exception(f'command args mismatch')
             return pid, cast(ChecksumAddress, eoaa), cast(ChecksumAddress, addr)
         except Exception:
-            pass
+            pass  # FALLTHROUGH
         if os.path.exists(self.config.runtime.solver_pid_filepath):
             os.unlink(self.config.runtime.solver_pid_filepath)  # remove defunct pidfile.
         return 0, ADDRESS0, ADDRESS0
@@ -341,11 +338,15 @@ class SolverController:
 
         # child
         try:
+            os.setsid()
             server = SolverServer(self.account, self.config)
+            pid = os.getpid()
+            str_cmdline = '\t'.join(Process(pid).cmdline())
             with open(self.config.runtime.solver_pid_filepath, 'w', encoding='utf-8') as fout:
-                fout.write(f'{os.getpid()}\t'
+                fout.write(f'{pid}\t'
                            f'{self.account.eoa}\t'
                            f'{self.config.blockchain.operator.address}\n')
+                fout.write(f'{str_cmdline}\n')
             server.accept_loop()
         except KeyboardInterrupt:
             pass

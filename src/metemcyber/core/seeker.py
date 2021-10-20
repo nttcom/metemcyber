@@ -20,7 +20,7 @@ import sys
 from signal import SIGINT
 from threading import Thread
 from time import sleep
-from typing import ClassVar, List, Optional, Tuple
+from typing import Optional, Tuple
 from urllib.request import Request, urlopen
 
 from eth_typing import ChecksumAddress
@@ -167,7 +167,6 @@ class Resolver:
 
 
 class Seeker():
-    expected_cmd_args: ClassVar[List[str]] = ['seeker', 'start']
     config: DictConfig
     pid: int = 0
     listen_address: str
@@ -189,14 +188,16 @@ class Seeker():
         try:
             with open(self.config.runtime.seeker_pid_filepath, 'r', encoding='utf-8') as fin:
                 str_data = fin.readline().strip()
+                str_args = fin.readline().strip()
             str_pid, address, str_port = str_data.split('\t', 2)
+            expected_cmd_args = str_args.split('\t')
             pid = int(str_pid)
         except Exception:
             return 0, '', 0
         try:
-            proc = Process(pid)
-            cmdline = proc.cmdline()
-            assert cmdline[2:] == self.__class__.expected_cmd_args
+            cmdline = Process(pid).cmdline()
+            if cmdline != expected_cmd_args:
+                raise Exception(f'command args mismatch')
             return pid, address, int(str_port)
         except Exception:
             pass
@@ -219,11 +220,14 @@ class Seeker():
 
         # child
         try:
+            os.setsid()
             resolver = Resolver(self.config)
             address, port = resolver.start()
             pid = os.getpid()
+            str_cmdline = '\t'.join(Process(pid).cmdline())
             with open(self.config.runtime.seeker_pid_filepath, 'w', encoding='utf-8') as fout:
-                fout.write(f'{os.getpid()}\t{address}\t{port}\t')
+                fout.write(f'{pid}\t{address}\t{port}\n')
+                fout.write(f'{str_cmdline}\n')
             assert resolver.thread
             resolver.thread.join()
         except KeyboardInterrupt:

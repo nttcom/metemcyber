@@ -20,7 +20,7 @@ import sys
 from datetime import datetime
 from signal import SIGINT
 from time import sleep
-from typing import ClassVar, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 from urllib.request import Request, urlopen
 
 import uvicorn
@@ -343,7 +343,6 @@ class AssetManager:
 
 
 class AssetManagerController:
-    expected_cmd_args: ClassVar[List[str]] = ['asset-manager', 'start']
     account: Account
     config: DictConfig
     pid: int
@@ -359,16 +358,17 @@ class AssetManagerController:
         try:
             with open(self.config.runtime.assetmanager_pid_filepath, 'r', encoding='utf-8') as fin:
                 str_data = fin.readline().strip()
+                str_args = fin.readline().strip()
             str_pid, str_addr, str_port = str_data.split('\t', 2)
-        except Exception:
-            return 0, '', 0
-        try:
-            proc = Process(int(str_pid))
-            cmdline: List = proc.cmdline()
-            assert cmdline[2:] == self.__class__.expected_cmd_args
+            expected_cmd_args = str_args.split('\t')
+            pid = int(str_pid)
+            cmdline = Process(pid).cmdline()
+            if cmdline != expected_cmd_args:
+                raise Exception(f'command args mismatch')
             return int(str_pid), str_addr, int(str_port)
         except Exception:
             pass
+            # FALLTHROUGH
         if os.path.exists(self.config.runtime.assetmanager_pid_filepath):
             os.unlink(self.config.runtime.assetmanager_pid_filepath)  # remove defunct pidfile.
         return 0, '', 0
@@ -390,9 +390,13 @@ class AssetManagerController:
 
         # child
         try:
+            os.setsid()
             mgr = AssetManager(self.account, self.config)
+            pid = os.getpid()
+            str_cmdline = '\t'.join(Process(pid).cmdline())
             with open(self.config.runtime.assetmanager_pid_filepath, 'w', encoding='utf-8') as fout:
-                fout.write(f'{os.getpid()}\t{mgr.listen_address}\t{mgr.listen_port}\n')
+                fout.write(f'{pid}\t{mgr.listen_address}\t{mgr.listen_port}\n')
+                fout.write(f'{str_cmdline}\n')
             mgr.run()
         except KeyboardInterrupt:
             pass
