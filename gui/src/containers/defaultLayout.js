@@ -37,56 +37,97 @@ function DefaultLayout(props) {
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(async () => {
-        await Promise.all(getInfo());
+        const result = await Promise.all(getInfo())
+            .catch((message) => {
+                setErrorMessage(message)
+                setErrorModalToggle(true);
+                return false;
+            });
+
+        if (!result) {
+            return;
+        }
+
         setInfoInterval();
-        console.log(tokenList)
         setIsLoading(false);
     }, []);
 
     const setInfoInterval = () => {
-        const id = setInterval(() => {
-            getInfo();
+        const id = setInterval(async () => {
+            await Promise.all(getInfo())
+                .catch((message) => {
+                    setErrorMessage(message)
+                    setErrorModalToggle(true);
+                });
         }, 30000);
         setIntervalId(id);
     };
 
     const refreshInfo = async () => {
         clearInterval(intervalId);
-        await Promise.all(getInfo());
+        await Promise.all(getInfo())
+            .catch((message) => {
+                setErrorMessage(message)
+                setErrorModalToggle(true);
+            });
         setInfoInterval();
     };
 
     const getInfo = () => {
         return [
-            new Promise((resolve) => {
+            new Promise((resolve, reject) => {
                 ipcRenderer.send('account');
                 ipcRenderer.once('send-accountinfo', (event, arg) => {
                     console.log(arg)
-                    setAccountInfo(arg);
-                    resolve();
+
+                    if (!arg.commandStatus) {
+                        reject(arg.message);
+                        return;
+                    }
+
+                    setAccountInfo(arg.data.accountInfo);
+                    resolve(true);
                 });
             }),
-            new Promise((resolve) => {
+            new Promise((resolve, reject) => {
                 ipcRenderer.send('token');
                 ipcRenderer.once('send-tokenlist', (event, arg) => {
                     console.log(arg)
-                    setTokenList(arg);
+
+                    if (!arg.commandStatus) {
+                        reject(arg.message);
+                        return;
+                    }
+
+                    setTokenList(arg.data.tokenList);
                     resolve();
                 });
             }),
-            new Promise((resolve) => {
+            new Promise((resolve, reject) => {
                 ipcRenderer.send('seeker');
                 ipcRenderer.once('send-seekerstatus', (event, arg) => {
                     console.log(arg)
-                    setSeekerStatus(arg);
+
+                    if (!arg.commandStatus) {
+                        reject(arg.message);
+                        return;
+                    }
+
+                    setSeekerStatus(arg.data.seekerStatus);
                     resolve();
                 });
             }),
-            new Promise((resolve) => {
+            new Promise((resolve, reject) => {
                 ipcRenderer.send('challange');
                 ipcRenderer.once('send-challangeList', (event, arg) => {
                     console.log(arg)
-                    setChallangeList(arg);
+
+                    if (!arg.commandStatus) {
+                        reject(arg.message);
+                        return;
+                    }
+
+                    setChallangeList(arg.data.challangeList);
                     resolve();
                 });
             })
@@ -111,9 +152,11 @@ function DefaultLayout(props) {
         ipcRenderer.sendSync('open-download-dir');
     }
 
-    const toggleErrorModal = (message) => {
-        setErrorMessage(message);
+    const toggleErrorModal = () => {
         setErrorModalToggle(!errorModalToggle);
+        if (isLoading) {
+            props.history.push('/login');
+        }
     }
 
     return (
@@ -201,7 +244,8 @@ function DefaultLayout(props) {
             <Modal isOpen={errorModalToggle} toggle={toggleErrorModal} >
                 <ModalHeader >Error</ModalHeader>
                 <ModalBody>
-                    {errorMessage}
+                    <p>An error has occurred.</p>
+                    <ErrorParagraph>{errorMessage}</ErrorParagraph>
                 </ModalBody>
                 <ModalFooter>
                     <Button color="primary" onClick={toggleErrorModal}>OK</Button>{' '}
@@ -296,4 +340,8 @@ export const LoadingContents = styled.div`
 
 export const ListInlineLabel = styled(ListInlineItem)`
     font-weight: bold;
+`;
+
+export const ErrorParagraph = styled.p`
+    color: red;
 `;
