@@ -29,6 +29,8 @@ const nodePtyConfig = {
   rows: 1500,
 };
 
+const failedMessage = /failed operation:/;
+
 async function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1600,
@@ -89,38 +91,69 @@ ipcMain.on('logout', async (event, arg) => {
 });
 
 ipcMain.on('login', async (event, arg) => {
+  let commandStatus = true;
+  let message = '';
+
   process.env.METEMCTL_KEYFILE_PASSWORD = arg;
   const proc = getProc(["account", "show",]);
-  let status = true;
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
-      if (val === 'failed operation: MAC mismatch') {
-        status = false;
+      if (val.match(failedMessage)) {
+        commandStatus = false;
+        message = val;
       }
       event.reply('send-log', val);
     })
   });
   await onEnd(proc);
-  event.reply('login', status);
+  event.reply('login', {
+    'commandStatus': commandStatus,
+    'message': message
+  });
 });
 
 ipcMain.on('seeker', async (event, arg) => {
+  let commandStatus = true;
+  let message = '';
+
+  let seekerStatus = true;
+
   const proc = getProc(["seeker", "status",]);
   outputStr = "";
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
+      if (val.match(failedMessage)) {
+        commandStatus = false;
+        message = val;
+        seekerStatus = false;
+      }
       event.reply('send-log', val);
       outputStr += val;
     })
   });
   await onEnd(proc);
+
+  if (!commandStatus) {
+    event.reply('send-seekerstatus', {
+      'commandStatus': commandStatus,
+      'message': message
+    });
+    return;
+  }
+
   outputs = outputStr.split(" ").filter(val => val !== '');
 
-  let status = true;
   if (outputs[0] === 'not') {
-    status = false;
+    seekerStatus = false;
   }
-  event.reply('send-seekerstatus', status);
+
+  event.reply('send-seekerstatus', {
+    'commandStatus': commandStatus,
+    'message': message,
+    'data': {
+      'seekerStatus': seekerStatus
+    }
+  });
 });
 
 ipcMain.on('challange-start', async (event, arg) => {
@@ -167,6 +200,9 @@ ipcMain.on('challange-start', async (event, arg) => {
 
 
 ipcMain.on('account', async (event, arg) => {
+  let commandStatus = true;
+  let message = '';
+
   let returnVal = {
     summary: {},
     contract: {},
@@ -179,11 +215,24 @@ ipcMain.on('account', async (event, arg) => {
   let outputStr = "";
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
+      if (val.match(failedMessage)) {
+        commandStatus = false;
+        message = val;
+      }
       event.reply('send-log', val);
       outputStr += val;
     })
   });
   await onEnd(proc);
+
+  if (!commandStatus) {
+    event.reply('send-accountinfo', {
+      'commandStatus': commandStatus,
+      'message': message
+    });
+    return;
+  }
+
   let outputs = outputStr.split(" ").filter(val => val !== '');
 
   returnVal.summary.eoa_address = outputs[outputs.indexOf('Address:') + 1];
@@ -210,10 +259,23 @@ ipcMain.on('account', async (event, arg) => {
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
       event.reply('send-log', val);
+      if (val.match(failedMessage)) {
+        commandStatus = false;
+        message = val;
+      }
       outputStr += val;
     })
   });
   await onEnd(proc);
+
+  if (!commandStatus) {
+    event.reply('send-accountinfo', {
+      'commandStatus': commandStatus,
+      'message': message
+    });
+    return;
+  }
+
   outputs = outputStr.split(" ").filter(val => val !== '');
 
   returnVal.contract.catalog_address_actives = outputs[outputs.indexOf('Support/metemcyber/workspace[catalog]actives') + 2].substring(0, 42);
@@ -230,10 +292,19 @@ ipcMain.on('account', async (event, arg) => {
   returnVal.contract.broker_address = outputs[brokerIndex + 2].substring(0, 42);
   returnVal.contract.operator_address = outputs[brokerIndex + 4].substring(0, 42);
 
-  event.reply('send-accountinfo', returnVal);
+  event.reply('send-accountinfo', {
+    'commandStatus': commandStatus,
+    'message': message,
+    'data': {
+      'accountInfo': returnVal
+    }
+  });
 });
 
 ipcMain.on('token', async (event, arg) => {
+  let commandStatus = true;
+  let message = '';
+
   let returnVal = {
     item: [],
   };
@@ -253,11 +324,23 @@ ipcMain.on('token', async (event, arg) => {
   let outputStr = "";
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
+      if (val.match(failedMessage)) {
+        commandStatus = false;
+        message = val;
+      }
       event.reply('send-log', val);
       outputStr += val;
     })
   });
   await onEnd(proc);
+
+  if (!commandStatus) {
+    event.reply('send-tokenlist', {
+      'commandStatus': commandStatus,
+      'message': message
+    });
+    return;
+  }
 
   let outputs = outputStr.split(" ").filter(val => val !== '');
   outputs.splice(0, 20);
@@ -290,7 +373,13 @@ ipcMain.on('token', async (event, arg) => {
     };
   }
 
-  event.reply('send-tokenlist', returnVal);
+  event.reply('send-tokenlist', {
+    'commandStatus': commandStatus,
+    'message': message,
+    'data': {
+      'tokenList': returnVal
+    }
+  });
 });
 
 ipcMain.on('buy', async (event, arg) => {
@@ -301,6 +390,9 @@ ipcMain.on('buy', async (event, arg) => {
 });
 
 ipcMain.on('challange', async (event, arg) => {
+  let commandStatus = true;
+  let message = '';
+
   let returnVal = {
     item: [],
   };
@@ -317,11 +409,23 @@ ipcMain.on('challange', async (event, arg) => {
   let outputStr = "";
   proc.on('data', (data) => {
     data.split("\r\n").map((val) => {
+      if (val.match(failedMessage)) {
+        commandStatus = false;
+        message = val;
+      }
       event.reply('send-log', val);
       outputStr += val;
     })
   });
   await onEnd(proc);
+
+  if (!commandStatus) {
+    event.reply('send-challangeList', {
+      'commandStatus': commandStatus,
+      'message': message
+    });
+    return;
+  }
 
   let outputs = outputStr.split(" ").filter(val => val !== '');
 
@@ -344,7 +448,13 @@ ipcMain.on('challange', async (event, arg) => {
     outputs.splice(0, 5);
   }
 
-  event.reply('send-challangeList', returnVal);
+  event.reply('send-challangeList', {
+    'commandStatus': commandStatus,
+    'message': message,
+    'data': {
+      'challangeList': returnVal
+    }
+  });
 });
 
 ipcMain.on('cancel', async (event, arg) => {

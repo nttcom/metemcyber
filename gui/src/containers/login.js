@@ -32,6 +32,7 @@ function Login(props) {
     const [selectedKey, setSelectedKey] = useState({});
     const [keyModalToggle, setKeyModalToggle] = useState(false);
     const [errorModalToggle, setErrorModalToggle] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
     const [settingModalToggle, setSettingModalToggle] = useState(false);
     const [urlValue, setUrlValue] = useState('');
     const [setup, setSetup] = useState(true);
@@ -47,10 +48,10 @@ function Login(props) {
     const handleSubmit = () => {
         setLoading(true);
         ipcRenderer.once('login', (event, arg) => {
-            console.log(arg)
-            if (arg) {
+            if (arg.commandStatus) {
                 props.history.push('/contents');
             }
+            setErrorMessage(arg.message);
             setErrorModalToggle(true);
             setLoading(false);
         });
@@ -170,7 +171,8 @@ function Login(props) {
             <Modal isOpen={errorModalToggle} toggle={toggleErrorModal} >
                 <ModalHeader >Error</ModalHeader>
                 <ModalBody>
-                    Password is incorrect.
+                    <p>An error has occurred.</p>
+                    <ErrorParagraph>{errorMessage}</ErrorParagraph>
                 </ModalBody>
                 <ModalFooter>
                     <Button color="primary" onClick={toggleErrorModal}>OK</Button>{' '}
@@ -243,4 +245,8 @@ const UrlInput = styled(Input)`
 
 const HeaderButton = styled(Button)`
     margin: 0 5px;
+`;
+
+const ErrorParagraph = styled.p`
+    color: red;
 `;
