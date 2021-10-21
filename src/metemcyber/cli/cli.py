@@ -2164,9 +2164,11 @@ def account_airdrop(ctx: typer.Context, promote_code: str):
         raise typer.Abort('Invalid promote code.')
 
     config = load_config(ctx)
-    url = config.airdrop_url
+    url = config.blockchain.airdrop_url
+    if not url:
+        raise Exception('Missing configuration: blockchain.airdrop_url')
     if 'http' not in url:
-        raise Exception('Invalid airdrop_url:', url)
+        raise Exception(f'Invalid airdrop_url: {url}')
 
     account = _load_account(ctx)
     data = {
