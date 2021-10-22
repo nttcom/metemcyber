@@ -22,10 +22,11 @@ from time import sleep
 from typing import Optional, Tuple
 
 import requests
+from omegaconf.dictconfig import DictConfig
 from psutil import NoSuchProcess, Process
 
 from metemcyber.core.logger import get_logger
-from metemcyber.core.util import get_random_local_port, merge_config
+from metemcyber.core.util import get_random_local_port
 
 LOGGER = get_logger(name='ngrok', file_prefix='core')
 
@@ -38,23 +39,16 @@ DEFAULT_CONFIGS = {
 }
 
 
-def ngrok_pid_filepath(app_dir: str) -> str:
-    return f'{app_dir}/ngrok.pid'
-
-
 class NgrokMgr():
-    def __init__(self, app_dir: str, seeker_port: int = 0, config_path: Optional[str] = None
-                 ) -> None:
-        self.app_dir: str = app_dir
+    def __init__(self, config: DictConfig, seeker_port: int = 0):
         self.seeker_port: int = seeker_port
-        self.config = merge_config(config_path, DEFAULT_CONFIGS)
-        self.ngrok_path: str = self.config[CONFIG_SECTION]['ngrok_path']
+        self.config: DictConfig = config
         pid, public_url = self.check_running()
         self.pid: int = pid
         self.public_url: Optional[str] = public_url
 
     def check_running(self) -> Tuple[int, Optional[str]]:  # (pid|0, public_url)
-        pid_file = ngrok_pid_filepath(self.app_dir)
+        pid_file = self.config.runtime.ngrok_pid_filepath
         try:
             with open(pid_file, 'r', encoding='utf-8') as fin:
                 str_data = fin.readline().strip()
@@ -90,13 +84,14 @@ class NgrokMgr():
         raise Exception(f'Cannot get ngrok public_url: {last_error}')
 
     def _try_ngrok(self) -> Tuple[int, str]:
-        web_port = int(self.config[CONFIG_SECTION]['ngrok_web_port'])
+        web_port = self.config.blockchain.ngrok.web_port
         retry = 1 if web_port > 0 else 10
         proc = None
         tmp_out, tmp_fname = mkstemp(suffix='.yml')
         try:
             os.close(tmp_out)
-            args = [self.ngrok_path, 'http', '--config', tmp_fname, str(self.seeker_port)]
+            args = [self.config.blockchain.ngrok.ngrok_path,
+                    'http', '--config', tmp_fname, str(self.seeker_port)]
             while retry > 0:
                 port = web_port if web_port else get_random_local_port()
                 with open(tmp_fname, 'w', encoding='utf-8') as fout:
@@ -116,7 +111,7 @@ class NgrokMgr():
             if retry == 0:
                 raise Exception('Failed launching ngrok')
             public_url = self._get_public_url(port)
-            with open(ngrok_pid_filepath(self.app_dir), 'w', encoding='utf-8') as fout:
+            with open(self.config.runtime.ngrok_pid_filepath, 'w', encoding='utf-8') as fout:
                 assert proc
                 fout.write('\t'.join([str(proc.pid), public_url] + args))
             return proc.pid, public_url
@@ -142,7 +137,7 @@ class NgrokMgr():
         try:
             LOGGER.info(f'stopping process({self.pid}).')
             os.kill(self.pid, SIGINT)
-            os.unlink(ngrok_pid_filepath(self.app_dir))
+            os.unlink(self.config.runtime.ngrok_pid_filepath)
             self.pid = 0
         except Exception as err:
             raise Exception(f'Cannot stop ngrok(pid={self.pid})') from err

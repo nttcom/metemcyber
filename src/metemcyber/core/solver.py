@@ -16,7 +16,6 @@
 
 import json
 from collections import deque
-from configparser import ConfigParser
 from threading import Condition, Thread
 from time import sleep
 from typing import Callable, Dict, List, Optional
@@ -24,6 +23,7 @@ from urllib.request import Request, urlopen
 
 from eth_typing import ChecksumAddress
 from eth_utils.exceptions import ValidationError
+from omegaconf.dictconfig import DictConfig
 from requests.exceptions import HTTPError
 from web3.datastructures import AttributeDict
 
@@ -31,7 +31,6 @@ from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.cti_operator import CTIOperator
 from metemcyber.core.bc.eventlistener import BasicEventListener
 from metemcyber.core.logger import get_logger
-from metemcyber.core.util import merge_config
 
 SIGNATURE_HEADER = 'Metemcyber-Signature'
 QUEUE_DELAY_SEC = 2
@@ -117,22 +116,17 @@ class ChallengeListener(BasicEventListener):
 
 class BaseSolver:
     account: Account
-    operator_address: ChecksumAddress
     listener: Optional[ChallengeListener]
-    config: ConfigParser
-    workspace: str
+    config: DictConfig
 
-    def __init__(self, account: Account, operator_address: ChecksumAddress,
-                 workspace: str, config_path: Optional[str] = None) -> None:
-        LOGGER.info('initializing solver %s for %s', self, operator_address)
+    def __init__(self, account: Account, config: DictConfig):
+        LOGGER.info('initializing solver %s for EOA %s', self, account.eoa)
         self.account = account
-        self.operator_address = operator_address
         self.listener = None
-        self.config = merge_config(config_path, {})  # default is empty
-        self.workspace = workspace
+        self.config = config
 
     def destroy(self):
-        LOGGER.info('destructing solver %s for %s', self, self.operator_address)
+        LOGGER.info('destructing solver %s for EOA %s', self, self.account.eoa)
         if self.listener:
             self.listener.destroy()
             self.listener = None
@@ -147,7 +141,7 @@ class BaseSolver:
     def accept_registered(self, tokens: Optional[List[ChecksumAddress]]):
         LOGGER.info('accept_registered candidates: %s', tokens)
         accepting = self.accepting_tokens()
-        cti_operator = CTIOperator(self.account).get(self.operator_address)
+        cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
         if tokens is None:  # auto detect mode
             targets = cti_operator.list_registered(self.account.eoa)
         else:
@@ -179,11 +173,12 @@ class BaseSolver:
             self.listener is None or len(self.listener.accepting) == 0
         if not self.listener:
             self.listener = ChallengeListener(
-                self.account, self.operator_address, 'TokensReceivedCalled')
+                self.account, self.config.blockchain.operator.address, 'TokensReceivedCalled')
             self.listener.start()
         self.listener.accept_tokens(token_addresses, self.process_challenge)
         if force_register:
-            CTIOperator(self.account).get(self.operator_address).register_tokens(token_addresses)
+            cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+            cti_operator.register_tokens(token_addresses)
         return self.notify_first_accept() if need_notify else None
 
     def refuse_challenges(self, tokens: List[ChecksumAddress]):
@@ -192,11 +187,13 @@ class BaseSolver:
         if targets:
             assert self.listener
             self.listener.refuse_tokens(targets)
-            CTIOperator(self.account).get(self.operator_address).unregister_tokens(targets)
+            cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+            cti_operator.unregister_tokens(targets)
 
     def accept_task(self, task_id):
         try:
-            CTIOperator(self.account).get(self.operator_address).accept_task(task_id)
+            cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+            cti_operator.accept_task(task_id)
             return True
         except (HTTPError, ValueError, ValidationError) as err:
             # another solver may accept faster than me.
@@ -204,10 +201,12 @@ class BaseSolver:
             return False
 
     def finish_task(self, task_id, data=''):
-        CTIOperator(self.account).get(self.operator_address).finish_task(task_id, data)
+        cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+        cti_operator.finish_task(task_id, data)
 
     def reemit_pending_tasks(self, tokens):
-        CTIOperator(self.account).get(self.operator_address).reemit_pending_tasks(tokens)
+        cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+        cti_operator.reemit_pending_tasks(tokens)
 
     @staticmethod
     def process_challenge(_token_address, _event):

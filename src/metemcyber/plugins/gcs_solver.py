@@ -17,45 +17,34 @@
 import json
 import os
 from json.decoder import JSONDecodeError
-from typing import Optional
 
 import requests
-from eth_typing import ChecksumAddress
+from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 from web3 import Web3
 
 from metemcyber.core.bc.account import Account
 from metemcyber.core.logger import get_logger
 from metemcyber.core.solver import BaseSolver
-from metemcyber.core.util import merge_config
 
 LOGGER = get_logger(name='gcs_solver', file_prefix='core')
 
-CONFIG_SECTION = 'gcs_solver'
-DEFAULT_CONFIGS = {
-    CONFIG_SECTION: {
-        'functions_url': 'https://exchange.metemcyber.ntt.com',
-        'functions_token': 'YOUR_TOKEN_TO_UPLOAD_GCS',
-    }
-}
-
 
 class Solver(BaseSolver):
-    def __init__(self, account: Account, operator_address: ChecksumAddress,
-                 workspace: str, config_file: Optional[str]) -> None:
-        super().__init__(account, operator_address, workspace, config_file)
-        self.config = merge_config(config_file, DEFAULT_CONFIGS, self.config)
-        try:
-            url = self.config[CONFIG_SECTION]['functions_url']
-            token = self.config[CONFIG_SECTION]['functions_token']
-            assert url and token not in (
-                None, '', DEFAULT_CONFIGS[CONFIG_SECTION]['functions_token'])
-        except Exception as err:
-            raise Exception('Not enough configuration to upload to GCS') from err
-        self.uploader = Uploader(url, token)
+    def __init__(self, account: Account, config: DictConfig):
+        super().__init__(account, config)
+        required = ['blockchain.solver.gcs_solver.functions_url',
+                    'blockchain.solver.gcs_solver.functions_token']
+        for key in required:
+            if not OmegaConf.select(self.config, key):
+                raise Exception(f'Missing configuration: {key}')
+        self.uploader = Uploader(
+            self.config.blockchain.solver.gcs_solver.functions_url,
+            self.config.blockchain.solver.gcs_solver.functions_token)
 
     def notify_first_accept(self):
-        url = self.config[CONFIG_SECTION]['functions_url']
-        return f'Caution: solved challenge data will be uploaded onto {url}.'
+        return ('Caution: solved challenge data will be uploaded onto '
+                f'{self.config.blockchain.solver.gcs_solver.functions_url}.')
 
     def process_challenge(self, token_address, event):
         LOGGER.info('GCSSolver: callback: %s', token_address)
@@ -92,7 +81,7 @@ class Solver(BaseSolver):
             LOGGER.info('finished task %s', task_id)
 
     def upload_to_storage(self, cti_address):
-        file_path = os.path.abspath(f"{self.workspace}/upload/{cti_address}")
+        file_path = os.path.abspath(f"{self.config.runtime.asset_filepath}/{cti_address}")
         url = self.uploader.upload_file(file_path)
         return url
 
