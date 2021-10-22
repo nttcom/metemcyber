@@ -22,7 +22,13 @@ from web3.providers.rpc import HTTPProvider
 
 class Ether:
     def __init__(self, endpoint):
-        self.web3 = Web3(HTTPProvider(endpoint))
+        scheme = endpoint.split(':', 1)[0]
+        if scheme in {'http', 'https'}:
+            self.web3 = Web3(HTTPProvider(endpoint))
+        elif scheme in {'ws', 'wss'}:
+            self.web3 = Web3(Web3.WebsocketProvider(endpoint))
+        else:
+            raise Exception(f'Not supported scheme: {endpoint}')
         if self.web3.isConnected():
             try:
                 self.web3.eth.getBlock('latest')
