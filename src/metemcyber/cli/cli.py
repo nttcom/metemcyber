@@ -250,7 +250,7 @@ def common_logging(func):
             func(*args, **kwargs)
         except Exception as err:
             logger.exception(err)
-            typer.echo(f'failed operation: {err}')
+            typer.echo(f'failed operation: {str(err) or err.__class__.__name__}')
     return wrapper
 
 
