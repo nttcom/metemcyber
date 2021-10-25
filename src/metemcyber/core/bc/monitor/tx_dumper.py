@@ -40,7 +40,13 @@ class TransactionDumper:
         endpoint = self.conf['endpoint']
         db_filepath = self.conf['db_filepath_raw']
 
-        self.web3 = Web3(HTTPProvider(endpoint))
+        scheme = endpoint.split(':', 1)[0]
+        if scheme in {'http', 'https'}:
+            self.web3 = Web3(HTTPProvider(endpoint))
+        elif scheme in {'ws', 'wss'}:
+            self.web3 = Web3(Web3.WebsocketProvider(endpoint))
+        else:
+            raise Exception(f'Not supported scheme: {endpoint}')
         try:
             self.web3.eth.get_block('latest')
         except ExtraDataLengthError:
