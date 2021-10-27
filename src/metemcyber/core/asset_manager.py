@@ -109,18 +109,18 @@ class AssetManager:
 
     def __init__(self, solver_account: Account, config: DictConfig):
         self.config = config
-        self.anonymous = Account(Ether(config.blockchain.endpoint_url))
+        self.anonymous = Account(Ether(config.workspace.endpoint_url))
         self.solver_account = solver_account
         self.nonce_map = {}
-        self.listen_address = config.blockchain.assetmanager.listen_address
-        self.listen_port = config.blockchain.assetmanager.listen_port
+        self.listen_address = config.workspace.assetmanager.listen_address
+        self.listen_port = config.workspace.assetmanager.listen_port
 
         ctrl = self._solver_ctrl()
         if ctrl.pid <= 0:
             raise Exception(f'Solver looks down (must be running)')
         if ctrl.solver_eoaa != self.solver_account.eoa:
             raise Exception(f'Solver is running with different EOA({ctrl.solver_eoaa})')
-        if ctrl.operator_address != self.config.blockchain.operator.address:
+        if ctrl.operator_address != self.config.workspace.operator.address:
             raise Exception(f'Solver is running with different operator({ctrl.operator_address})')
         try:
             solver = self._get_solver()

@@ -153,12 +153,12 @@ def _load_account(ctx: typer.Context) -> Account:
     if 'account' in ctx.meta.keys():
         return ctx.meta['account']
     config = load_config(ctx)
-    required = ['blockchain.endpoint_url', 'blockchain.keyfile']
+    required = ['workspace.endpoint_url', 'workspace.keyfile']
     for key in required:
         if OmegaConf.is_missing(config, key) or not OmegaConf.select(config, key):
             raise Exception(f'Missing configuration: {key}')
-    eoaa, pkey = decode_keyfile(config.blockchain.keyfile, config.blockchain.keyfile_password)
-    account = Account(Ether(config.blockchain.endpoint_url), eoaa, pkey)
+    eoaa, pkey = decode_keyfile(config.workspace.keyfile, config.workspace.keyfile_password)
+    account = Account(Ether(config.workspace.endpoint_url), eoaa, pkey)
     ctx.meta['account'] = account
     return account
 
@@ -167,13 +167,13 @@ def _load_solver_account(ctx: typer.Context) -> Account:
     if 'solver_account' in ctx.meta.keys():
         return ctx.meta['solver_account']
     config = load_config(ctx)
-    required = ['blockchain.endpoint_url', 'blockchain.solver.keyfile']
+    required = ['workspace.endpoint_url', 'workspace.solver.keyfile']
     for key in required:
         if not OmegaConf.select(config, key):
             raise Exception(f'Missing configuration: {key}')
-    eoaa, pkey = decode_keyfile(config.blockchain.solver.keyfile,
-                                config.blockchain.solver.keyfile_password)
-    solver_account = Account(Ether(config.blockchain.endpoint_url), eoaa, pkey)
+    eoaa, pkey = decode_keyfile(config.workspace.solver.keyfile,
+                                config.workspace.solver.keyfile_password)
+    solver_account = Account(Ether(config.workspace.endpoint_url), eoaa, pkey)
     ctx.meta['solver_account'] = solver_account
     return solver_account
 
@@ -183,16 +183,16 @@ def _load_contract_libs(ctx: typer.Context):
     config = load_config(ctx)
     deploy_erc1820(account.eoa, account.web3)
 
-    conf_util = config.blockchain.metemcyber_util
+    conf_util = config.workspace.metemcyber_util
     if conf_util.address and conf_util.placeholder:
         _ph = MetemcyberUtil.register_library(conf_util.address)
         assert _ph == conf_util.placeholder
     else:
         util = MetemcyberUtil(account).new()
         util_ph = util.register_library(util.address)
-        config = update_config(config, 'blockchain.metemcyber_util.address', util.address,
+        config = update_config(config, 'workspace.metemcyber_util.address', util.address,
                                ctx=ctx, save=False, validate=False)  # not save
-        config = update_config(config, 'blockchain.metemcyber_util.placeholder', util_ph,
+        config = update_config(config, 'workspace.metemcyber_util.placeholder', util_ph,
                                ctx=ctx, save=True, validate=False)  # save
 
 
@@ -202,12 +202,12 @@ def _load_catalog_manager(ctx: typer.Context) -> CatalogManager:
     account = _load_account(ctx)
     config = load_config(ctx)
     catalog_mgr = CatalogManager(account)
-    if config.blockchain.catalog.actives:
+    if config.workspace.catalog.actives:
         catalog_mgr.add(
-            cast(List[ChecksumAddress], config.blockchain.catalog.actives), activate=True)
-    if config.blockchain.catalog.reserves:
+            cast(List[ChecksumAddress], config.workspace.catalog.actives), activate=True)
+    if config.workspace.catalog.reserves:
         catalog_mgr.add(
-            cast(List[ChecksumAddress], config.blockchain.catalog.reserves), activate=False)
+            cast(List[ChecksumAddress], config.workspace.catalog.reserves), activate=False)
     ctx.meta['catalog_manager'] = catalog_mgr
     return catalog_mgr
 
@@ -217,10 +217,10 @@ def _load_broker(ctx: typer.Context) -> Broker:
         return ctx.meta['broker']
     try:
         config = load_config(ctx)
-        broker_address = cast(ChecksumAddress, config.blockchain.broker.address)
+        broker_address = cast(ChecksumAddress, config.workspace.broker.address)
         assert broker_address
     except Exception as err:
-        raise Exception('Missing configuration: blockchain.broker.address') from err
+        raise Exception('Missing configuration: workspace.broker.address') from err
     account = _load_account(ctx)
     broker = Broker(account).get(broker_address)
     ctx.meta['broker'] = broker
@@ -232,10 +232,10 @@ def _load_operator(ctx: typer.Context) -> Operator:
         return ctx.meta['operator']
     config = load_config(ctx)
     try:
-        operator_address = cast(ChecksumAddress, config.blockchain.operator.address)
+        operator_address = cast(ChecksumAddress, config.workspace.operator.address)
         assert operator_address
     except Exception as err:
-        raise Exception('Missing configuration: blockchain.operator.address') from err
+        raise Exception('Missing configuration: workspace.operator.address') from err
     account = _load_account(ctx)
     operator = Operator(account).get(operator_address)
     ctx.meta['operator'] = operator
@@ -487,10 +487,10 @@ def new(
 def config_update_catalog(ctx: typer.Context):
     catalog_mgr = _load_catalog_manager(ctx)
     config = load_config(ctx)
-    config = update_config(config, 'blockchain.catalog.actives',
+    config = update_config(config, 'workspace.catalog.actives',
                            list(catalog_mgr.active_catalogs.keys()),
                            ctx=ctx, validate=False, save=False)
-    config = update_config(config, 'blockchain.catalog.reserves',
+    config = update_config(config, 'workspace.catalog.reserves',
                            list(catalog_mgr.reserved_catalogs.keys()),
                            ctx=ctx, validate=True, save=True)
     Catalog(_load_account(ctx)).uncache(entire=True)
@@ -898,7 +898,7 @@ def seeker_status(ctx: typer.Context):
 def _seeker_status(ctx) -> Tuple[bool, str]:
     config = load_config(ctx)
     for key in ['endpoint_url', 'keyfile', 'operator.address']:
-        if not OmegaConf.select(config.blockchain, key):
+        if not OmegaConf.select(config.workspace, key):
             return False, 'not configured'
     seeker = Seeker(config)
     if not seeker.pid:
@@ -940,7 +940,7 @@ def _seeker_start(ctx):
     seeker.start()
     typer.echo(f'seeker started on process {seeker.pid}, '
                f'listening {seeker.listen_address}:{seeker.listen_port}.')
-    if config.blockchain.seeker.use_ngrok:
+    if config.workspace.seeker.use_ngrok:
         ngrok_mgr = NgrokMgr(config, seeker.listen_port)
         if ngrok_mgr.pid == 0:
             ngrok_mgr.start()
@@ -1009,7 +1009,7 @@ def _solver_is_ready(ctx: typer.Context) -> bool:
 def _local_solver_status(ctx: typer.Context) -> Tuple[bool, str]:
     config = load_config(ctx)
     for key in ['endpoint_url', 'keyfile', 'operator.address']:
-        if not OmegaConf.select(config.blockchain, key):
+        if not OmegaConf.select(config.workspace, key):
             return False, 'not configured'
     ctrl = SolverController(_load_solver_account(ctx), config)
     if ctrl.pid <= 0:
@@ -1184,7 +1184,7 @@ def assetmgr_status(ctx: typer.Context):
 def _assetmgr_status(ctx) -> Tuple[bool, str]:
     config = load_config(ctx)
     for key in ['endpoint_url', 'keyfile', 'operator.address']:
-        if not OmegaConf.select(config.blockchain, key):
+        if not OmegaConf.select(config.workspace, key):
             return False, 'not configured'
     ctrl = AssetManagerController(_load_solver_account(ctx), config)
     if ctrl.pid == 0:
@@ -1193,11 +1193,11 @@ def _assetmgr_status(ctx) -> Tuple[bool, str]:
 
 
 def _shared_solver_enabled(ctx) -> bool:
-    return bool(load_config(ctx).blockchain.solver.shared_solver_url)
+    return bool(load_config(ctx).workspace.solver.shared_solver_url)
 
 
 def _load_shared_solver(ctx) -> AssetManagerClient:
-    url = load_config(ctx).blockchain.solver.shared_solver_url
+    url = load_config(ctx).workspace.solver.shared_solver_url
     if 'asset_client' in ctx.meta.keys():
         return ctx.meta['asset_client']
     client = AssetManagerClient(url)
@@ -1585,7 +1585,7 @@ def broker_create(ctx: typer.Context,
     if switch:
         typer.echo('configuring to use the broker above.')
         ctx.meta['broker'] = broker
-        update_config(load_config(ctx), 'blockchain.broker.address', broker.address,
+        update_config(load_config(ctx), 'workspace.broker.address', broker.address,
                       ctx=ctx, save=True, validate=False)
 
 
@@ -1612,7 +1612,7 @@ def operator_create(ctx: typer.Context,
     if switch or old_operator is None:
         typer.echo('configuring to use the operator above.')
         ctx.meta['operator'] = operator
-        update_config(load_config(ctx), 'blockchain.operator.address', operator.address,
+        update_config(load_config(ctx), 'workspace.operator.address', operator.address,
                       ctx=ctx, save=True, validate=False)
         if old_operator:
             typer.echo('you should restart seeker and solver, if launched.')
@@ -2147,14 +2147,14 @@ def account_create(ctx: typer.Context):
     typer.echo('* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *')
 
     config = load_config(ctx)
-    if not config.blockchain.keyfile:
+    if not config.workspace.keyfile:
         fix = True
     else:
-        typer.echo(f'Metemctl is configured to use keyfile: {config.blockchain.keyfile}')
+        typer.echo(f'Metemctl is configured to use keyfile: {config.workspace.keyfile}')
         fix = typer.confirm('Modify config to use the created keyfile?')
     if fix:
-        update_config(config, 'blockchain.keyfile', str(keyfile_path), save=True, validate=False)
-        typer.echo('You should edit config to set blockchain.keyfile_password.')
+        update_config(config, 'workspace.keyfile', str(keyfile_path), save=True, validate=False)
+        typer.echo('You should edit config to set workspace.keyfile_password.')
 
 
 @account_app.command("airdrop", help="Get some ETH from Promote Code. (for devnet)")
@@ -2164,9 +2164,9 @@ def account_airdrop(ctx: typer.Context, promote_code: str):
         raise typer.Abort('Invalid promote code.')
 
     config = load_config(ctx)
-    url = config.blockchain.airdrop_url
+    url = config.workspace.airdrop_url
     if not url:
-        raise Exception('Missing configuration: blockchain.airdrop_url')
+        raise Exception('Missing configuration: workspace.airdrop_url')
     if 'http' not in url:
         raise Exception(f'Invalid airdrop_url: {url}')
 
@@ -2188,7 +2188,7 @@ def account_airdrop(ctx: typer.Context, promote_code: str):
         if content['result'] == 'ok':
             typer.echo(f'Airdrop 1000 ETH to {account.eoa}')
             # HACK: use promote code as API token
-            key = 'blockchain.solver.gcs_solver.functions_token'
+            key = 'workspace.solver.gcs_solver.functions_token'
             if not OmegaConf.select(config, key):
                 update_config(config, key, promote_code, save=True, validate=False)
             typer.echo('Let me check: metemctl account show')
@@ -2228,7 +2228,7 @@ def config_edit(ctx: typer.Context,
 def print_workspace_list(ctx: typer.Context):
     config = load_config(ctx)
     for space in ws_list():
-        typer.echo(f'{" *" if space == config.workspace else "  "}{space}')
+        typer.echo(f'{" *" if space == config.workspace_name else "  "}{space}')
 
 
 @workspace_app.command('switch')

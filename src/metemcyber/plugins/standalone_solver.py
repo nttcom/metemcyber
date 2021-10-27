@@ -102,13 +102,13 @@ class LocalHttpServer():
 class Solver(BaseSolver):
     def __init__(self, account: Account, config: DictConfig):
         super().__init__(account, config)
-        required = ['blockchain.solver.standalone_solver.listen_address']
+        required = ['workspace.solver.standalone_solver.listen_address']
         for key in required:
             if not OmegaConf.select(self.config, key):
                 raise Exception(f'Missing configuration: {key}')
         self.fileserver = LocalHttpServer(
             self.account.eoa,
-            self.config.blockchain.solver.standalone_solver.listen_address,
+            self.config.workspace.solver.standalone_solver.listen_address,
             self.config.runtime.asset_filepath)
         self.fileserver.start()
 

@@ -100,8 +100,8 @@ class Resolver:
 
     def __init__(self, config: DictConfig):
         self.config = config
-        self.webhook_server = WebhookReceiver(self.config.blockchain.seeker.listen_address,
-                                              self.config.blockchain.seeker.listen_port,
+        self.webhook_server = WebhookReceiver(self.config.workspace.seeker.listen_address,
+                                              self.config.workspace.seeker.listen_port,
                                               callback=self.resolve_request)
 
     def start(self) -> Tuple[str, int]:  # [listen_address, listen_port]
@@ -137,12 +137,12 @@ class Resolver:
         download_json(jdata['download_url'], jdata['token_address'], self.config)
 
     def _precheck_request(self, body: str, sign: str) -> dict:
-        account = Account(Ether(self.config.blockchain.endpoint_url))
+        account = Account(Ether(self.config.workspace.endpoint_url))
         jdata = json.loads(body)
         if jdata['solver'] != verify_message(body, sign):
             raise Exception('Signer mismatch.')
         tty_message(self.config, f'Data sender: {jdata["solver"]}.')
-        operator = CTIOperator(account).get(self.config.blockchain.operator.address)
+        operator = CTIOperator(account).get(self.config.workspace.operator.address)
         task = None
         offset = 0
         while True:
@@ -176,8 +176,8 @@ class Seeker():
         self.config = config
         self.pid, self.listen_address, self.listen_port = self._check_running()
 
-        operator = CTIOperator(Account(Ether(self.config.blockchain.endpoint_url)))
-        operator.get(self.config.blockchain.operator.address)
+        operator = CTIOperator(Account(Ether(self.config.workspace.endpoint_url)))
+        operator.get(self.config.workspace.operator.address)
         if operator.version < 1:
             raise Exception(
                 f'Operator({operator.address}) is version {operator.version} and '
