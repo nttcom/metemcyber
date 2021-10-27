@@ -325,7 +325,7 @@ class MetemcyberUtilConfig(ContractLibrary):
 
 
 @dataclass
-class BlockChainConfig:
+class WorkspaceConfig:
     endpoint_url: str = ''
     airdrop_url: str = ''
     keyfile: str = ''
@@ -349,7 +349,7 @@ class BlockChainConfig:
         if (OmegaConf.is_missing(dconf, 'endpoint_url') or
                 OmegaConf.is_missing(dconf, 'keyfile') or
                 not dconf.endpoint_url or not dconf.keyfile):
-            echo('skip: blockchain is not yet configured. '
+            echo('skip: workspace is not yet configured. '
                  '("endpoint_url" and "keyfile" are required.)')
             return
 
@@ -402,7 +402,7 @@ class RuntimeConfig:
     print_config_validation: bool = False
     solver_keepalive: bool = False
     app_dir: str = APP_DIR
-    workspace_root: str = f'{APP_DIR}/{WORKSPACE_PREFIX}${{workspace}}'
+    workspace_root: str = f'{APP_DIR}/{WORKSPACE_PREFIX}${{workspace_name}}'
     workspace_config_filepath: str = f'${{runtime.workspace_root}}/{WORKSPACE_CONFIG_FILENAME}'
     seeker_download_filepath: str = f'${{runtime.workspace_root}}/download'
     seeker_tty_filepath: str = f'${{runtime.workspace_root}}/.tty4seeker.lnk'
@@ -417,10 +417,10 @@ class RuntimeConfig:
 
 @dataclass
 class MetemctlConfig:
-    workspace: str = '???'
     project: str = ''
     slack_webhook_url: str = ''
-    blockchain: BlockChainConfig = BlockChainConfig()
+    workspace_name: str = '???'
+    workspace: WorkspaceConfig = WorkspaceConfig()
     misp: MispConfig = MispConfig()
     runtime: RuntimeConfig = RuntimeConfig()
 
@@ -431,10 +431,10 @@ class MetemctlConfig:
             _uuid_validator(dconf.project, echo=echo, pref=f'project: ')
         if dconf.slack_webhook_url:
             _url_validator(dconf.slack_webhook_url, echo=echo, pref=f'slack_webhook_url: ')
-        if dconf.workspace not in ws_list():
-            raise Exception(f'Invalid workspace: {dconf.workspace}')
-        echo('BlockChainConfig:')
-        BlockChainConfig.validator(dconf.blockchain, echo=echo)
+        if dconf.workspace_name not in ws_list():
+            raise Exception(f'Invalid workspace_name: {dconf.workspace_name}')
+        echo('WorkspaceConfig:')
+        WorkspaceConfig.validator(dconf.workspace, echo=echo)
         echo('MispConfig:')
         MispConfig.validator(dconf.misp, echo=echo)
         # no validator for runtime
@@ -457,9 +457,9 @@ def _flush_cache(ctx: Optional[typer.Context], g_config: Optional[DictConfig]):
 
 
 def _setup_initial_config(g_config: DictConfig) -> DictConfig:
-    if OmegaConf.is_missing(g_config, 'workspace') or not g_config.workspace:
+    if OmegaConf.is_missing(g_config, 'workspace_name') or not g_config.workspace_name:
         typer.echo('your workspace is not yet configured.')
-        name = typer.prompt('input workspace:', default=WORKSPACE_DEFAULT, type=str)
+        name = typer.prompt('input workspace name:', default=WORKSPACE_DEFAULT, type=str)
         if name not in ws_list():
             ws_create(g_config, name)
             typer.echo(f'new workspace created: {name}')
@@ -495,20 +495,20 @@ def _load_config(ignore_schema: bool = False,
     assert isinstance(g_config, DictConfig)
 
     if pseudo_workspace:
-        g_config.workspace = pseudo_workspace
-    elif OmegaConf.is_missing(g_config, 'workspace') or not g_config.workspace:
+        g_config.workspace_name = pseudo_workspace
+    elif OmegaConf.is_missing(g_config, 'workspace_name') or not g_config.workspace_name:
         g_config = _setup_initial_config(g_config)
 
     if ignore_schema:
         ws_config = (OmegaConf.load(g_config.runtime.workspace_config_filepath) if
                      os.path.isfile(g_config.runtime.workspace_config_filepath) else DictConfig({}))
     else:
-        ws_schema = OmegaConf.structured(BlockChainConfig)
+        ws_schema = OmegaConf.structured(WorkspaceConfig)
         ws_data = (OmegaConf.load(g_config.runtime.workspace_config_filepath) if
                    os.path.isfile(g_config.runtime.workspace_config_filepath) else DictConfig({}))
         ws_config = OmegaConf.merge(ws_schema, ws_data)
 
-    g_config.blockchain = ws_config
+    g_config.workspace = ws_config
     OmegaConf.set_readonly(g_config, True)
     return g_config
 
@@ -522,7 +522,7 @@ def _inherit_runtime(src: DictConfig, dst: DictConfig) -> DictConfig:
 
 def _save_root_config(g_config: DictConfig):
     non_root_configs = [
-        'blockchain',
+        'workspace',
         'runtime',
     ]
     masked_keys = [str(x) for x in list(g_config.keys()) if x not in non_root_configs]
@@ -530,8 +530,8 @@ def _save_root_config(g_config: DictConfig):
 
 
 def _save_config(g_config: DictConfig, save_root: bool = True, save_workspace: bool = True):
-    if g_config.workspace and save_workspace:
-        OmegaConf.save(g_config.blockchain, f=g_config.runtime.workspace_config_filepath)
+    if g_config.workspace_name and save_workspace:
+        OmegaConf.save(g_config.workspace, f=g_config.runtime.workspace_config_filepath)
     if save_root:
         _save_root_config(g_config)
     typer.echo('saved config files.')
@@ -599,8 +599,8 @@ def edit_config(g_config: DictConfig = DictConfig({}),
             assert isinstance(new_config_, DictConfig)
         except Exception as err:
             raise Exception(f'ConfigError: {err}') from err
-        if new_config_.workspace != current_.workspace:
-            typer.echo('Do NOT modify workspace with this command. '
+        if new_config_.workspace_name != current_.workspace_name:
+            typer.echo('Do NOT modify workspace_name with this command. '
                        'Use "metemctl workspace switch" instead.')
             raise Exception('ValidationError: Workspace modification not supported')
         return new_config_
@@ -655,13 +655,13 @@ def ws_list() -> List[str]:
 
 def ws_switch(g_config: Optional[DictConfig], name: str,
               ctx: Optional[typer.Context] = None) -> DictConfig:
-    if g_config and not OmegaConf.is_missing(g_config, 'workspace'):
-        if name == g_config.workspace:
+    if g_config and not OmegaConf.is_missing(g_config, 'workspace_name'):
+        if name == g_config.workspace_name:
             raise Exception(f'Already in workspace: {name}')
         if name not in ws_list():
             raise Exception(f'No such workspace: {name}')
     root_config = _load_root_config()
-    root_config.workspace = name
+    root_config.workspace_name = name
     _save_root_config(root_config)
 
     new_config = _load_config()

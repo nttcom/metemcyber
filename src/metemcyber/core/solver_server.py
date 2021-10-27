@@ -177,8 +177,8 @@ class SolverServer:
     def _setup_solver_instance(self) -> BaseSolver:
         pmgr = PluginManager()
         pmgr.load()
-        pmgr.set_default_solverclass(self.config.blockchain.solver.plugin or 'gcs_solver.py')
-        solverclass = pmgr.get_solverclass(self.config.blockchain.operator.address)
+        pmgr.set_default_solverclass(self.config.workspace.solver.plugin or 'gcs_solver.py')
+        solverclass = pmgr.get_solverclass(self.config.workspace.operator.address)
         return solverclass(self.account, self.config)
 
     def _signal_handler(self, signum, _):
@@ -324,8 +324,8 @@ class SolverController:
     def start(self):
         if self.pid > 0:
             raise Exception(f'Already running on pid: {self.pid}')
-        if not self.config.blockchain.operator.address:
-            raise Exception('Missing configuration: blockchain.operator.address')
+        if not self.config.workspace.operator.address:
+            raise Exception('Missing configuration: workspace.operator.address')
         pid = os.fork()
         if pid > 0:  # parent
             for _cnt in range(3):
@@ -345,7 +345,7 @@ class SolverController:
             with open(self.config.runtime.solver_pid_filepath, 'w', encoding='utf-8') as fout:
                 fout.write(f'{pid}\t'
                            f'{self.account.eoa}\t'
-                           f'{self.config.blockchain.operator.address}\n')
+                           f'{self.config.workspace.operator.address}\n')
                 fout.write(f'{str_cmdline}\n')
             server.accept_loop()
         except KeyboardInterrupt:
@@ -514,8 +514,8 @@ def mcs_console(account, config):
 
 def main(args):
     config = load_config()
-    eoaa, pkey = decode_keyfile(config.blockchain.keyfile, config.blockchain.keyfile_password)
-    account = Account(Ether(config.blockchain.endpoint_url), eoaa, pkey)
+    eoaa, pkey = decode_keyfile(config.workspace.keyfile, config.workspace.keyfile_password)
+    account = Account(Ether(config.workspace.endpoint_url), eoaa, pkey)
     if args.mode == 'server':
         ctrl = SolverController(account, config)
         ctrl.start()

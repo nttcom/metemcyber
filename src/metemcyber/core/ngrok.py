@@ -84,13 +84,13 @@ class NgrokMgr():
         raise Exception(f'Cannot get ngrok public_url: {last_error}')
 
     def _try_ngrok(self) -> Tuple[int, str]:
-        web_port = self.config.blockchain.ngrok.web_port
+        web_port = self.config.workspace.ngrok.web_port
         retry = 1 if web_port > 0 else 10
         proc = None
         tmp_out, tmp_fname = mkstemp(suffix='.yml')
         try:
             os.close(tmp_out)
-            args = [self.config.blockchain.ngrok.ngrok_path,
+            args = [self.config.workspace.ngrok.ngrok_path,
                     'http', '--config', tmp_fname, str(self.seeker_port)]
             while retry > 0:
                 port = web_port if web_port else get_random_local_port()

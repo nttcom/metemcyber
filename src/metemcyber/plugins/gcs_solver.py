@@ -33,18 +33,18 @@ LOGGER = get_logger(name='gcs_solver', file_prefix='core')
 class Solver(BaseSolver):
     def __init__(self, account: Account, config: DictConfig):
         super().__init__(account, config)
-        required = ['blockchain.solver.gcs_solver.functions_url',
-                    'blockchain.solver.gcs_solver.functions_token']
+        required = ['workspace.solver.gcs_solver.functions_url',
+                    'workspace.solver.gcs_solver.functions_token']
         for key in required:
             if not OmegaConf.select(self.config, key):
                 raise Exception(f'Missing configuration: {key}')
         self.uploader = Uploader(
-            self.config.blockchain.solver.gcs_solver.functions_url,
-            self.config.blockchain.solver.gcs_solver.functions_token)
+            self.config.workspace.solver.gcs_solver.functions_url,
+            self.config.workspace.solver.gcs_solver.functions_token)
 
     def notify_first_accept(self):
         return ('Caution: solved challenge data will be uploaded onto '
-                f'{self.config.blockchain.solver.gcs_solver.functions_url}.')
+                f'{self.config.workspace.solver.gcs_solver.functions_url}.')
 
     def process_challenge(self, token_address, event):
         LOGGER.info('GCSSolver: callback: %s', token_address)

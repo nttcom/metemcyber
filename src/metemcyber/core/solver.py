@@ -141,7 +141,7 @@ class BaseSolver:
     def accept_registered(self, tokens: Optional[List[ChecksumAddress]]):
         LOGGER.info('accept_registered candidates: %s', tokens)
         accepting = self.accepting_tokens()
-        cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+        cti_operator = CTIOperator(self.account).get(self.config.workspace.operator.address)
         if tokens is None:  # auto detect mode
             targets = cti_operator.list_registered(self.account.eoa)
         else:
@@ -173,11 +173,11 @@ class BaseSolver:
             self.listener is None or len(self.listener.accepting) == 0
         if not self.listener:
             self.listener = ChallengeListener(
-                self.account, self.config.blockchain.operator.address, 'TokensReceivedCalled')
+                self.account, self.config.workspace.operator.address, 'TokensReceivedCalled')
             self.listener.start()
         self.listener.accept_tokens(token_addresses, self.process_challenge)
         if force_register:
-            cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+            cti_operator = CTIOperator(self.account).get(self.config.workspace.operator.address)
             cti_operator.register_tokens(token_addresses)
         return self.notify_first_accept() if need_notify else None
 
@@ -187,12 +187,12 @@ class BaseSolver:
         if targets:
             assert self.listener
             self.listener.refuse_tokens(targets)
-            cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+            cti_operator = CTIOperator(self.account).get(self.config.workspace.operator.address)
             cti_operator.unregister_tokens(targets)
 
     def accept_task(self, task_id):
         try:
-            cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+            cti_operator = CTIOperator(self.account).get(self.config.workspace.operator.address)
             cti_operator.accept_task(task_id)
             return True
         except (HTTPError, ValueError, ValidationError) as err:
@@ -201,11 +201,11 @@ class BaseSolver:
             return False
 
     def finish_task(self, task_id, data=''):
-        cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+        cti_operator = CTIOperator(self.account).get(self.config.workspace.operator.address)
         cti_operator.finish_task(task_id, data)
 
     def reemit_pending_tasks(self, tokens):
-        cti_operator = CTIOperator(self.account).get(self.config.blockchain.operator.address)
+        cti_operator = CTIOperator(self.account).get(self.config.workspace.operator.address)
         cti_operator.reemit_pending_tasks(tokens)
 
     @staticmethod
