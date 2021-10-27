@@ -202,9 +202,9 @@ class StandaloneSolverConfig(ListenAddressV4Config):
 @dataclass
 class SolverConfig:
     shared_solver_url: str = ''
-    plugin: str = 'gcs_solver.py'
     keyfile: str = '${..keyfile}'
     keyfile_password: str = '${..keyfile_password}'
+    plugin: str = 'gcs_solver.py'
     gcs_solver: GCSSolverConfig = GCSSolverConfig()
     standalone_solver: StandaloneSolverConfig = StandaloneSolverConfig()
 
@@ -213,20 +213,20 @@ class SolverConfig:
                   echo: Callable[..., None] = _fake_echo, pref: str = ''):
         if dconf.shared_solver_url:
             _url_validator(dconf.shared_solver_url, echo=echo, pref=f'{pref}shared_solver_url: ')
-        if dconf.plugin:
-            mgr = PluginManager()
-            mgr.load()
-            if mgr.is_pluginfile(dconf.plugin):
-                echo(f'ok: {pref}plugin: {dconf.plugin} is a valid plugin.')
-            else:
-                raise Exception(f'No such plugin: {pref}plugin: {dconf.plugin}')
         _keyfile_validator(dconf.keyfile, dconf.keyfile_password,
                            echo=echo, pref=f'{pref}keyfile{{,_password}}: ')
-        for key in ['gcs_solver', 'standalone_solver']:
-            kcls = OmegaConf.get_type(dconf[key])
-            assert kcls
-            if hasattr(kcls, 'validator'):
-                getattr(kcls, 'validator')(dconf[key], echo=echo, pref=f'{pref}{key}.')
+        mgr = PluginManager()
+        mgr.load()
+        if mgr.is_pluginfile(dconf.plugin):
+            echo(f'ok: {pref}plugin: {dconf.plugin} is a valid plugin.')
+        else:
+            raise Exception(f'No such plugin: {pref}plugin: {dconf.plugin}')
+        key = os.path.splitext(dconf.plugin)[0]
+        kcls = OmegaConf.get_type(dconf[key])
+        if kcls and hasattr(kcls, 'validator'):
+            getattr(kcls, 'validator')(dconf[key], echo=echo, pref=f'{pref}{key}.')
+        else:
+            echo(f'skip: {pref}{key}: validator not implemented for this plugin.')
 
 
 @dataclass
