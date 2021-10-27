@@ -150,20 +150,6 @@ class ListenAddressV4Config(IPAddressValidator):
 
 
 @dataclass
-class SeekerConfig(ListenAddressV4Config):
-    listen_port: int = 0
-    use_ngrok: bool = False
-
-    @classmethod
-    def validator(cls, dconf: DictConfig,
-                  echo: Callable[..., None] = _fake_echo, pref: str = ''):
-        super().validator(dconf, echo=echo, pref=pref)
-        _int_range_validator(dconf.listen_port, minimum=0, maximum=60999,
-                             echo=echo, pref=f'{pref}listen_port: ')
-        # no validator for use_ngrok(bool).
-
-
-@dataclass
 class NgrokConfig:
     ngrok_path: str = which('ngrok') or f'{APP_DIR}/ngrok'
     web_port: int = 0
@@ -171,12 +157,28 @@ class NgrokConfig:
     @classmethod
     def validator(cls, dconf: DictConfig,
                   echo: Callable[..., None] = _fake_echo, pref: str = ''):
-        try:
-            _regularfile_validator(dconf.ngrok_path, echo=echo, pref=f'{pref}ngrok_path: ')
-        except Exception as err:
-            echo(f'caution: {err}')
+        _regularfile_validator(dconf.ngrok_path, echo=echo, pref=f'{pref}ngrok_path: ')
         _int_range_validator(dconf.web_port, minimum=0, maximum=60999,
                              echo=echo, pref=f'{pref}web_port: ')
+
+
+@dataclass
+class SeekerConfig(ListenAddressV4Config):
+    listen_port: int = 0
+    use_ngrok: bool = False
+    ngrok: NgrokConfig = NgrokConfig()
+
+    @classmethod
+    def validator(cls, dconf: DictConfig,
+                  echo: Callable[..., None] = _fake_echo, pref: str = ''):
+        super().validator(dconf, echo=echo, pref=pref)
+        _int_range_validator(dconf.listen_port, minimum=0, maximum=60999,
+                             echo=echo, pref=f'{pref}listen_port: ')
+        if dconf.use_ngrok:
+            echo('ok: ngrok is enabled.')
+            NgrokConfig.validator(dconf.ngrok, echo=echo, pref=f'{pref}ngrok.')
+        else:
+            echo('skip: ngrok is disabled.')
 
 
 @dataclass
@@ -335,7 +337,6 @@ class WorkspaceConfig:
     operator: OperatorConfig = OperatorConfig()
     metemcyber_util: MetemcyberUtilConfig = MetemcyberUtilConfig()
     seeker: SeekerConfig = SeekerConfig()
-    ngrok: NgrokConfig = NgrokConfig()
     solver: SolverConfig = SolverConfig()
     assetmanager: AssetManagerConfig = AssetManagerConfig()
 
