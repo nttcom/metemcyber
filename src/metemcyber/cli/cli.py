@@ -1743,6 +1743,7 @@ def _store_pretty_json(results, json_dumpdir):
 
 def _ssl_settings(ssl_cert: str) -> bool:
     if ssl_cert == "DISABLE":
+        urllib3.disable_warnings()
         return False
     return True
 
