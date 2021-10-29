@@ -1754,7 +1754,7 @@ def _pymisp_client(ctx: typer.Context):
     logger = getLogger()
 
     config = load_config(ctx)
-    url = config.misp_url
+    url = config.misp.url
     api_key = config.misp.api_key
     ssl_cert = config.misp.ssl_cert
 
