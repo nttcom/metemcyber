@@ -49,9 +49,9 @@ from web3 import Web3
 from web3.datastructures import AttributeDict
 
 from metemcyber import __version__
-from metemcyber.cli.config import (METEMCTL_CONFIG_FILEPATH, SSLCertVerify, decode_keyfile, edit_config,
-                                   load_config, print_config, update_config, ws_copy, ws_create,
-                                   ws_destroy, ws_list, ws_switch)
+from metemcyber.cli.config import (METEMCTL_CONFIG_FILEPATH, SSLCertVerify, decode_keyfile,
+                                   edit_config, load_config, print_config, update_config, ws_copy,
+                                   ws_create, ws_destroy, ws_list, ws_switch)
 from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.asset_manager import AssetManagerClient, AssetManagerController
 from metemcyber.core.bc.account import Account
