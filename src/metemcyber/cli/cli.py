@@ -49,9 +49,9 @@ from web3 import Web3
 from web3.datastructures import AttributeDict
 
 from metemcyber import __version__
-from metemcyber.cli.config import (METEMCTL_CONFIG_FILEPATH, decode_keyfile, edit_config,
-                                   load_config, print_config, update_config, ws_copy, ws_create,
-                                   ws_destroy, ws_list, ws_switch)
+from metemcyber.cli.config import (METEMCTL_CONFIG_FILEPATH, SSLCertVerify, decode_keyfile,
+                                   edit_config, load_config, print_config, update_config, ws_copy,
+                                   ws_create, ws_destroy, ws_list, ws_switch)
 from metemcyber.cli.constants import APP_DIR
 from metemcyber.core.asset_manager import AssetManagerClient, AssetManagerController
 from metemcyber.core.bc.account import Account
@@ -1741,11 +1741,11 @@ def _store_pretty_json(results, json_dumpdir):
             typer.echo(err)
 
 
-def _ssl_settings(ssl_cert: int) -> bool:
-    if ssl_cert == 0:
+def _ssl_settings(ssl_cert: SSLCertVerify) -> bool:
+    if ssl_cert == SSLCertVerify.DISABLE:
         urllib3.disable_warnings()
         return False
-    if ssl_cert == 1:
+    if ssl_cert == SSLCertVerify.DISABLE_WITH_WARNING:
         return False
     return True
 
@@ -1754,9 +1754,9 @@ def _pymisp_client(ctx: typer.Context):
     logger = getLogger()
 
     config = load_config(ctx)
-    url = config.misp_url
+    url = config.misp.url
     api_key = config.misp.api_key
-    ssl_cert = config.misp.ssl_cert
+    ssl_cert = config.misp.ssl_cert_verify
 
     logger.info(f"Fetch MISP: {url}")
 
