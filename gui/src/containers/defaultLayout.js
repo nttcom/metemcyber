@@ -200,7 +200,7 @@ function DefaultLayout(props) {
                                 </LogoutNav>
                             </SideNav>
                         </ColSideNav>
-                        <ColNoGutter xs="10" >
+                        <ColNoGutter>
                             <Row>
                                 <Col xs="12">
                                     <MainContent>
@@ -267,6 +267,7 @@ export const SideNav = styled(Nav)`
 
 export const ColSideNav = styled(Col)`
     padding-right: 0px;
+    min-width: 220px;
 `;
 
 export const ColNoGutter = styled(Col)`
@@ -281,7 +282,6 @@ export const SideNavTitle = styled(NavbarBrand)`
     text-align: center;
     padding: 15px;
     margin-right: 0px;
-    margin-bottom: 30px;
 `;
 export const SideNavSubTitle = styled(NavbarBrand)`
     font-size: 17px;
