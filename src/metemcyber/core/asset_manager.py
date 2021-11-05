@@ -14,9 +14,9 @@
 #    limitations under the License.
 #
 
+import argparse
 import json
 import os
-import sys
 from datetime import datetime
 from signal import SIGINT
 from time import sleep
@@ -27,12 +27,14 @@ import uvicorn
 from eth_typing import ChecksumAddress
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from psutil import Process
 # pylint: disable=no-name-in-module
 from pydantic import BaseModel
 from web3 import Web3
 
+from metemcyber.cli.config import decode_keyfile, load_config
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.cti_token import CTIToken
 from metemcyber.core.bc.ether import Ether
@@ -43,6 +45,8 @@ from metemcyber.core.solver_server import SolverClient, SolverController
 VALID_TIMESTAMP_RANGE = 12 * 3600  # 12 hours in sec
 SERVERLOG = get_logger(name='asset_mgr', file_prefix='core')
 CLIENTLOG = get_logger(name='asset_client', file_prefix='core')
+
+INHERIT_PW_ENV_NAME = '_ASSETMANAGER_INHERIT_FOR_KEYFILE_'
 
 URLPATH_PREFIX = 'solver/api'
 URLPATH_INFO = f'{URLPATH_PREFIX}/info'
@@ -343,14 +347,12 @@ class AssetManager:
 
 
 class AssetManagerController:
-    account: Account
     config: DictConfig
     pid: int
     listen_address: str
     listen_port: int
 
-    def __init__(self, account: Account, config: DictConfig):
-        self.account = account
+    def __init__(self, config: DictConfig):
         self.config = config
         self.pid, self.listen_address, self.listen_port = self.get_running_params()
 
@@ -376,9 +378,16 @@ class AssetManagerController:
     def start(self):
         if self.pid > 0:
             raise Exception(f'Already running on pid: {self.pid}')
+        tmp_config = self.config.copy()
+        OmegaConf.set_readonly(tmp_config, False)
+        OmegaConf.resolve(tmp_config)
+        if not tmp_config.workspace.solver.keyfile_password:
+            _eoaa, _pkey, pword = decode_keyfile(tmp_config.workspace.solver.keyfile, '')
+            os.environ[INHERIT_PW_ENV_NAME] = pword  # pass to child process
 
         pid = os.fork()
         if pid > 0:  # parent
+            os.environ.pop(INHERIT_PW_ENV_NAME, None)
             for _cnt in range(3):
                 sleep(1)
                 running = self.get_running_params()
@@ -389,21 +398,8 @@ class AssetManagerController:
             raise Exception('Cannot start AssetManager')
 
         # child
-        try:
-            os.setsid()
-            mgr = AssetManager(self.account, self.config)
-            pid = os.getpid()
-            str_cmdline = '\t'.join(Process(pid).cmdline())
-            with open(self.config.runtime.assetmanager_pid_filepath, 'w', encoding='utf-8') as fout:
-                fout.write(f'{pid}\t{mgr.listen_address}\t{mgr.listen_port}\n')
-                fout.write(f'{str_cmdline}\n')
-            mgr.run()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            if os.path.exists(self.config.runtime.assetmanager_pid_filepath):
-                os.unlink(self.config.runtime.assetmanager_pid_filepath)
-        sys.exit(0)
+        args = ['python3', __file__, 'server']
+        os.execvpe(args[0], args, os.environ)
 
     def stop(self):
         if self.pid <= 0:
@@ -505,3 +501,51 @@ class AssetManagerClient:
     def delete_accepting(self, account: Account, token_addresses: List[ChecksumAddress],
                          nonce: Optional[int] = None) -> str:
         return self._acception_control(account, token_addresses, 'DELETE', nonce=nonce)
+
+
+def main(args):
+    config = load_config()
+    OmegaConf.set_readonly(config, False)
+    OmegaConf.resolve(config)
+    if not config.workspace.solver.keyfile_password and os.environ.get(INHERIT_PW_ENV_NAME):
+        config.workspace.solver_keyfile_password = os.environ.pop(INHERIT_PW_ENV_NAME)
+    eoaa, pkey, _ = decode_keyfile(config.workspace.solver.keyfile,
+                                   config.workspace.solver.keyfile_password)
+    account = Account(Ether(config.workspace.endpoint_url), eoaa, pkey)
+
+    if args.mode == 'server':
+        try:
+            mgr = AssetManager(account, config)
+            pid = os.getpid()
+            str_cmdline = '\t'.join(Process(pid).cmdline())
+            with open(config.runtime.assetmanager_pid_filepath, 'w', encoding='utf-8') as fout:
+                fout.write(f'{pid}\t{mgr.listen_address}\t{mgr.listen_port}\n')
+                fout.write(f'{str_cmdline}\n')
+
+            mgr.run()
+
+        except KeyboardInterrupt:
+            pass
+        finally:
+            if os.path.exists(config.runtime.assetmanager_pid_filepath):
+                os.unlink(config.runtime.assetmanager_pid_filepath)
+    else:
+        # TODO
+        # client mode
+        pass
+
+
+OPTIONS: List[Tuple[str, str, dict]] = [
+]
+ARGUMENTS: List[Tuple[str, dict]] = [
+    ('mode', dict(choices=['server', 'client'])),
+]
+
+if __name__ == '__main__':
+    PARSER = argparse.ArgumentParser()
+    for sname, lname, etc_opts in OPTIONS:
+        PARSER.add_argument(sname, lname, **etc_opts)
+    for name, etc_opts in ARGUMENTS:
+        PARSER.add_argument(name, **etc_opts)
+    ARGS = PARSER.parse_args()
+    main(ARGS)

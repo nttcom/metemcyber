@@ -1146,7 +1146,7 @@ def _local_solver_obsolete(ctx, token):
                       help='Start Asset Manager service.')
 @common_logging
 def assetmgr_start(ctx: typer.Context):
-    ctrl = AssetManagerController(_load_solver_account(ctx), load_config(ctx))
+    ctrl = AssetManagerController(load_config(ctx))
     if ctrl.pid > 0:
         raise Exception('Asset Manager already running.')
     ctrl.start()
@@ -1162,7 +1162,7 @@ def assetmgr_stop(ctx: typer.Context):
 
 
 def _assetmgr_stop(ctx):
-    ctrl = AssetManagerController(_load_solver_account(ctx), load_config(ctx))
+    ctrl = AssetManagerController(load_config(ctx))
     if ctrl.pid == 0:
         raise Exception('Asset Manager not running')
     ctrl.stop()
@@ -1181,7 +1181,7 @@ def _assetmgr_status(ctx) -> Tuple[bool, str]:
     for key in ['endpoint_url', 'keyfile', 'operator.address']:
         if not OmegaConf.select(config.workspace, key):
             return False, 'not configured'
-    ctrl = AssetManagerController(_load_solver_account(ctx), config)
+    ctrl = AssetManagerController(config)
     if ctrl.pid == 0:
         return False, 'not running.'
     return True, f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.'
