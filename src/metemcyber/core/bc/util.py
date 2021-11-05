@@ -43,14 +43,14 @@ def verify_message(message: str, signature: str) -> ChecksumAddress:
 
 def decode_keyfile(filename: str,
                    password_func: Callable[[], str] = lambda: getpass('Enter password for keyfile:')
-                   ) -> Tuple[ChecksumAddress, str]:
+                   ) -> Tuple[ChecksumAddress, str, str]:
     # https://web3py.readthedocs.io/en/stable/web3.eth.account.html#extract-private-key-from-geth-keyfile
     with open(filename, encoding='utf-8') as keyfile:
         enc_data = keyfile.read()
     address = Web3.toChecksumAddress(json.loads(enc_data)['address'])
     word = password_func()
     private_key = w3.eth.account.decrypt(enc_data, word).hex()
-    return Web3.toChecksumAddress(address), private_key
+    return Web3.toChecksumAddress(address), private_key, word
 
 
 def deploy_erc1820(eoa: ChecksumAddress, web3: Web3) -> None:

@@ -150,7 +150,7 @@ class AssetManager:
         )
 
     def _solver_ctrl(self) -> SolverController:
-        return SolverController(self.solver_account, self.config)
+        return SolverController(self.config)
 
     def _get_solver(self) -> SolverClient:  # CAUTION: do not cache client.
         client = SolverClient(self.solver_account, self.config)

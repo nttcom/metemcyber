@@ -52,7 +52,7 @@ WORKSPACE_MINIMAL_DIRS = {
 }
 
 
-def decode_keyfile(keyfile: str, pw_candidate: Optional[str]) -> Tuple[ChecksumAddress, str]:
+def decode_keyfile(keyfile: str, pw_candidate: Optional[str]) -> Tuple[ChecksumAddress, str, str]:
     def pwf():
         return pw_candidate or typer.prompt('Enter password for keyfile', hide_input=True)
     return util_decode_keyfile(keyfile, password_func=pwf)
@@ -91,7 +91,7 @@ def _keyfile_validator(keyfile: str, keyfile_password: str,
                        echo: Callable[..., None] = _fake_echo, pref: str = ''):
     if keyfile and keyfile_password:
         try:
-            eoaa, _pkey = decode_keyfile(keyfile, keyfile_password)
+            eoaa, _pkey, _ = decode_keyfile(keyfile, keyfile_password)
             echo(f'ok: {pref}valid for EOA {eoaa}.')
         except Exception as err:
             raise Exception(f'{pref}{err}') from err
@@ -361,7 +361,7 @@ class WorkspaceConfig:
             if issubclass(kcls, BCValidator):
                 if not account:
                     echo('validating contracts with EOA.')
-                    eoaa, pkey = decode_keyfile(dconf.keyfile, dconf.keyfile_password)
+                    eoaa, pkey, _ = decode_keyfile(dconf.keyfile, dconf.keyfile_password)
                     account = Account(Ether(dconf.endpoint_url), eoaa, pkey)
                 kcls.bc_validator(dconf[key], account, echo=echo, pref=f'{pref}{key}.')
             if hasattr(kcls, 'validator'):
