@@ -14,20 +14,22 @@
 #    limitations under the License.
 #
 
+import argparse
 import json
 import os
-import sys
 from signal import SIGINT
 from threading import Thread
 from time import sleep
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from urllib.request import Request, urlopen
 
 from eth_typing import ChecksumAddress
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from psutil import Process
 from werkzeug.datastructures import EnvironHeaders
 
+from metemcyber.cli.config import load_config
 from metemcyber.core.bc.account import Account
 from metemcyber.core.bc.cti_operator import CTIOperator
 from metemcyber.core.bc.cti_token import CTIToken
@@ -219,23 +221,8 @@ class Seeker():
             raise Exception('Cannot start Seeker')
 
         # child
-        try:
-            os.setsid()
-            resolver = Resolver(self.config)
-            address, port = resolver.start()
-            pid = os.getpid()
-            str_cmdline = '\t'.join(Process(pid).cmdline())
-            with open(self.config.runtime.seeker_pid_filepath, 'w', encoding='utf-8') as fout:
-                fout.write(f'{pid}\t{address}\t{port}\n')
-                fout.write(f'{str_cmdline}\n')
-            assert resolver.thread
-            resolver.thread.join()
-        except KeyboardInterrupt:
-            LOGGER.info('caught SIGINT.')
-        finally:
-            if os.path.exists(self.config.runtime.seeker_pid_filepath):
-                os.unlink(self.config.runtime.seeker_pid_filepath)
-        sys.exit(0)
+        args = ['python3', __file__, 'server']
+        os.execvpe(args[0], args, os.environ)
 
     def stop(self) -> None:
         pid, _address, _port = self._check_running()
@@ -246,3 +233,46 @@ class Seeker():
             os.kill(pid, SIGINT)
         except Exception as err:
             raise Exception(f'Cannot stop webhook(pid={pid})') from err
+
+
+def main(args):
+    config = load_config()
+    OmegaConf.set_readonly(config, False)
+    OmegaConf.resolve(config)
+
+    if args.mode == 'server':
+        try:
+            resolver = Resolver(config)
+            address, port = resolver.start()
+            pid = os.getpid()
+            str_cmdline = '\t'.join(Process(pid).cmdline())
+            with open(config.runtime.seeker_pid_filepath, 'w', encoding='utf-8') as fout:
+                fout.write(f'{pid}\t{address}\t{port}\n')
+                fout.write(f'{str_cmdline}\n')
+            assert resolver.thread
+            resolver.thread.join()
+        except KeyboardInterrupt:
+            LOGGER.info('caught SIGINT.')
+        finally:
+            if os.path.exists(config.runtime.seeker_pid_filepath):
+                os.unlink(config.runtime.seeker_pid_filepath)
+    else:
+        # TODO?
+        # client mode
+        pass
+
+
+OPTIONS: List[Tuple[str, str, dict]] = [
+]
+ARGUMENTS: List[Tuple[str, dict]] = [
+    ('mode', dict(choices=['server', 'client'])),
+]
+
+if __name__ == '__main__':
+    PARSER = argparse.ArgumentParser()
+    for sname, lname, etc_opts in OPTIONS:
+        PARSER.add_argument(sname, lname, **etc_opts)
+    for name, etc_opts in ARGUMENTS:
+        PARSER.add_argument(name, **etc_opts)
+    ARGS = PARSER.parse_args()
+    main(ARGS)

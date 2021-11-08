@@ -30,6 +30,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 from cryptography.fernet import Fernet
 from eth_typing import ChecksumAddress
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from psutil import Process
 
@@ -44,6 +45,7 @@ from metemcyber.core.solver import BaseSolver
 SERVERLOG = get_logger(name='solv_server', file_prefix='core')
 CLIENTLOG = get_logger(name='solv_client', file_prefix='core')
 
+INHERIT_PW_ENV_NAME = '_SOLVER_INHERIT_FOR_KEYFILE_'
 POLL_SHUTDOWN_INTERVAL_SEC = 1
 KEEPALIVE_TIMEOUT_SEC = 10
 BUFSIZ = 4096
@@ -162,10 +164,6 @@ class SolverServer:
     shutdown: bool = False
     solver: BaseSolver
     fernet_key: Optional[bytes] = None
-
-    # TODO
-    # snapshot controll is missing!
-    #
 
     def __init__(self, account: Account, config: DictConfig):
         self.account = account
@@ -294,14 +292,12 @@ class SolverServer:
 
 
 class SolverController:
-    account: Account
     config: DictConfig
     pid: int
     solver_eoaa: ChecksumAddress
     operator_address: ChecksumAddress
 
-    def __init__(self, account: Account, config: DictConfig):
-        self.account = account
+    def __init__(self, config: DictConfig):
         self.config = config
         self.pid, self.solver_eoaa, self.operator_address = self._get_running_params()
 
@@ -326,8 +322,16 @@ class SolverController:
             raise Exception(f'Already running on pid: {self.pid}')
         if not self.config.workspace.operator.address:
             raise Exception('Missing configuration: workspace.operator.address')
+        tmp_config = self.config.copy()
+        OmegaConf.set_readonly(tmp_config, False)
+        OmegaConf.resolve(tmp_config)
+        if not tmp_config.workspace.solver.keyfile_password:
+            _eoaa, _pkey, pword = decode_keyfile(tmp_config.workspace.solver.keyfile, '')
+            os.environ[INHERIT_PW_ENV_NAME] = pword  # pass to child process
+
         pid = os.fork()
         if pid > 0:  # parent
+            os.environ.pop(INHERIT_PW_ENV_NAME, None)
             for _cnt in range(3):
                 sleep(1)
                 if self._get_running_params()[0] != pid:
@@ -337,23 +341,8 @@ class SolverController:
             raise Exception('Cannot start SolverServer')
 
         # child
-        try:
-            os.setsid()
-            server = SolverServer(self.account, self.config)
-            pid = os.getpid()
-            str_cmdline = '\t'.join(Process(pid).cmdline())
-            with open(self.config.runtime.solver_pid_filepath, 'w', encoding='utf-8') as fout:
-                fout.write(f'{pid}\t'
-                           f'{self.account.eoa}\t'
-                           f'{self.config.workspace.operator.address}\n')
-                fout.write(f'{str_cmdline}\n')
-            server.accept_loop()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            if os.path.exists(self.config.runtime.solver_pid_filepath):
-                os.unlink(self.config.runtime.solver_pid_filepath)
-        sys.exit(0)
+        args = ['python3', __file__, 'server']
+        os.execvpe(args[0], args, os.environ)
 
     def stop(self):
         if self.pid <= 0:
@@ -514,11 +503,33 @@ def mcs_console(account, config):
 
 def main(args):
     config = load_config()
-    eoaa, pkey = decode_keyfile(config.workspace.keyfile, config.workspace.keyfile_password)
+    OmegaConf.set_readonly(config, False)
+    OmegaConf.resolve(config)
+    if not config.workspace.solver.keyfile_password and os.environ.get(INHERIT_PW_ENV_NAME):
+        config.workspace.solver.keyfile_password = os.environ.pop(INHERIT_PW_ENV_NAME)
+    eoaa, pkey, _ = decode_keyfile(config.workspace.solver.keyfile,
+                                   config.workspace.solver.keyfile_password)
     account = Account(Ether(config.workspace.endpoint_url), eoaa, pkey)
+
     if args.mode == 'server':
-        ctrl = SolverController(account, config)
-        ctrl.start()
+        try:
+            server = SolverServer(account, config)
+            pid = os.getpid()
+            str_cmdline = '\t'.join(Process(pid).cmdline())
+            with open(config.runtime.solver_pid_filepath, 'w', encoding='utf-8') as fout:
+                fout.write(f'{pid}\t'
+                           f'{account.eoa}\t'
+                           f'{config.workspace.operator.address}\n')
+                fout.write(f'{str_cmdline}\n')
+
+            server.accept_loop()
+
+        except KeyboardInterrupt:
+            pass
+        finally:
+            if os.path.exists(config.runtime.solver_pid_filepath):
+                os.unlink(config.runtime.solver_pid_filepath)
+
     else:
         mcs_console(account, config)
 

@@ -157,7 +157,7 @@ def _load_account(ctx: typer.Context) -> Account:
     for key in required:
         if OmegaConf.is_missing(config, key) or not OmegaConf.select(config, key):
             raise Exception(f'Missing configuration: {key}')
-    eoaa, pkey = decode_keyfile(config.workspace.keyfile, config.workspace.keyfile_password)
+    eoaa, pkey, _ = decode_keyfile(config.workspace.keyfile, config.workspace.keyfile_password)
     account = Account(Ether(config.workspace.endpoint_url), eoaa, pkey)
     ctx.meta['account'] = account
     return account
@@ -171,8 +171,8 @@ def _load_solver_account(ctx: typer.Context) -> Account:
     for key in required:
         if not OmegaConf.select(config, key):
             raise Exception(f'Missing configuration: {key}')
-    eoaa, pkey = decode_keyfile(config.workspace.solver.keyfile,
-                                config.workspace.solver.keyfile_password)
+    eoaa, pkey, _ = decode_keyfile(config.workspace.solver.keyfile,
+                                   config.workspace.solver.keyfile_password)
     solver_account = Account(Ether(config.workspace.endpoint_url), eoaa, pkey)
     ctx.meta['solver_account'] = solver_account
     return solver_account
@@ -1011,14 +1011,14 @@ def _local_solver_status(ctx: typer.Context) -> Tuple[bool, str]:
     for key in ['endpoint_url', 'keyfile', 'operator.address']:
         if not OmegaConf.select(config.workspace, key):
             return False, 'not configured'
-    ctrl = SolverController(_load_solver_account(ctx), config)
+    ctrl = SolverController(config)
     if ctrl.pid <= 0:
         return False, 'not running'
     if ctrl.operator_address == _load_operator(ctx).address:
-        msg = (f'Solver running on pid {ctrl.pid} with EOA({ctrl.account.eoa}) '
+        msg = (f'Solver running on pid {ctrl.pid} with EOA({ctrl.solver_eoaa}) '
                f'with operator({ctrl.operator_address}).')
     else:
-        msg = (f'[WARNING] Solver running with EOA({ctrl.account.eoa}) '
+        msg = (f'[WARNING] Solver running with EOA({ctrl.solver_eoaa}) '
                f'with ANOTHER operator({ctrl.operator_address}).')
     return True, msg
 
@@ -1027,12 +1027,7 @@ def _local_solver_status(ctx: typer.Context) -> Tuple[bool, str]:
                     help='Start Solver process.')
 @common_logging
 def solver_start(ctx: typer.Context):
-    try:
-        _solver_client(ctx)
-        raise Exception('Solver already running.')
-    except Exception:
-        pass
-    ctrl = SolverController(_load_solver_account(ctx), load_config(ctx))
+    ctrl = SolverController(load_config(ctx))
     ctrl.start()
     typer.echo(f'Solver started as a subprocess(pid={ctrl.pid}).')
 
@@ -1041,7 +1036,7 @@ def solver_start(ctx: typer.Context):
                     help='Kill Solver process, all solver (not only yours) are killed.')
 @common_logging
 def solver_stop(ctx: typer.Context):
-    ctrl = SolverController(_load_solver_account(ctx), load_config(ctx))
+    ctrl = SolverController(load_config(ctx))
     ctrl.stop()
     typer.echo('Solver shutted down.')
 
@@ -1151,7 +1146,7 @@ def _local_solver_obsolete(ctx, token):
                       help='Start Asset Manager service.')
 @common_logging
 def assetmgr_start(ctx: typer.Context):
-    ctrl = AssetManagerController(_load_solver_account(ctx), load_config(ctx))
+    ctrl = AssetManagerController(load_config(ctx))
     if ctrl.pid > 0:
         raise Exception('Asset Manager already running.')
     ctrl.start()
@@ -1167,7 +1162,7 @@ def assetmgr_stop(ctx: typer.Context):
 
 
 def _assetmgr_stop(ctx):
-    ctrl = AssetManagerController(_load_solver_account(ctx), load_config(ctx))
+    ctrl = AssetManagerController(load_config(ctx))
     if ctrl.pid == 0:
         raise Exception('Asset Manager not running')
     ctrl.stop()
@@ -1186,7 +1181,7 @@ def _assetmgr_status(ctx) -> Tuple[bool, str]:
     for key in ['endpoint_url', 'keyfile', 'operator.address']:
         if not OmegaConf.select(config.workspace, key):
             return False, 'not configured'
-    ctrl = AssetManagerController(_load_solver_account(ctx), config)
+    ctrl = AssetManagerController(config)
     if ctrl.pid == 0:
         return False, 'not running.'
     return True, f'running on pid {ctrl.pid}, listening {ctrl.listen_address}:{ctrl.listen_port}.'
