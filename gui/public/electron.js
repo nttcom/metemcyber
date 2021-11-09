@@ -61,9 +61,6 @@ async function createWindow() {
   if (!store.get('TRANSACTION_API_URL', false)) {
     store.set('TRANSACTION_API_URL', '')
   }
-
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools()
 }
 
 // This method will be called when Electron has finished
