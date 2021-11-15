@@ -1672,13 +1672,8 @@ def ix_catalog_enable(ctx: typer.Context, catalog: str):
 
 
 @ix_catalog_app.command('disable', help="Deactivate the CTI catalog on the list.")
-def ix_catalog_desable(ctx: typer.Context, catalog: str):
+def ix_catalog_disable(ctx: typer.Context, catalog: str):
     _catalog_ctrl('deactivate', ctx, catalog)
-
-
-@app.command()
-def misp():
-    typer.echo(f"misp")
 
 
 @misp_app.command("open", help="Go to your MISP instance.")
