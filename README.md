@@ -20,7 +20,7 @@
 | ---- | ---- |
 | CTICatalog | 0xBcb4b84cdaB65C6e6Efe1697CC41a46D0AEaCA61 |
 | CTIBroker | 0xC1814B834E1be7DeE7611fD5F747535369B8683e |
-| CTIOperator | 0x35b3fbeABB802E9477b17a63073ABe874A386E25 |
+| CTIOperator | 0xd9CfB9276376C613e2f9A1691Ac694293b8c7ce8 |
 | metemcyber_util</br>(placeholder) | 0x0e5EECFF51a3ab2221fF6bBd240B20E8933ff28A</br>\_\_$47ceb01e1c551398bb2e8f2c8232f40551$\_\_ |
 
 ## 💡 Overview
@@ -261,4 +261,3 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
-
