@@ -8,7 +8,7 @@ catalog:
 broker:
   address: '0xC1814B834E1be7DeE7611fD5F747535369B8683e'
 operator:
-  address: '0x35b3fbeABB802E9477b17a63073ABe874A386E25'
+  address: '0xd9CfB9276376C613e2f9A1691Ac694293b8c7ce8'
 metemcyber_util:
   address: '0x0e5EECFF51a3ab2221fF6bBd240B20E8933ff28A'
   placeholder: __$47ceb01e1c551398bb2e8f2c8232f40551$__
