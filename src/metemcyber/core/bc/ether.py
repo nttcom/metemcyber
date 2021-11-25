@@ -21,10 +21,10 @@ from web3.exceptions import ExtraDataLengthError
 from web3.middleware import construct_sign_and_send_raw_middleware, geth_poa_middleware
 from web3.providers.rpc import HTTPProvider
 
+request_lock = Lock()
+
 
 def serialize_middleware(make_request, _w3):
-    request_lock = Lock()
-
     def middleware(method, params):
         with request_lock:
             return make_request(method, params)
