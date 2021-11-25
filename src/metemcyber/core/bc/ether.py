@@ -14,10 +14,21 @@
 #    limitations under the License.
 #
 
+from threading import Lock
+
 from web3 import Web3
 from web3.exceptions import ExtraDataLengthError
 from web3.middleware import construct_sign_and_send_raw_middleware, geth_poa_middleware
 from web3.providers.rpc import HTTPProvider
+
+
+def serialize_middleware(make_request, _w3):
+    request_lock = Lock()
+
+    def middleware(method, params):
+        with request_lock:
+            return make_request(method, params)
+    return middleware
 
 
 class Ether:
@@ -27,6 +38,8 @@ class Ether:
             self.web3 = Web3(HTTPProvider(endpoint))
         elif scheme in {'ws', 'wss'}:
             self.web3 = Web3(Web3.WebsocketProvider(endpoint))
+            # WORKAROUND: WebsocketProvider does not support parallel request.
+            self.web3.middleware_onion.add(serialize_middleware)
         else:
             raise Exception(f'Not supported scheme: {endpoint}')
         if self.web3.isConnected():
