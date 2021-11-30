@@ -2263,7 +2263,29 @@ def workspace_copy(ctx: typer.Context, src: str, dst: str):
 
 @app.command(help="Start an interactive intelligence cycle.")
 def console():
-    typer.echo(f"console")
+    malicious_char = re.compile(r'[^ "\'\-A-Z0-9a-z]')
+    non_alphanumeral = re.compile(r'[^A-Z0-9a-z]')
+    while True:
+        try:
+            command = input('metemctl> ').strip()
+            start_check = re.sub(non_alphanumeral, '', command)
+            if start_check.startswith('exit') or start_check.startswith('quit'):
+                break
+            if start_check.startswith('console'):
+                typer.echo('console command is disabled to avoid nesting.')
+                continue
+            if command == '':
+                continue
+            if re.search(malicious_char, command):
+                typer.echo('invalid command.')
+                continue
+            subprocess.run('metemctl ' + command,
+                           shell=True, check=True, text=True)
+        except CalledProcessError:
+            continue
+        except (EOFError, KeyboardInterrupt):  # Ctrl + (D|C)
+            break
+    typer.echo('bye')
 
 
 @app.command(help="Show practical security services.")
