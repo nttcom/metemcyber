@@ -2078,7 +2078,7 @@ def discontinue(
     typer.echo(f'unregistered token({flx_token.address}) from catalog({catalog.address}).')
     if _solver_is_ready(ctx):
         solver_obsolete(ctx, flx_token.address)
-        # TODO shoud call solver_remove?
+        # TODO should call solver_remove?
 
 
 @account_app.command("show", help="Show the current account information.")
