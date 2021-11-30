@@ -23,6 +23,7 @@ import ipaddress
 import json
 import os
 import pickle
+import re
 import shutil
 import subprocess
 import urllib.request
