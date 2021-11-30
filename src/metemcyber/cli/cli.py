@@ -1789,7 +1789,7 @@ def misp_pull(
     distribution: Optional[List[str]] = typer.Option(
         None,
         help='Distribution level(s) (0,1,2,3).'),
-    org: Optional[List[Union[str]]] = typer.Option(
+    org: Optional[List[str]] = typer.Option(
         None,
         help='Search by the creator organization by supplying the organization identifier.')
 ):
