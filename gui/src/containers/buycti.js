@@ -101,11 +101,11 @@ function BuyCti(props) {
                                                         </List>
                                                         <TopList type="inline">
                                                             <ListInlineLabel>Addr</ListInlineLabel>
-                                                            <ListInlineItem>{val.addr.length > 50 && split === "6" ? `${val.addr.slice(50)}...` : val.addr}</ListInlineItem>
+                                                            <ListInlineLongItem>{val.addr.length > 50 && split === "6" ? `${val.addr.slice(50)}...` : val.addr}</ListInlineLongItem>
                                                         </TopList>
                                                         <List type="inline">
                                                             <ListInlineLabel>UUID</ListInlineLabel>
-                                                            <ListInlineItem>{val.uuid.length > 50 && split === "6" ? `${val.uuid.slice(50)}...` : val.uuid}</ListInlineItem>
+                                                            <ListInlineLongItem>{val.uuid.length > 50 && split === "6" ? `${val.uuid.slice(50)}...` : val.uuid}</ListInlineLongItem>
                                                         </List>
                                                         <div>
                                                             {val.quantity !== '' && `You have ${val.quantity}`}
@@ -157,6 +157,10 @@ export const TopList = styled(List)`
 
 export const ListInlineLabel = styled(ListInlineItem)`
     font-weight: bold;
+`;
+
+export const ListInlineLongItem = styled(ListInlineItem)`
+    word-break: break-all;
 `;
 
 export const PriceListInlineLabel = styled(ListInlineLabel)`

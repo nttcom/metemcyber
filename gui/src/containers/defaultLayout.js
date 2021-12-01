@@ -167,56 +167,52 @@ function DefaultLayout(props) {
                     <div style={{ textAlign: "center" }}>Getting information</div>
                 </LoadingContents>
                 :
-                <Container fluid style={{ paddingLeft: "0px" }}>
-                    <Row>
-                        <ColSideNav xs="2">
-                            <SideNav vertical>
-                                <SideNavTitle className="text-white">
-                                    Metemcyber
-                                </SideNavTitle>
-                                <SideNavStatus>
-                                    <p className="title">Seeker:</p><Badge color={seekerStatus ? "success" : "danger"}>{seekerStatus ? "Running" : "Stop"}</Badge>
-                                </SideNavStatus>
-                                <SideNavSubTitle className="text-white">
-                                    User
-                                </SideNavSubTitle>
-                                <SideNavItem>
-                                    <NavLink onClick={handleNav} id="/contents/account"><i className="fas fa-user"></i> Account</NavLink>
-                                </SideNavItem>
-                                <SideNavSubTitle className="text-white">
-                                    Contents
-                                </SideNavSubTitle>
-                                <SideNavItem>
-                                    <NavLink onClick={handleNav} id="/contents/buy"><i className="fas fa-ticket-alt"></i> Buy tokens</NavLink>
-                                </SideNavItem>
-                                <SideNavItem>
-                                    <NavLink onClick={handleNav} id="/contents/challange/execution"><i className="fas fa-play-circle"></i> Run challange</NavLink>
-                                </SideNavItem>
-                                <SideNavItem>
-                                    <NavLink onClick={handleNav} id="/contents/challange/cancel"><i className="fas fa-stop-circle"></i> Cancel challange</NavLink>
-                                </SideNavItem>
-                                <LogoutNav>
-                                    <NavLink onClick={handleLogout}><i className="fas fa-sign-out-alt"></i> Log out</NavLink>
-                                </LogoutNav>
-                            </SideNav>
-                        </ColSideNav>
-                        <ColNoGutter>
-                            <Row>
-                                <Col xs="12">
-                                    <MainContent>
-                                        <Switch>
-                                            <Route path="/contents/account" name="account" render={() => <Account {...props} content={accountInfo} />} />
-                                            <Route path="/contents/buy" name="token-buy" render={() => <Buy {...props} content={tokenList} refreshInfo={refreshInfo} />} />
-                                            <Route path="/contents/challange/execution" name="challange-execution" render={() => <ChallangeExecution {...props} accountInfo={accountInfo} tokenList={tokenList} setChallangeResult={setChallangeResult} setToastOpen={setToastOpen} refreshInfo={refreshInfo} />} />
-                                            <Route path="/contents/challange/cancel" name="challange-cancel" render={() => <ChallangeCancel {...props} content={challangeList} refreshInfo={refreshInfo} />} />
-                                            <Route path="/contents" name="account" render={() => <Account {...props} content={accountInfo} />} />
-                                        </Switch>
-                                    </MainContent>
-                                </Col>
-                            </Row>
-                        </ColNoGutter>
-                    </Row>
-                </Container>
+                <div>
+                    <SideNav vertical>
+                        <SideNavTitle className="text-white">
+                            Metemcyber
+                        </SideNavTitle>
+                        <SideNavStatus>
+                            <p className="title">Seeker:</p><Badge color={seekerStatus ? "success" : "danger"}>{seekerStatus ? "Running" : "Stop"}</Badge>
+                        </SideNavStatus>
+                        <SideNavSubTitle className="text-white">
+                            User
+                        </SideNavSubTitle>
+                        <SideNavItem>
+                            <NavLink onClick={handleNav} id="/contents/account"><i className="fas fa-user"></i> Account</NavLink>
+                        </SideNavItem>
+                        <SideNavSubTitle className="text-white">
+                            Contents
+                        </SideNavSubTitle>
+                        <SideNavItem>
+                            <NavLink onClick={handleNav} id="/contents/buy"><i className="fas fa-ticket-alt"></i> Buy tokens</NavLink>
+                        </SideNavItem>
+                        <SideNavItem>
+                            <NavLink onClick={handleNav} id="/contents/challange/execution"><i className="fas fa-play-circle"></i> Run challange</NavLink>
+                        </SideNavItem>
+                        <SideNavItem>
+                            <NavLink onClick={handleNav} id="/contents/challange/cancel"><i className="fas fa-stop-circle"></i> Cancel challange</NavLink>
+                        </SideNavItem>
+                        <LogoutNav>
+                            <NavLink onClick={handleLogout}><i className="fas fa-sign-out-alt"></i> Log out</NavLink>
+                        </LogoutNav>
+                    </SideNav>
+                    <MainContainer fluid >
+                        <Row>
+                            <ColNoGutter xs="12">
+                                <MainContent>
+                                    <Switch>
+                                        <Route path="/contents/account" name="account" render={() => <Account {...props} content={accountInfo} />} />
+                                        <Route path="/contents/buy" name="token-buy" render={() => <Buy {...props} content={tokenList} refreshInfo={refreshInfo} />} />
+                                        <Route path="/contents/challange/execution" name="challange-execution" render={() => <ChallangeExecution {...props} accountInfo={accountInfo} tokenList={tokenList} setChallangeResult={setChallangeResult} setToastOpen={setToastOpen} refreshInfo={refreshInfo} />} />
+                                        <Route path="/contents/challange/cancel" name="challange-cancel" render={() => <ChallangeCancel {...props} content={challangeList} refreshInfo={refreshInfo} />} />
+                                        <Route path="/contents" name="account" render={() => <Account {...props} content={accountInfo} />} />
+                                    </Switch>
+                                </MainContent>
+                            </ColNoGutter>
+                        </Row>
+                    </MainContainer>
+                </div>
             }
             <Toast
                 style={{
@@ -260,14 +256,15 @@ export default DefaultLayout;
 export const SideNav = styled(Nav)`
     border-right: 1px solid #999999;
     height: 100vh;
-    position: sticky;
+    position: fixed;
     top: 0;
     background-color: #5f9ea0;
+    width: 220px;
 `;
 
-export const ColSideNav = styled(Col)`
-    padding-right: 0px;
-    min-width: 220px;
+export const MainContainer = styled(Container)`
+    margin-left: 220px;
+    padding-right: 235px;
 `;
 
 export const ColNoGutter = styled(Col)`
