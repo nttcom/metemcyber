@@ -38,20 +38,20 @@ class CatalogManager():
 
     def remove(self, addresses: List[ChecksumAddress]) -> None:
         for address in addresses:
-            if address not in self.catalogs.keys():
+            if address not in self.catalogs:
                 raise Exception(f'No such catalog: {address}')
             del self.catalogs[address]
             self.actives.discard(address)
 
     def activate(self, addresses: List[ChecksumAddress]) -> None:
         for address in addresses:
-            if address not in self.catalogs.keys():
+            if address not in self.catalogs:
                 raise Exception(f'No such catalog: {address}')
             self.actives.add(address)
 
     def deactivate(self, addresses: List[ChecksumAddress]) -> None:
         for address in addresses:
-            if address not in self.catalogs.keys():
+            if address not in self.catalogs:
                 raise Exception(f'No such catalog: {address}')
             self.actives.discard(address)
 

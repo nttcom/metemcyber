@@ -52,12 +52,12 @@ class Broker():
             Broker.amounts = {}
             return
         assert self.address
-        if self.address not in Broker.amounts.keys():
+        if self.address not in Broker.amounts:
             return
         if catalog is None:
             Broker.amounts.pop(self.address, None)
             return
-        if catalog not in Broker.amounts[self.address].keys():
+        if catalog not in Broker.amounts[self.address]:
             return
         if token is None:
             Broker.amounts[self.address].pop(catalog, None)
@@ -66,10 +66,10 @@ class Broker():
 
     def _fill_amounts(self, catalog: ChecksumAddress) -> None:
         assert self.address
-        if self.address not in Broker.amounts.keys():
+        if self.address not in Broker.amounts:
             Broker.amounts[self.address] = {}
         bmap: dict = Broker.amounts[self.address]
-        if catalog not in bmap.keys():
+        if catalog not in bmap:
             bmap[catalog] = {}
         cmap: dict = bmap[catalog]
         queries = list(Catalog(self.account).get(catalog).tokens.keys() - cmap.keys())

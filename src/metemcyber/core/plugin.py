@@ -72,7 +72,7 @@ class PluginManager():
         self.set_solverclass(ADDRESS0, plugin_filename)
 
     def set_solverclass(self, operator_address: ChecksumAddress, plugin_filename: str) -> None:
-        if plugin_filename not in self._modules.keys():
+        if plugin_filename not in self._modules:
             raise Exception('No such plugin loaded: ' + plugin_filename)
         mod = self._modules[plugin_filename]
         if not hasattr(self._modules[plugin_filename], SOLVER_CLASSNAME):

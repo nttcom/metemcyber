@@ -68,9 +68,9 @@ class Token():
 
     def balance_of(self, target: ChecksumAddress) -> int:
         assert self.address
-        if self.address not in Token.tokens_map.keys():
+        if self.address not in Token.tokens_map:
             Token.tokens_map[self.address] = {}
-        if target not in Token.tokens_map[self.address].keys():
+        if target not in Token.tokens_map[self.address]:
             cti_token = CTIToken(self.account).get(self.address)
             balance = cti_token.balance_of(target)
             Token.tokens_map[self.address][target] = balance
