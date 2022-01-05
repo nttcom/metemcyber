@@ -178,7 +178,7 @@ contract("CTIToken", (accounts) => {
   });
 
   it("remove voted candidate by owner", async() => {
-    editableToken.removeCandidates([2], {from: owner});
+    await editableToken.removeCandidates([2], {from: owner});
     eList = await editableToken.listCandidates({from: owner});
     // console.log(eList);
     assert.equal(eList.length, 1)

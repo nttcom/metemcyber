@@ -40,7 +40,7 @@ contract("AddressGroup", async accounts => {
   });
 
   it("authorize guest", async () => {
-    addressgroup.add(guest);
+    await addressgroup.add(guest);
     assert.equal(true, await addressgroup.isMember(guest));
   });
 
@@ -49,18 +49,18 @@ contract("AddressGroup", async accounts => {
   });
 
   it("filling sparse", async () => {
-    addressgroup.add(accounts[2]);
-    addressgroup.add(accounts[3]);
-    addressgroup.remove(accounts[2]);  // sparse made
+    await addressgroup.add(accounts[2]);
+    await addressgroup.add(accounts[3]);
+    await addressgroup.remove(accounts[2]);  // sparse made
     // console.log(await addressgroup.listMembers());
-    addressgroup.add(accounts[4]);  // sparse may be filled
+    await addressgroup.add(accounts[4]);  // sparse may be filled
     members = await addressgroup.listMembers();
     // console.log(members);
     assert.equal(4, members.length);
   });
 
   it("revoke guest", async () => {
-    addressgroup.remove(guest);
+    await addressgroup.remove(guest);
     assert.equal(false, await addressgroup.isMember(guest));
   });
 
@@ -69,7 +69,7 @@ contract("AddressGroup", async accounts => {
   });
 
   it("clear", async () => {
-    addressgroup.clear();
+    await addressgroup.clear();
     assert.equal(true, await addressgroup.isMember(owner));  // owner is still a member
     members = await addressgroup.listMembers();
     // console.log(members);
