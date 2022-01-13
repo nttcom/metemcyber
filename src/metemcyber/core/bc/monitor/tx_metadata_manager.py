@@ -81,7 +81,7 @@ class CTIToken(Contract):
             elif func == 'addCandidates':
                 self.meta['candidates'] = self.meta.get('candidates') or {}
                 for desc in tx0['input']['new_candidates']:
-                    index = len(self.meta['candidates'].keys())
+                    index = len(self.meta['candidates'])
                     self.meta['candidates'][index] = {
                         'index': index,
                         'score': 0,
@@ -135,7 +135,7 @@ class CTIOperator(Contract):
     def update(self, tx0):
         cname, func = tx0['function'].split('.', 1)
         assert self.name == cname
-        if func == 'history' and 'seeker' in tx0['input'].keys():
+        if func == 'history' and 'seeker' in tx0['input']:
             self.version = max(self.version, 1)
 
 
@@ -192,7 +192,7 @@ class MetadataManager:
 
     @staticmethod
     def get(address: ChecksumAddress) -> dict:
-        if address not in CONTRACTS.keys():
+        if address not in CONTRACTS:
             return {}
         return CONTRACTS[address].to_dict()
 

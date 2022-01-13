@@ -143,9 +143,10 @@ class TransactionDB:
                 retry -= 1
         if retry <= 0:
             raise Exception('Cannot get latest')
-        if index is None:
-            return shelf.get(str(block), [])  # all tx in block
-        return shelf.get(str(block))[index:index + 1]  # indexed tx only
+        tmp: List = shelf.get(str(block), [])
+        return ([] if not tmp else  # no tx
+                tmp if index is None else  # all tx in block
+                tmp[index:index + 1])  # specified tx only
 
     def store(self, *args, **kwargs):
         self._shelf_wrapper(False, self._store, *args, **kwargs)
